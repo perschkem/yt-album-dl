@@ -160,7 +160,8 @@ def _mb(value: float | None) -> str:
 
 
 def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> Path:
-    """Lädt einen Titel herunter, konvertiert zu MP3, schreibt Tags und verschiebt ihn in den Zielordner."""
+    """Lädt einen Titel herunter, konvertiert zu MP3/M4A, schreibt Tags und verschiebt ihn in den Zielordner."""
+    fmt = cfg.audio_format
     report = progress or (lambda status, pct, detail="": None)
 
     def on_download(d: dict) -> None:
@@ -179,12 +180,15 @@ def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) 
         opts = {
             **_base_opts(),
             "ignoreerrors": False,
-            "format": "bestaudio/best",
+            # für M4A gleich die AAC-Spur nehmen – dann wird nur umverpackt, nicht neu kodiert
+            "format": "bestaudio[ext=m4a]/bestaudio/best" if fmt == "m4a" else "bestaudio/best",
             "outtmpl": str(tmp_dir / "%(id)s.%(ext)s"),
             "writethumbnail": True,
+            "concurrent_fragment_downloads": 4,
+            "retry_sleep_functions": {"http": lambda n: min(30, 2 ** n), "fragment": lambda n: min(30, 2 ** n)},
             "progress_hooks": [on_download],
             "postprocessors": [
-                {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": str(cfg.bitrate)}
+                {"key": "FFmpegExtractAudio", "preferredcodec": fmt, "preferredquality": str(cfg.bitrate)}
             ],
         }
         if cfg.ffmpeg_location:
@@ -194,15 +198,15 @@ def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) 
         with YoutubeDL(opts) as ydl:
             ydl.download([item.url or item.id])
 
-        mp3s = list(tmp_dir.glob("*.mp3"))
+        mp3s = list(tmp_dir.glob(f"*.{fmt}"))
         if not mp3s:
-            raise RuntimeError("Konvertierung zu MP3 fehlgeschlagen (ist ffmpeg installiert?)")
+            raise RuntimeError(f"Konvertierung zu {fmt.upper()} fehlgeschlagen (ist ffmpeg installiert?)")
         thumbs = [p for p in tmp_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
 
         report("taggt", 95.0)
         write_tags(mp3s[0], item, thumbs[0] if thumbs else None)
 
-        target = place(mp3s[0], item, cfg)
+        target = place(mp3s[0], item, cfg, f".{fmt}")
 
     Archive(cfg.data_dir, item.mode).add(item.id)
     report("fertig", 100.0)

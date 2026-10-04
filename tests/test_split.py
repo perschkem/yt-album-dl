@@ -72,3 +72,30 @@ def test_audio_file_ignores_thumbnail(tmp_path):
         (tmp_path / name).write_bytes(b"x")
     assert _audio_file(tmp_path).name == "audio.m4a"
     assert _thumbnail_file(tmp_path).suffix in {".jpg", ".webp"}
+
+
+def test_cut_and_tag_m4a(tmp_path):
+    import shutil
+    import subprocess
+
+    import pytest
+    from mutagen.mp4 import MP4
+
+    from ytdl.metadata import MUSIK, Item
+    from ytdl.split import cut
+    from ytdl.tagger import write_tags
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg fehlt")
+    source = tmp_path / "audio.m4a"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
+                    "-c:a", "aac", str(source)], check=True)
+    target = tmp_path / "track.m4a"
+    cut(source, 1.0, 4.0, target, 320)
+    item = Item(id="1", url="https://x", mode=MUSIK, title="T", artist="A", album="Al", album_artist="Various Artists",
+                track_no=2, track_total=9, year="2001")
+    write_tags(target, item)
+    audio = MP4(target)
+    assert 2.8 < audio.info.length < 3.2
+    assert audio.tags["\xa9nam"] == ["T"] and audio.tags["aART"] == ["Various Artists"]
+    assert audio.tags["trkn"] == [(2, 9)] and audio.tags["cpil"] is True

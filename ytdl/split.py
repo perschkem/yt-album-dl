@@ -206,9 +206,15 @@ def peaks(env: np.ndarray, points: int = 1500) -> list[float]:
 
 
 def cut(source: Path, start: float, end: float | None, target: Path, bitrate: int) -> None:
-    """Schneidet einen Abschnitt heraus und kodiert ihn als MP3 (ohne Metadaten der Quelle)."""
+    """Schneidet einen Abschnitt heraus (ohne Metadaten der Quelle).
+
+    Ziel .mp3 → MP3 mit `bitrate`; Ziel .m4a → aus M4A-Quelle ohne Neukodierung, sonst AAC 256 kbit/s."""
     cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.2f}"]
     if end:
         cmd += ["-to", f"{end:.2f}"]
-    cmd += ["-i", str(source), "-vn", "-map_metadata", "-1", "-c:a", "libmp3lame", "-b:a", f"{bitrate}k", str(target)]
+    if target.suffix.lower() == ".m4a":
+        codec = ["-c:a", "copy"] if source.suffix.lower() in (".m4a", ".mp4") else ["-c:a", "aac", "-b:a", "256k"]
+    else:
+        codec = ["-c:a", "libmp3lame", "-b:a", f"{bitrate}k"]
+    cmd += ["-i", str(source), "-vn", "-map_metadata", "-1", *codec, str(target)]
     subprocess.run(cmd, check=True, capture_output=True)

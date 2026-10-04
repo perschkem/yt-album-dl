@@ -1,4 +1,4 @@
-"""ID3-Tags und Cover in MP3-Dateien schreiben."""
+"""Tags und Cover schreiben: ID3 für MP3, MP4-Atome für M4A."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import io
 from pathlib import Path
 
 from mutagen.id3 import APIC, COMM, ID3, TALB, TCMP, TCON, TDRC, TIT2, TPE1, TPE2, TRCK, WOAS
+from mutagen.mp4 import MP4, MP4Cover
 from PIL import Image
 
 from .metadata import MUSIK, Item
@@ -29,7 +30,48 @@ def square_cover(image_path: Path) -> bytes:
         return buffer.getvalue()
 
 
-def write_tags(mp3: Path, item: Item, cover: Path | None = None) -> None:
+def _date(item: Item) -> str:
+    return item.date if item.mode != MUSIK and item.date else item.year
+
+
+def _comment(item: Item) -> str:
+    return item.description if item.mode != MUSIK and item.description else item.url
+
+
+def write_tags(path: Path, item: Item, cover: Path | None = None) -> None:
+    if path.suffix.lower() == ".m4a":
+        _write_mp4(path, item, cover)
+    else:
+        _write_id3(path, item, cover)
+
+
+def _write_mp4(path: Path, item: Item, cover: Path | None) -> None:
+    audio = MP4(path)
+    if audio.tags is None:
+        audio.add_tags()
+    tags = audio.tags
+    tags.clear()
+    tags["\xa9nam"] = [item.title]
+    tags["\xa9ART"] = [item.artist]
+    tags["aART"] = [item.album_artist or item.artist]
+    if item.album:
+        tags["\xa9alb"] = [item.album]
+    if item.album_artist == VARIOUS_ARTISTS:
+        tags["cpil"] = True
+    if item.track_no:
+        tags["trkn"] = [(item.track_no, item.track_total or 0)]
+    if date := _date(item):
+        tags["\xa9day"] = [date]
+    if item.genre:
+        tags["\xa9gen"] = [item.genre]
+    if comment := _comment(item):
+        tags["\xa9cmt"] = [comment]
+    if cover and cover.exists():
+        tags["covr"] = [MP4Cover(square_cover(cover), imageformat=MP4Cover.FORMAT_JPEG)]
+    audio.save()
+
+
+def _write_id3(mp3: Path, item: Item, cover: Path | None) -> None:
     tags = ID3()
     tags.add(TIT2(encoding=3, text=item.title))
     tags.add(TPE1(encoding=3, text=item.artist))
@@ -41,15 +83,13 @@ def write_tags(mp3: Path, item: Item, cover: Path | None = None) -> None:
     if item.track_no:
         track = f"{item.track_no}/{item.track_total}" if item.track_total else str(item.track_no)
         tags.add(TRCK(encoding=3, text=track))
-    date = item.date if item.mode != MUSIK and item.date else item.year
-    if date:
+    if date := _date(item):
         tags.add(TDRC(encoding=3, text=date))
     if item.genre:
         tags.add(TCON(encoding=3, text=item.genre))
     if item.url:
         tags.add(WOAS(url=item.url))
-    comment = item.description if item.mode != MUSIK and item.description else item.url
-    if comment:
+    if comment := _comment(item):
         tags.add(COMM(encoding=3, lang="deu", desc="", text=comment))
     if cover and cover.exists():
         tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=square_cover(cover)))

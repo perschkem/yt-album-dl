@@ -410,11 +410,11 @@ def cut_track(item: Item, cfg: Config, progress: ProgressCallback) -> Path:
     thumb = _thumbnail_file(folder)
     progress("schneidet", 10.0)
     with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
-        mp3 = Path(tmp) / "track.mp3"
-        cut(audio, item.start or 0.0, item.end, mp3, cfg.bitrate)
+        out = Path(tmp) / f"track.{cfg.audio_format}"
+        cut(audio, item.start or 0.0, item.end, out, cfg.bitrate)
         progress("taggt", 90.0)
-        write_tags(mp3, item, thumb)
-        target = place(mp3, item, cfg)
+        write_tags(out, item, thumb)
+        target = place(out, item, cfg, f".{cfg.audio_format}")
     Archive(cfg.data_dir, MUSIK).add(item.source_id)
     progress("fertig", 100.0)
     return target

@@ -23,6 +23,10 @@ in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, n
   Kommentaren oder Pausenerkennung, mit Editor zur Kontrolle (Wellenform, Player, verschiebbare Grenzen)
 - ✏️ **Vorschau vor dem Download** – erkannte Interpreten/Titel/Alben direkt in der Tabelle korrigieren
 - 🧹 **Saubere Erkennung** – entfernt „(Official Video)“, „[HD]“, „(Lyrics)“ usw., vereinheitlicht „feat.“
+- ⚡ **Parallel** – mehrere Downloads und Schnitte gleichzeitig, optional M4A ohne Umkodieren
+- 🔄 **Robust** – automatische neue Versuche mit exponentiellem Backoff pro Titel, „Erneut versuchen“-Button
+- 📋 **Nachvollziehbar** – jeder Vorgang zeigt Schritt für Schritt, was gerade passiert und was gefunden wurde
+- 📂 **Im Ordner öffnen** – fertige Titel direkt im Windows-Explorer anzeigen
 - 🔁 **Keine Duplikate** – bereits geladene Titel werden erkannt, vorhandene Dateien nie überschrieben
 - 🪟 **WSL-freundlich** – Windows-Pfade wie `D:\Musik` funktionieren direkt
 
@@ -64,7 +68,13 @@ Dann im Browser **http://localhost:8000** öffnen (unter WSL auch im Windows-Bro
 1. URL einfügen (Einzelvideo oder Playlist), Modus **Musik** oder **Podcast / Audio** wählen, **Prüfen**
 2. Erkannte Metadaten kontrollieren und bei Bedarf in der Tabelle korrigieren. Bei Playlists lassen sich
    Album, Albuminterpret und Jahr für alle Titel auf einmal setzen (leeres Album → Ablage als Singles).
-3. **Herunterladen** – der Fortschritt wird pro Titel angezeigt.
+3. **Herunterladen** – der Fortschritt wird pro Titel angezeigt. Während Downloads laufen, kannst du
+   weitere URLs prüfen und hinzufügen.
+
+Schlägt ein Titel vorübergehend fehl (Verbindungsabbruch, YouTube-Drosselung), versucht das Programm es
+automatisch erneut: nach 2 s, 4 s, 8 s … (max. 2 Min.). Andere Titel laufen in der Zwischenzeit weiter.
+Nach „429 Too Many Requests“ lädt es für 2 Min. nur einen Titel gleichzeitig. Dauerhafte Fehler (privat,
+gelöscht, Altersgrenze) werden nicht wiederholt. Fehlgeschlagene Titel lassen sich per Button neu starten.
 
 Bei einer Video-URL mit `&list=…` (z.B. aus einem Mix) wird nur das Video geladen. Für eine ganze Playlist
 die Playlist-URL (`…/playlist?list=…`) verwenden.
@@ -89,6 +99,9 @@ Im Editor kontrollierst du das Ergebnis:
 - pro Titel **▶** (ab Start abspielen), **⇤ hier** (Start = aktuelle Position), **✕** (Grenze entfernen)
 - **Grenzen neu suchen:** Pausenerkennung mit fester Titelanzahl (hilft bei Überblendungen),
   Trackliste einfügen (mit Zeitstempeln oder nur Titel), Titeleinblendungen im Video scannen (langsamer)
+- **Interpret für alle übernehmen**; ändert man den Albuminterpreten, ziehen alle Titel mit dem alten
+  Interpreten mit. **Verschiedene Interpreten (Sampler)** legt das Album unter `Various Artists/` ab.
+- **„Wie wurden die Grenzen gefunden?“** zeigt das Protokoll der Analyse
 
 **„Schneiden & speichern“** legt die Titel als Album mit Tracknummern und Cover ab.
 
@@ -98,7 +111,11 @@ Im Editor kontrollierst du das Ergebnis:
 |-------------------|-----------------------------|--------------------------------------------|
 | `MUSIK_DIR`       | `D:\Musik`      | Zielordner Musik (Windows-Pfade erlaubt)   |
 | `PODCAST_DIR`     | `D:\Podcasts`   | Zielordner Podcasts/Audio                  |
+| `AUDIO_FORMAT`    | `mp3`                       | `mp3` oder `m4a` (ohne Umkodieren)         |
 | `BITRATE`         | `320`                       | MP3-Bitrate in kbit/s                      |
+| `PARALLEL_DOWNLOADS` | `3`                      | gleichzeitige Downloads                    |
+| `PARALLEL_CUTS`   | Anzahl CPU-Kerne            | gleichzeitige Schnitte beim Aufteilen      |
+| `MAX_RETRIES`     | `5`                         | neue Versuche bei vorübergehenden Fehlern  |
 | `HOST` / `PORT`   | `127.0.0.1` / `8000`        | Webserver                                  |
 | `FFMPEG_LOCATION` | –                           | Ordner mit ffmpeg, falls nicht im PATH     |
 | `DATA_DIR`        | `./data`                    | Download-Archiv und Zwischenspeicher       |
@@ -112,7 +129,9 @@ ytdl/
   metadata.py     Erkennung von Interpret/Titel/Album, Bereinigung
   paths.py        Windows-sichere Dateinamen, Zielpfade
   tagger.py       ID3-Tags und Cover (mutagen, Pillow)
-  jobs.py         Download-Warteschlange im Hintergrund
+  jobs.py         Warteschlange: parallele Worker, Backoff, Retry
+  activity.py     Hintergrund-Vorgänge mit Schrittprotokoll
+  explorer.py     „Im Ordner öffnen“ (Windows-Explorer / xdg-open)
   albumvideo.py   Album in einem Video: Analyse, Zwischenspeicher, Schnitt
   split.py        Tracklisten-Parser, Pausenerkennung, Schnitt per ffmpeg
   ocr.py          Text im Videobild lesen (RapidOCR)
