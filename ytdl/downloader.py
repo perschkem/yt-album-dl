@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import shutil
 import threading
+import time
+import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -50,6 +52,65 @@ class Archive:
                 fh.write(video_id + "\n")
 
 
+# ---------- YouTube-Anmeldung (Cookies) gegen die Bot-Prüfung ----------
+
+BROWSERS = ("firefox", "chrome", "chromium", "edge", "brave", "opera", "vivaldi", "safari", "whale")
+_BOT_CHECK = ("not a bot", "confirm you’re not", "confirm you're not", "confirm that you're not")
+_auth: dict = {"browser": "", "file": None, "sleep": 0, "tmp": None}
+COOKIE_COPY_MAX_AGE = 15 * 60  # Sekunden
+
+
+def configure_auth(cfg: Config) -> None:
+    """Cookie- und Pausen-Einstellungen übernehmen (beim Start und nach Änderung in den Einstellungen)."""
+    _auth.update(browser=cfg.cookies_from_browser, file=cfg.cookies_file, sleep=cfg.sleep_seconds,
+                 tmp=cfg.data_dir / "tmp")
+
+
+def is_bot_check(message: str) -> bool:
+    """YouTube-Meldung „Sign in to confirm you’re not a bot“ (nicht zu verwechseln mit der Altersprüfung)."""
+    lower = message.lower()
+    return any(p in lower for p in _BOT_CHECK)
+
+
+BOT_CHECK_HINT = ("YouTube verlangt eine Bestätigung, dass du kein Bot bist (zu viele Anfragen von deiner "
+                  "Internetverbindung). Abhilfe: unter ⚙ Einstellungen → „YouTube-Anmeldung“ Cookies hinterlegen "
+                  "oder es später erneut versuchen – die Sperre hebt sich meist nach einigen Stunden.")
+
+
+def friendly_error(message: str) -> str:
+    return BOT_CHECK_HINT if is_bot_check(message) else message
+
+
+def parse_browser_spec(spec: str) -> tuple:
+    """„firefox“ bzw. „firefox:/pfad/zum/profil“ (Windows-Pfade erlaubt) → Tupel für yt-dlp."""
+    browser, _, profile = spec.strip().partition(":")
+    browser = browser.strip().lower()
+    if browser not in BROWSERS:
+        raise ValueError(f"Unbekannter Browser: {browser!r} (möglich: {', '.join(BROWSERS)})")
+    if profile.strip():
+        from .config import to_local_path
+        return (browser, str(to_local_path(profile.strip())), None, None)
+    return (browser, None, None, None)
+
+
+def _cookie_opts() -> dict:
+    if _auth["file"]:
+        # yt-dlp schreibt die Cookie-Datei am Ende zurück – bei parallelen Downloads würden sich die Schreibvorgänge
+        # in die Quere kommen. Deshalb bekommt jeder Lauf eine eigene, kurzlebige Kopie; das Original bleibt unverändert.
+        tmp: Path = _auth["tmp"]
+        tmp.mkdir(parents=True, exist_ok=True)
+        now = time.time()
+        for old in tmp.glob("cookies-*.txt"):
+            if now - old.stat().st_mtime > COOKIE_COPY_MAX_AGE:
+                old.unlink(missing_ok=True)
+        copy = tmp / f"cookies-{uuid.uuid4().hex}.txt"
+        shutil.copyfile(_auth["file"], copy)
+        return {"cookiefile": str(copy)}
+    if _auth["browser"]:
+        return {"cookiesfrombrowser": parse_browser_spec(_auth["browser"])}
+    return {}
+
+
 def _base_opts() -> dict:
     opts = {
         "quiet": True,
@@ -63,6 +124,7 @@ def _base_opts() -> dict:
     # yt-dlp braucht für YouTube eine JavaScript-Umgebung; standardmäßig sucht es nur deno
     if shutil.which("deno") is None and (node := shutil.which("node")):
         opts["js_runtimes"] = {"node": {"path": node}}
+    opts.update(_cookie_opts())
     return opts
 
 
@@ -241,6 +303,8 @@ def fetch(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> 
         "retry_sleep_functions": {"http": lambda n: min(30, 2 ** n), "fragment": lambda n: min(30, 2 ** n)},
         "progress_hooks": [on_download],
     }
+    if _auth["sleep"]:  # Pause vor dem Download (zufällig n…2n s), um YouTube nicht zu viele Anfragen zu schicken
+        opts.update(sleep_interval=_auth["sleep"], max_sleep_interval=_auth["sleep"] * 2)
     report("lädt", 0.0)
     try:
         with YoutubeDL(opts) as ydl:

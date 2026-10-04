@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .albumvideo import cut_track
 from .config import Config
-from .downloader import Skipped, audio_format, convert, fetch
+from .downloader import BOT_CHECK_HINT, Skipped, audio_format, convert, fetch, is_bot_check
 from .history import FAILED, FINISHED as DONE, OVERWRITTEN, SKIPPED, History
 from .metadata import Item
 from .paths import to_windows_path
@@ -23,6 +23,8 @@ BACKOFF_BASE = 2.0  # Sekunden vor dem 1. neuen Versuch
 BACKOFF_MAX = 120.0
 BACKOFF_JITTER = 0.2  # ±20 %, damit parallele Worker nicht gleichzeitig erneut anfragen
 THROTTLE_SECONDS = 120.0  # nach HTTP 429 so lange nur ein Download gleichzeitig
+BOT_PAUSE_SECONDS = 15 * 60  # nach „Sign in to confirm you’re not a bot“ alle Downloads so lange anhalten
+MAX_BOT_PAUSES = 3  # danach gilt der Titel als fehlgeschlagen
 
 # Stufen eines Titels: Download = FETCH → CONVERT, Album-Schnitt = CUT
 FETCH = "fetch"
@@ -81,13 +83,14 @@ class Task:
     workdir: str = ""  # Ergebnis der FETCH-Stufe
     job_id: str = ""
     job_title: str = ""
+    bot_pauses: int = 0
 
     @property
     def pool(self) -> str:
         return POOL[self.stage]
 
     def to_dict(self, max_attempts: int) -> dict:
-        wait = max(0.0, self.next_try - time.time()) if self.status == "neuer Versuch" else 0.0
+        wait = max(0.0, self.next_try - time.time()) if self.status in ("neuer Versuch", "pausiert") else 0.0
         return {
             "id": self.item.id,
             "label": f"{self.item.artist} - {self.item.title}",
@@ -152,6 +155,7 @@ class JobManager:
         self._pending: list[Task] = []
         self._active = {NET: 0, CPU: 0}
         self._throttle_until = 0.0
+        self.paused_until = 0.0  # YouTube-Bot-Prüfung: Downloads (Netzwerk-Pool) ruhen bis dahin
         self._cond = threading.Condition()
         self._workers = 0
         self.ensure_workers()
@@ -208,6 +212,18 @@ class JobManager:
             self._cond.notify_all()
             return job.to_dict()
 
+    def resume(self) -> int:
+        """Pause wegen Bot-Prüfung aufheben (z.B. nachdem Cookies hinterlegt wurden) – pausierte Titel sofort neu starten."""
+        with self._cond:
+            self.paused_until = 0.0
+            count = 0
+            for task in self._pending:
+                if task.status == "pausiert":
+                    task.next_try, task.status, task.detail = 0.0, "wartet", ""
+                    count += 1
+            self._cond.notify_all()
+            return count
+
     def clear_finished(self) -> int:
         """Entfernt abgeschlossene Jobs aus der Liste (nur Anzeige – Dateien bleiben)."""
         with self._cond:
@@ -222,6 +238,8 @@ class JobManager:
     def _limit(self, pool: str, now: float) -> int:
         if pool == CPU:
             return self.cfg.parallel_cuts
+        if now < self.paused_until:
+            return 0
         return 1 if now < self._throttle_until else self.cfg.parallel_downloads
 
     def _take(self) -> Task:
@@ -235,6 +253,8 @@ class JobManager:
                         self._active[task.pool] += 1
                         return task
                 upcoming = [t.next_try for t in self._pending if t.next_try > now]
+                if self.paused_until > now:
+                    upcoming.append(self.paused_until)  # nach der Pause wieder aufwachen
                 self._cond.wait(timeout=min(upcoming) - now if upcoming else None)
 
     def _worker(self) -> None:
@@ -292,6 +312,21 @@ class JobManager:
 
     def _failed(self, task: Task, message: str) -> None:
         with self._cond:
+            if task.pool == NET and is_bot_check(message):
+                task.bot_pauses += 1
+                if task.bot_pauses >= MAX_BOT_PAUSES:
+                    task.status, task.error, task.detail = "fehler", BOT_CHECK_HINT, ""
+                    return
+                # Alle Downloads anhalten statt sofort weiter anzufragen – das würde die Sperre nur verlängern.
+                # Kein Versuch wird verbraucht; „Jetzt fortsetzen“ hebt die Pause auf.
+                self.paused_until = max(self.paused_until, time.time() + BOT_PAUSE_SECONDS)
+                task.next_try = self.paused_until
+                task.status, task.progress = "pausiert", STAGE_RANGE[task.stage][0]
+                until = time.strftime("%H:%M", time.localtime(self.paused_until))
+                task.detail = f"YouTube-Bot-Prüfung – Downloads pausieren bis {until}"
+                self._pending.append(task)
+                self._cond.notify_all()
+                return
             if task.pool == NET and is_throttled(message):
                 self._throttle_until = time.time() + THROTTLE_SECONDS
             if is_permanent(message) or task.attempt >= self.max_attempts:

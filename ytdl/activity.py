@@ -85,9 +85,10 @@ class NullActivity(Activity):
 
 
 class ActivityManager:
-    def __init__(self) -> None:
+    def __init__(self, format_error: Callable[[str], str] | None = None) -> None:
         self._items: dict[str, Activity] = {}
         self._lock = threading.Lock()
+        self._format_error = format_error or (lambda message: message)
 
     def start(self, kind: str, func: Callable[[Activity], dict]) -> Activity:
         activity = Activity(id=uuid.uuid4().hex[:10], kind=kind)
@@ -95,7 +96,7 @@ class ActivityManager:
             self._items[activity.id] = activity
             for old in sorted(self._items.values(), key=lambda a: a.created)[:-MAX_KEPT]:
                 del self._items[old.id]
-        threading.Thread(target=self._run, args=(activity, func), daemon=True).start()
+        threading.Thread(target=self._run, args=(activity, func, self._format_error), daemon=True).start()
         return activity
 
     def get(self, activity_id: str) -> Activity | None:
@@ -103,7 +104,7 @@ class ActivityManager:
             return self._items.get(activity_id)
 
     @staticmethod
-    def _run(activity: Activity, func: Callable[[Activity], dict]) -> None:
+    def _run(activity: Activity, func: Callable[[Activity], dict], format_error=lambda m: m) -> None:
         try:
             result = func(activity)
             for step in activity.steps:
@@ -111,7 +112,7 @@ class ActivityManager:
                     step.done()
             activity.result, activity.status = result, DONE
         except Exception as exc:
-            message = str(exc).removeprefix("ERROR: ").strip()
+            message = format_error(str(exc).removeprefix("ERROR: ").strip())
             running = next((s for s in reversed(activity.steps) if s.state == RUNNING), None)
             if running:
                 running.state, running.detail, running.progress, running.ended = FAILED, message, None, time.time()

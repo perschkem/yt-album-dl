@@ -222,6 +222,25 @@ z.B. `/home/anna/Musik`.
   cd yt-album-dl && git pull && uv lock --upgrade-package yt-dlp && uv sync
   ```
 
+### YouTube: „Sign in to confirm you’re not a bot“
+
+Bei vielen Downloads in kurzer Zeit verlangt YouTube manchmal eine Anmeldung. Die Sperre gilt für deine
+Internetverbindung und hebt sich meist nach einigen Stunden von selbst. yt-album-dl hält dann alle Downloads
+für 15 Minuten an (statt YouTube weiter anzufragen, was die Sperre verlängern würde) und zeigt einen Hinweis
+mit **„Jetzt fortsetzen“**.
+
+Abhilfe unter **⚙ Einstellungen → YouTube-Anmeldung**:
+
+- **cookies.txt** (empfohlen, auch unter WSL): Im Browser bei YouTube anmelden, mit einer Erweiterung wie
+  „Get cookies.txt LOCALLY“ die Cookies von youtube.com exportieren und den Pfad zur Datei eintragen.
+- **… oder aus Browser:** z.B. `firefox` (unter WSL mit Pfad zum Windows-Profil, z.B.
+  `firefox:C:\Users\anna\AppData\Roaming\Mozilla\Firefox\Profiles\abc123.default-release`).
+  Chrome und Edge unter Windows funktionieren aus WSL nicht, weil sie ihre Cookies verschlüsseln.
+- **Pause vor jedem Download** (z.B. 5–10 s) und weniger gleichzeitige Downloads senken das Risiko.
+
+Am besten ein **Zweitkonto** verwenden – YouTube kann Downloads sonst dem eigenen Konto zuordnen.
+Siehe auch die [yt-dlp-FAQ zu Cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp).
+
 ### Probleme?
 
 | Problem | Lösung |
@@ -232,6 +251,7 @@ z.B. `/home/anna/Musik`.
 | „Address already in use“ beim Start | Port belegt – in `.env` z.B. `PORT=8001` eintragen und dann http://localhost:8001 öffnen |
 | Hinweis „ffmpeg wurde nicht gefunden“ | Schritt „Benötigte Programme installieren“ wiederholen |
 | Downloads schlagen plötzlich fehl | Meist hat YouTube etwas geändert → siehe **Aktualisieren** oben |
+| „Sign in to confirm you’re not a bot“ | Siehe Abschnitt **YouTube: „Sign in to confirm you’re not a bot“** oben |
 | Unter Windows: Wo liegen die Dateien von Ubuntu? | Im Explorer links unter **Linux** → **Ubuntu** (oder `\\wsl$\Ubuntu` in die Adresszeile) |
 
 ## Benutzung
@@ -301,6 +321,9 @@ Im Editor kontrollierst du das Ergebnis:
 | `PARALLEL_DOWNLOADS` | `3`                      | gleichzeitige Downloads                    |
 | `PARALLEL_CUTS`   | Anzahl CPU-Kerne            | gleichzeitige ffmpeg-Arbeiten (Umwandeln, Schneiden) |
 | `MAX_RETRIES`     | `5`                         | neue Versuche bei vorübergehenden Fehlern  |
+| `SLEEP_SECONDS`   | `0`                         | Pause vor jedem Download (zufällig n…2n s) |
+| `COOKIES_FILE`    | –                           | cookies.txt für die YouTube-Anmeldung      |
+| `COOKIES_FROM_BROWSER` | –                      | z.B. `firefox` oder `firefox:<Profilpfad>` |
 | `HOST` / `PORT`   | `127.0.0.1` / `8000`        | Webserver                                  |
 | `FFMPEG_LOCATION` | –                           | Ordner mit ffmpeg, falls nicht im PATH     |
 | `DATA_DIR`        | `./data`                    | Download-Archiv und Zwischenspeicher       |

@@ -18,7 +18,7 @@ from . import albumvideo
 from .activity import ActivityManager
 from .config import MissingFolder, load_config, to_local_path, update_env_file
 from .covers import CoverError, check_cover, thumbnail_preview
-from .downloader import conflicts, ffmpeg_available, probe
+from .downloader import BROWSERS, configure_auth, conflicts, ffmpeg_available, friendly_error, parse_browser_spec, probe
 from .explorer import is_allowed, open_in_file_manager
 from .history import History
 from .jobs import JobManager
@@ -30,7 +30,8 @@ STATIC_DIR = Path(__file__).parent / "static"
 cfg = load_config()
 history = History(cfg.data_dir)
 manager = JobManager(cfg, history=history)
-activities = ActivityManager()
+activities = ActivityManager(format_error=friendly_error)
+configure_auth(cfg)
 app = FastAPI(title="yt-album-dl")
 
 
@@ -130,6 +131,9 @@ class SettingsRequest(BaseModel):
     parallel_downloads: int | None = None
     parallel_cuts: int | None = None
     max_retries: int | None = None
+    cookies_from_browser: str | None = None
+    cookies_file: str | None = None
+    sleep_seconds: int | None = None
 
 
 @app.get("/api/settings")
@@ -143,8 +147,27 @@ def get_settings() -> dict:
         "parallel_downloads": cfg.parallel_downloads,
         "parallel_cuts": cfg.parallel_cuts,
         "max_retries": cfg.max_retries,
+        "cookies_from_browser": cfg.cookies_from_browser,
+        "cookies_file": os.getenv("COOKIES_FILE", "").strip(),
+        "sleep_seconds": cfg.sleep_seconds,
         "bitrates": BITRATES,
+        "browsers": BROWSERS,
     }
+
+
+def _check_cookie_file(value: str) -> tuple[Path | None, str | None]:
+    if not value.strip():
+        return None, None
+    path = to_local_path(value)
+    if not path.is_file():
+        return None, "Datei nicht gefunden"
+    try:
+        head = path.read_text(encoding="utf-8", errors="replace")[:4000]
+    except OSError as exc:
+        return None, f"Datei nicht lesbar ({exc.strerror or exc})"
+    if "Netscape HTTP Cookie File" not in head and "\t" not in head:
+        return None, "Keine cookies.txt im Netscape-Format (z.B. mit der Erweiterung „Get cookies.txt LOCALLY“ exportieren)"
+    return path, None
 
 
 def _check_folder(value: str) -> tuple[Path | None, str | None]:
@@ -186,6 +209,26 @@ def put_settings(req: SettingsRequest) -> dict:
                 f"Erlaubt: {', '.join(map(str, allowed))}"
         else:
             env[key], changes[field] = str(value), value
+    if req.cookies_from_browser is not None:
+        spec = req.cookies_from_browser.strip()
+        try:
+            parsed = parse_browser_spec(spec) if spec else None
+            if parsed and parsed[1] and not Path(parsed[1]).exists():
+                raise ValueError("Profilordner nicht gefunden")
+            env["COOKIES_FROM_BROWSER"], changes["cookies_from_browser"] = spec, spec
+        except ValueError as exc:
+            errors["cookies_from_browser"] = str(exc)
+    if req.cookies_file is not None:
+        path, error = _check_cookie_file(req.cookies_file)
+        if error:
+            errors["cookies_file"] = error
+        else:
+            env["COOKIES_FILE"], changes["cookies_file"] = req.cookies_file.strip(), path
+    if req.sleep_seconds is not None:
+        if not 0 <= req.sleep_seconds <= 120:
+            errors["sleep_seconds"] = "Erlaubt: 0–120"
+        else:
+            env["SLEEP_SECONDS"], changes["sleep_seconds"] = str(req.sleep_seconds), req.sleep_seconds
     if req.audio_format is not None:
         if req.audio_format not in ("mp3", "m4a"):
             errors["audio_format"] = "mp3 oder m4a"
@@ -197,6 +240,7 @@ def put_settings(req: SettingsRequest) -> dict:
     for field, value in changes.items():  # sofort wirksam, ohne Neustart
         setattr(cfg, field, value)
     manager.ensure_workers()
+    configure_auth(cfg)
     return get_settings()
 
 
@@ -322,6 +366,12 @@ def open_path(req: OpenRequest) -> dict:
         return {"opened": open_in_file_manager(path)}
     except Exception as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/jobs/resume")
+def resume_jobs() -> dict:
+    """Pause wegen YouTube-Bot-Prüfung aufheben und pausierte Titel sofort neu versuchen."""
+    return {"resumed": manager.resume()}
 
 
 class RetryRequest(BaseModel):

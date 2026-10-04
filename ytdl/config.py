@@ -51,6 +51,12 @@ class Config:
     parallel_cuts: int = 4
     max_retries: int = 5
     audio_format: str = "mp3"  # mp3 | m4a
+    # YouTube-Anmeldung gegen die Bot-Prüfung: Browser (z.B. „firefox“ oder „firefox:/pfad/zum/profil“)
+    # oder exportierte cookies.txt – beides optional
+    cookies_from_browser: str = ""
+    cookies_file: Path | None = None
+    # Pause vor jedem Download in Sekunden (zufällig zwischen n und 2n) – schont das YouTube-Limit
+    sleep_seconds: int = 0
 
     def root(self, mode: str) -> Path:
         """Zielordner für einen Modus; Fehler mit Hinweis auf die Einstellungen, wenn keiner gesetzt ist."""
@@ -85,6 +91,9 @@ def load_config() -> Config:
         parallel_cuts=max(1, int(os.getenv("PARALLEL_CUTS", str(os.cpu_count() or 2)))),
         max_retries=max(0, int(os.getenv("MAX_RETRIES", "5"))),
         audio_format=_audio_format(os.getenv("AUDIO_FORMAT", "mp3")),
+        cookies_from_browser=os.getenv("COOKIES_FROM_BROWSER", "").strip(),
+        cookies_file=optional_path(os.getenv("COOKIES_FILE")),
+        sleep_seconds=max(0, int(os.getenv("SLEEP_SECONDS", "0") or 0)),
     )
 
 

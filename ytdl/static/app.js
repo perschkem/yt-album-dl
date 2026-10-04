@@ -165,6 +165,7 @@ async function openSettings() {
   const s = await api("/api/settings");
   const form = $("#settings-form");
   $("#set-bitrate").replaceChildren(...s.bitrates.map((b) => el("option", { value: b }, `${b} kbit/s`)));
+  $("#browser-list").replaceChildren(...s.browsers.map((b) => el("option", { value: b })));
   for (const [name, value] of Object.entries(s)) {
     if (form.elements[name]) form.elements[name].value = value;
   }
@@ -181,7 +182,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.target;
   const body = Object.fromEntries(new FormData(form));
-  for (const key of ["bitrate", "parallel_downloads", "parallel_cuts", "max_retries"]) body[key] = Number(body[key]);
+  for (const key of ["bitrate", "parallel_downloads", "parallel_cuts", "max_retries", "sleep_seconds"]) body[key] = Number(body[key]);
   form.querySelectorAll(".field-error").forEach((p) => (p.textContent = ""));
   $("#settings-save").disabled = true;
   try {
@@ -503,6 +504,7 @@ const retry = (jobId, taskId = null) => api(`/api/jobs/${jobId}/retry`, { task_i
 
 function taskStatus(t) {
   if (t.status === "neuer Versuch") return `neuer Versuch in ${t.retry_in} s`;
+  if (t.status === "pausiert") return `pausiert · noch ${Math.ceil(t.retry_in / 60)} min`;
   return t.status;
 }
 
@@ -557,6 +559,20 @@ function renderSummary(jobs) {
   } else {
     icon = "✓";
     text = ["Alle Downloads fertig", ...extras].join(" · ");
+  }
+  const paused = tasks.filter((t) => t.status === "pausiert");
+  if (paused.length) {
+    // YouTube-Bot-Prüfung: Hinweis + Möglichkeit, nach dem Hinterlegen von Cookies sofort weiterzumachen
+    const minutes = Math.ceil(Math.max(...paused.map((t) => t.retry_in)) / 60);
+    box.className = "jobs-summary paused";
+    const resume = el("button", { type: "button", class: "small-btn" }, "Jetzt fortsetzen");
+    resume.addEventListener("click", () => api("/api/jobs/resume", {}));
+    const settings = el("button", { type: "button", class: "small-btn" }, "⚙ YouTube-Anmeldung einrichten");
+    settings.addEventListener("click", openSettings);
+    box.replaceChildren(el("span", { class: "summary-icon" }, "⏸"),
+      el("span", {}, `YouTube verlangt eine Bot-Bestätigung – Downloads pausieren noch ca. ${minutes} min ` +
+        `(${done} von ${tasks.length} fertig)`), resume, settings);
+    return;
   }
   box.className = `jobs-summary ${active.length ? "running" : failed ? "failed" : "done"}`;
   const avg = tasks.reduce((sum, t) => sum + (["fehler", "übersprungen"].includes(t.status) ? 100 : t.progress), 0) / tasks.length;

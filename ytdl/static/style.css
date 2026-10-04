@@ -105,10 +105,15 @@ code { background: var(--panel-2); padding: 1px 5px; }
 .masthead-nav { display: flex; gap: 8px; flex-wrap: wrap; align-self: flex-start; }
 .warning { padding: 10px 14px; margin: 18px var(--pixel) 0; color: var(--warn); display: flex; gap: 12px;
   align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.settings-grid { display: grid; grid-template-columns: minmax(180px, auto) 1fr; gap: 10px 16px; align-items: start; margin: 16px 0; }
+.settings-grid { display: grid; grid-template-columns: 290px 1fr; gap: 10px 16px; align-items: start; margin: 16px 0; }
 .settings-grid .label { margin: 8px 0 0; }
 .settings-grid select { font: inherit; color: var(--text); background: var(--input); border: 2px solid var(--frame-soft); padding: 6px 8px; }
 .field-error { color: var(--err); font-size: .82rem; margin: 4px 0 0; }
+.settings-section { margin: 18px 0 4px; font-size: 1rem; color: var(--frame); }
+.settings-grid .muted.small { margin-top: 4px; }
+.status.pausiert { color: var(--warn); }
+.task.pausiert .bar > .fill { background: var(--frame-soft); }
+.jobs-summary.paused { color: var(--warn); }
 .field-error:empty { display: none; }
 
 /* Eingaben */

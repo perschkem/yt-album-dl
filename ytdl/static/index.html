@@ -247,6 +247,24 @@
       <div><input id="set-cuts" name="parallel_cuts" type="number" min="1" max="32"><p class="field-error" data-for="parallel_cuts"></p></div>
       <label class="label" for="set-retries">Neue Versuche bei Fehlern</label>
       <div><input id="set-retries" name="max_retries" type="number" min="0" max="10"><p class="field-error" data-for="max_retries"></p></div>
+      <label class="label" for="set-sleep">Pause vor jedem Download (s)</label>
+      <div><input id="set-sleep" name="sleep_seconds" type="number" min="0" max="120">
+        <p class="muted small">0 = keine Pause. Hilft gegen die YouTube-Bot-Prüfung (zufällig zwischen n und 2n Sekunden).</p>
+        <p class="field-error" data-for="sleep_seconds"></p></div>
+    </div>
+    <h3 class="settings-section">YouTube-Anmeldung (gegen „Sign in to confirm you’re not a bot“)</h3>
+    <p class="muted small">Optional. Meldet YouTube eine Bot-Prüfung, helfen Cookies einer YouTube-Anmeldung. Empfehlung:
+      ein Zweitkonto verwenden – YouTube kann Downloads sonst dem eigenen Konto zuordnen.</p>
+    <div class="settings-grid">
+      <label class="label" for="set-cookie-file">cookies.txt</label>
+      <div><input id="set-cookie-file" name="cookies_file" placeholder="z.B. D:\Downloads\youtube-cookies.txt">
+        <p class="muted small">Mit einer Browser-Erweiterung wie „Get cookies.txt LOCALLY“ auf youtube.com exportieren. Unter WSL der zuverlässigste Weg.</p>
+        <p class="field-error" data-for="cookies_file"></p></div>
+      <label class="label" for="set-cookie-browser">… oder aus Browser</label>
+      <div><input id="set-cookie-browser" name="cookies_from_browser" list="browser-list" placeholder="z.B. firefox oder firefox:C:\Users\…\Profiles\abc.default">
+        <datalist id="browser-list"></datalist>
+        <p class="muted small">Browser, in dem du bei YouTube angemeldet bist. Unter WSL nur Firefox mit Pfad zum Windows-Profil; Chrome/Edge verschlüsseln ihre Cookies.</p>
+        <p class="field-error" data-for="cookies_from_browser"></p></div>
     </div>
     <p id="settings-error" class="error" hidden></p>
     <div class="row spread">
