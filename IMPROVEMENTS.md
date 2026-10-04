@@ -91,3 +91,21 @@ vielen Titeln) und beim Scan der Titeleinblendungen.
   damit man nachvollziehen kann, warum z.B. die Pausenerkennung statt OCR verwendet wurde.
 - Bei Fehlern sagen, in welchem Schritt es passiert ist (z.B. „Fehler beim Lesen des Audios“ statt nur
   „ffmpeg konnte das Audio nicht lesen“).
+
+## Album/Interpret für alle Titel festlegen – auch bei „Album in einem Video“
+
+**Ist-Zustand:** Im Editor zum Aufteilen gibt es oben die Felder Album, Albuminterpret, Jahr und Genre.
+Album, Jahr und Genre gelten beim Schneiden automatisch für alle Titel. Der **Interpret pro Titel** wird aber
+nicht mitgeändert, wenn man das Feld „Albuminterpret“ ändert. Dann steht z.B. oben „Dire Straits“, in der
+Tabelle aber noch der falsch erkannte Interpret aus dem Videotitel. Nur die Hinweis-Chips aus der OCR
+übernehmen den Interpreten auch in die Tabelle. Bei Playlists gibt es dafür „Übernehmen“, beim Aufteilen nicht.
+
+**Idee:**
+- Wie bei Playlists eine Zeile **„Für alle übernehmen“**: Interpret, Album, Jahr, Genre auf alle Titel anwenden.
+- Ändert man den Albuminterpreten, werden alle Titel mitgeändert, deren Interpret noch dem alten Wert entsprach.
+  Titel mit abweichendem Interpreten (Sampler, „feat.“) bleiben unverändert.
+- Checkbox **„Verschiedene Interpreten (Sampler)“**: Albuminterpret = „Various Artists“, Interpret pro Titel
+  bleibt einzeln editierbar, Ablage unter `Musik/Various Artists/<Album>/`.
+- Optional: Spalte „Interpret“ in der Tabelle ausblenden, solange alle Titel denselben Interpreten haben
+  (übersichtlicher bei 20+ Titeln).
+- Dieselbe Logik auch in der normalen Playlist-Vorschau vereinheitlichen, damit beide Ansichten gleich funktionieren.
