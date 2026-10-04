@@ -15,19 +15,23 @@ COVER_SIZE = 1000
 VARIOUS_ARTISTS = "Various Artists"
 
 
-def square_cover(image_path: Path) -> bytes:
-    """Schneidet das Thumbnail mittig quadratisch zu (YouTube-Thumbnails sind 16:9) und liefert JPEG-Bytes."""
+def cover_jpeg(image_path: Path, crop: bool = True) -> bytes:
+    """Cover als JPEG-Bytes, max. COVER_SIZE px. crop=True schneidet mittig quadratisch zu
+    (für YouTube-Thumbnails, die 16:9 sind); eigene Cover bleiben auf Wunsch unbeschnitten."""
     with Image.open(image_path) as img:
         img = img.convert("RGB")
-        side = min(img.size)
-        left = (img.width - side) // 2
-        top = (img.height - side) // 2
-        img = img.crop((left, top, left + side, top + side))
-        if side > COVER_SIZE:
-            img = img.resize((COVER_SIZE, COVER_SIZE), Image.LANCZOS)
+        if crop:
+            side = min(img.size)
+            left = (img.width - side) // 2
+            top = (img.height - side) // 2
+            img = img.crop((left, top, left + side, top + side))
+        img.thumbnail((COVER_SIZE, COVER_SIZE), Image.LANCZOS)
         buffer = io.BytesIO()
         img.save(buffer, format="JPEG", quality=90)
         return buffer.getvalue()
+
+
+square_cover = cover_jpeg  # alter Name
 
 
 def _date(item: Item) -> str:
@@ -38,14 +42,14 @@ def _comment(item: Item) -> str:
     return item.description if item.mode != MUSIK and item.description else item.url
 
 
-def write_tags(path: Path, item: Item, cover: Path | None = None) -> None:
+def write_tags(path: Path, item: Item, cover: Path | None = None, crop: bool = True) -> None:
     if path.suffix.lower() == ".m4a":
-        _write_mp4(path, item, cover)
+        _write_mp4(path, item, cover, crop)
     else:
-        _write_id3(path, item, cover)
+        _write_id3(path, item, cover, crop)
 
 
-def _write_mp4(path: Path, item: Item, cover: Path | None) -> None:
+def _write_mp4(path: Path, item: Item, cover: Path | None, crop: bool) -> None:
     audio = MP4(path)
     if audio.tags is None:
         audio.add_tags()
@@ -67,11 +71,11 @@ def _write_mp4(path: Path, item: Item, cover: Path | None) -> None:
     if comment := _comment(item):
         tags["\xa9cmt"] = [comment]
     if cover and cover.exists():
-        tags["covr"] = [MP4Cover(square_cover(cover), imageformat=MP4Cover.FORMAT_JPEG)]
+        tags["covr"] = [MP4Cover(cover_jpeg(cover, crop), imageformat=MP4Cover.FORMAT_JPEG)]
     audio.save()
 
 
-def _write_id3(mp3: Path, item: Item, cover: Path | None) -> None:
+def _write_id3(mp3: Path, item: Item, cover: Path | None, crop: bool) -> None:
     tags = ID3()
     tags.add(TIT2(encoding=3, text=item.title))
     tags.add(TPE1(encoding=3, text=item.artist))
@@ -92,5 +96,5 @@ def _write_id3(mp3: Path, item: Item, cover: Path | None) -> None:
     if comment := _comment(item):
         tags.add(COMM(encoding=3, lang="deu", desc="", text=comment))
     if cover and cover.exists():
-        tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=square_cover(cover)))
+        tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=cover_jpeg(cover, crop)))
     tags.save(mp3, v2_version=4)

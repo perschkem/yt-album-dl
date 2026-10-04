@@ -157,6 +157,14 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: .9
 .hint { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
   padding: 10px 14px; margin: 4px var(--pixel) 16px; background: var(--panel-2); }
 
+/* Eigenes Cover */
+.cover-field { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+.cover-inputs { flex: 1; min-width: 0; }
+.cover-inputs .row { margin-top: 6px; }
+.cover-preview { width: 72px; height: 72px; object-fit: cover; image-rendering: auto; flex: none;
+  box-shadow: 0 0 0 2px var(--frame-soft); }
+.cover-msg.error { color: var(--err); }
+
 /* Tabellen */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }

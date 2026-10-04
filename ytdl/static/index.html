@@ -50,6 +50,18 @@
       <button type="button" id="album-open" class="primary">Als Album aufteilen</button>
     </div>
 
+    <div class="cover-field" id="preview-cover">
+      <img class="cover-preview" alt="Cover-Vorschau" width="72" height="72" hidden>
+      <div class="cover-inputs">
+        <label class="label" for="preview-cover-url">Cover-URL (optional, für alle Titel)</label>
+        <input id="preview-cover-url" type="url" placeholder="https://…/cover.jpg – leer = YouTube-Vorschaubild">
+        <div class="row">
+          <label class="check"><input type="checkbox" class="cover-crop"> quadratisch zuschneiden</label>
+          <span class="cover-msg muted small"></span>
+        </div>
+      </div>
+    </div>
+
     <div id="bulk" class="bulk" hidden>
       <label>Album für alle <input id="bulk-album" placeholder="leer = Singles"></label>
       <label>Albuminterpret <input id="bulk-album-artist"></label>
@@ -96,6 +108,17 @@
         <div class="checks">
           <label class="check"><input type="checkbox" id="album-va"> Verschiedene Interpreten (Sampler)</label>
           <button type="button" class="link" id="album-artist-col">Interpret pro Titel bearbeiten</button>
+        </div>
+      </div>
+      <div class="cover-field" id="album-cover">
+        <img class="cover-preview" alt="Cover-Vorschau" width="72" height="72" hidden>
+        <div class="cover-inputs">
+          <label class="label" for="album-cover-url">Cover-URL (optional)</label>
+          <input id="album-cover-url" type="url" placeholder="https://…/cover.jpg – leer = YouTube-Vorschaubild">
+          <div class="row">
+            <label class="check"><input type="checkbox" class="cover-crop"> quadratisch zuschneiden</label>
+            <span class="cover-msg muted small"></span>
+          </div>
         </div>
       </div>
       <p id="album-hints" class="muted small" hidden></p>

@@ -136,6 +136,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
   try {
     const data = await runActivity("/api/probe", { url: $("#url").value, mode }, $("#probe-steps"));
     $("#probe-steps").hidden = true;
+    previewCover.clear();
     preview = { title: data.title, mode, url: $("#url").value.trim(),
       items: data.items.map((i) => ({ ...i, selected: !i.already, orig: tagSnapshot(i) })) };
     $("#album").hidden = true;
@@ -150,6 +151,43 @@ $("#probe-form").addEventListener("submit", async (event) => {
     btn.textContent = "Prüfen";
   }
 });
+
+// ---------- Eigenes Cover per URL ----------
+
+/** Cover-Feld mit Prüfung und Vorschau; liefert {value(), clear()}.
+ *  Die Prüfung ist nur Rückmeldung: gesendet wird immer der Feldinhalt (der Server prüft beim Download selbst
+ *  und nimmt sonst das Vorschaubild). So geht nichts verloren, wenn man direkt nach dem Tippen klickt. */
+function coverField(root) {
+  const input = root.querySelector("input[type=url]");
+  const crop = root.querySelector(".cover-crop");
+  const img = root.querySelector(".cover-preview");
+  const msg = root.querySelector(".cover-msg");
+  const show = (text, isError = false) => { msg.textContent = text; msg.classList.toggle("error", isError); };
+  input.addEventListener("change", async () => {
+    const url = input.value.trim();
+    img.hidden = true;
+    if (!url) return show("");
+    show("Prüfe Cover …");
+    try {
+      const info = await api("/api/cover/check", { url });
+      if (input.value.trim() !== url) return; // inzwischen geändert
+      img.src = url;
+      img.hidden = false;
+      show(`${info.width}×${info.height} px` + (info.square ? "" : " · nicht quadratisch"));
+      if (!info.square && !crop.dataset.touched) crop.checked = false;
+    } catch (err) {
+      show(`${err.message} – es bleibt das YouTube-Vorschaubild`, true);
+    }
+  });
+  crop.addEventListener("change", () => (crop.dataset.touched = "1"));
+  return {
+    value: () => ({ cover_url: input.value.trim(), cover_crop: crop.checked }),
+    clear: () => { input.value = ""; img.hidden = true; crop.checked = false; delete crop.dataset.touched; show(""); },
+  };
+}
+
+const previewCover = coverField($("#preview-cover"));
+const albumCover = coverField($("#album-cover"));
 
 // ---------- Tags zurücksetzen ----------
 const TAG_KEYS = ["artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date"];
@@ -170,6 +208,7 @@ $("#preview-reset").addEventListener("click", () => {
   if (!preview.items.some(isChanged) || !confirm("Alle Tags auf die erkannten Werte zurücksetzen?")) return;
   preview.items.forEach((i) => Object.assign(i, i.orig));
   if (!$("#bulk").hidden) fillBulk();
+  previewCover.clear();
   renderRows();
 });
 
@@ -288,7 +327,8 @@ function resolveConflicts(conflicts) {
 }
 
 $("#download-btn").addEventListener("click", async () => {
-  const items = preview.items.filter((i) => i.selected).map(({ selected, already, orig, ...rest }) => rest);
+  const cover = previewCover.value();
+  const items = preview.items.filter((i) => i.selected).map(({ selected, already, orig, ...rest }) => ({ ...rest, ...cover }));
   if (!items.length) return;
   const btn = $("#download-btn");
   btn.disabled = true;
@@ -492,6 +532,7 @@ $("#album-open").addEventListener("click", async () => {
 
 function resetAlbumFields() {
   const o = album.original;
+  albumCover.clear();
   showArtistCol = false;
   $("#album-va").checked = false;
   $("#album-artist").disabled = $("#album-apply").disabled = false;
@@ -735,7 +776,7 @@ $("#album-cut").addEventListener("click", async () => {
     const body = {
       album: $("#album-name").value, album_artist: $("#album-artist").value,
       year: $("#album-year").value, genre: $("#album-genre").value,
-      audio_format: selectedFormat(), tracks: album.tracks.map(({ orig, ...t }) => t),
+      audio_format: selectedFormat(), ...albumCover.value(), tracks: album.tracks.map(({ orig, ...t }) => t),
     };
     const decisions = await resolveConflicts(await api(`/api/album/${album.id}/conflicts`, body));
     if (decisions === null) return;

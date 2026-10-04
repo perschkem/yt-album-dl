@@ -65,6 +65,9 @@ class Item:
     audio_format: str = ""
     # Was tun, wenn die Zieldatei schon existiert: keep_both (… (2).mp3) | overwrite | skip
     on_conflict: str = "keep_both"
+    # Eigenes Cover statt YouTube-Vorschaubild; cover_crop = mittig quadratisch zuschneiden
+    cover_url: str = ""
+    cover_crop: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)

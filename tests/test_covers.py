@@ -1,0 +1,79 @@
+import io
+
+import pytest
+from PIL import Image
+
+from ytdl import covers
+from ytdl.tagger import cover_jpeg
+
+
+def png_bytes(w, h):
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), "green").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class FakeResponse:
+    def __init__(self, data):
+        self.data = data
+
+    def read(self, n=-1):
+        return self.data[:n] if n >= 0 else self.data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+@pytest.fixture()
+def serve(monkeypatch):
+    calls = []
+
+    def setup(data):
+        def urlopen(req, timeout):
+            calls.append(req.full_url)
+            return FakeResponse(data)
+        monkeypatch.setattr(covers.urllib.request, "urlopen", urlopen)
+        return calls
+    return setup
+
+
+def test_check_cover_reports_size(serve):
+    serve(png_bytes(600, 400))
+    assert covers.check_cover("https://example.org/a.png") == {"width": 600, "height": 400, "format": "PNG", "square": False}
+
+
+def test_rejects_non_image(serve):
+    serve(b"<html>keine Bilddatei</html>")
+    with pytest.raises(covers.CoverError, match="kein Bild"):
+        covers.check_cover("https://example.org/seite")
+
+
+def test_rejects_too_large(serve, monkeypatch):
+    monkeypatch.setattr(covers, "MAX_BYTES", 100)
+    serve(png_bytes(200, 200))
+    with pytest.raises(covers.CoverError, match="10 MB"):
+        covers.check_cover("https://example.org/gross.png")
+
+
+def test_rejects_other_schemes():
+    with pytest.raises(covers.CoverError, match="http"):
+        covers.check_cover("file:///etc/passwd")
+
+
+def test_fetch_cover_is_cached(serve, tmp_path):
+    calls = serve(png_bytes(300, 300))
+    first = covers.fetch_cover("https://example.org/c.png", tmp_path)
+    second = covers.fetch_cover("https://example.org/c.png", tmp_path)
+    assert first == second and first.suffix == ".jpg" and len(calls) == 1
+
+
+def test_cover_crop_only_on_request(tmp_path):
+    path = tmp_path / "c.png"
+    path.write_bytes(png_bytes(1600, 900))
+    cropped = Image.open(io.BytesIO(cover_jpeg(path, crop=True)))
+    kept = Image.open(io.BytesIO(cover_jpeg(path, crop=False)))
+    assert cropped.size == (900, 900)
+    assert kept.size == (1000, 563)  # Seitenverhältnis bleibt, auf max. 1000 px verkleinert

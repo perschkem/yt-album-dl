@@ -15,6 +15,7 @@ from .activity import Activity, NullActivity
 
 from .config import Config, load_config
 from .metadata import MUSIK, PODCAST, Item, apply_playlist, music_item, podcast_item
+from .covers import CoverError, fetch_cover
 from .paths import target_path, to_windows_path
 from .split import encode
 from .tagger import write_tags
@@ -196,6 +197,16 @@ def _mb(value: float | None) -> str:
     return f"{(value or 0) / 1_048_576:.1f}"
 
 
+def choose_cover(item: Item, cfg: Config, thumbnail: Path | None, report) -> tuple[Path | None, bool]:
+    """Eigenes Cover (falls angegeben und ladbar), sonst das YouTube-Vorschaubild (quadratisch zugeschnitten)."""
+    if item.cover_url:
+        try:
+            return fetch_cover(item.cover_url, cfg.data_dir / "covers"), item.cover_crop
+        except CoverError as exc:
+            report("taggt", 85.0, f"{exc} – nehme das YouTube-Vorschaubild")
+    return thumbnail, True
+
+
 def work_dir(cfg: Config, item: Item) -> Path:
     return cfg.data_dir / "work" / f"{item.mode}-{item.id}"
 
@@ -252,7 +263,8 @@ def convert(item: Item, cfg: Config, progress: ProgressCallback | None, folder: 
         out = folder / f"out.{fmt}"
         encode(source, out, cfg.bitrate)
         report("taggt", 80.0)
-        write_tags(out, item, thumb)
+        cover, crop = choose_cover(item, cfg, thumb, report)
+        write_tags(out, item, cover, crop)
         target = place(out, item, cfg)
     except Skipped:
         shutil.rmtree(folder, ignore_errors=True)

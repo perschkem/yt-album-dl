@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from . import albumvideo
 from .activity import ActivityManager
 from .config import load_config
+from .covers import CoverError, check_cover
 from .downloader import conflicts, ffmpeg_available, probe
 from .explorer import is_allowed, open_in_file_manager
 from .jobs import JobManager
@@ -68,6 +69,8 @@ class AlbumJobRequest(BaseModel):
     year: str = ""
     genre: str = ""
     audio_format: str = ""
+    cover_url: str = ""
+    cover_crop: bool = False
     tracks: list[dict]
 
 
@@ -191,6 +194,19 @@ async def job_events(request: Request) -> StreamingResponse:
                              headers=_SSE_HEADERS)
 
 
+class CoverRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/cover/check")
+def cover_check(req: CoverRequest) -> dict:
+    """Prüft eine Cover-URL (ist es wirklich ein Bild?) – für die Vorschau neben dem Feld."""
+    try:
+        return check_cover(req.url)
+    except CoverError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 class OpenRequest(BaseModel):
     path: str
 
@@ -255,7 +271,7 @@ def _album_items(video_id: str, req: AlbumJobRequest) -> list[Item]:
     if not req.tracks:
         raise HTTPException(400, "Keine Titel")
     return _album_call(albumvideo.build_items, cfg, video_id, req.album, req.album_artist, req.year,
-                       req.genre, req.tracks, req.audio_format)
+                       req.genre, req.tracks, req.audio_format, req.cover_url, req.cover_crop)
 
 
 @app.post("/api/album/{video_id}/conflicts")

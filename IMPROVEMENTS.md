@@ -55,16 +55,3 @@ Was wann wohin geladen wurde, ist nicht nachvollziehbar, und die Job-Liste geht 
   nicht mehr existiert.
 - Die Historie ergänzt das Archiv, ersetzt es aber nicht. Das Archiv bleibt die schnelle Prüfung auf
   „schon geladen“.
-
-## Album-Art per URL
-
-**Ist-Zustand:** Als Cover dient immer das YouTube-Vorschaubild (mittig quadratisch zugeschnitten).
-
-**Idee:**
-- Feld „Cover-URL“ in der Playlist-Vorschau (für alle Titel) und im Album-Editor. Optional auch pro Titel
-  in der normalen Vorschau.
-- Der Server lädt das Bild, prüft, ob es wirklich ein Bild ist (Typ, Größe, max. ~10 MB), und nutzt es statt
-  des Vorschaubilds. Quadratisch zuschneiden nur auf Wunsch, da echte Cover meist schon quadratisch sind.
-- Vorschau des Covers direkt neben dem Feld. Lässt sich das Bild nicht laden, kommt eine verständliche
-  Fehlermeldung und das Vorschaubild bleibt.
-- Optional: Bild per Drag & Drop oder Datei-Upload statt URL.
