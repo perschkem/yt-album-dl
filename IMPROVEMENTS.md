@@ -78,11 +78,3 @@ Wenn man sich bei den Tags komplett vertan hat:
   Sampler-Haken und Grenzen aus der Analyse), mit Rückfrage
 - Umsetzung: Beim Prüfen bzw. bei der Analyse eine unveränderte Kopie der erkannten Werte merken.
   Geänderte Felder dezent markieren, damit man sieht, was von Hand angepasst wurde.
-
-## Breitere Eingabefelder
-
-Die Felder für Interpret, Titel und Album sind in den Tabellen zu schmal, längere Titel werden abgeschnitten.
-- Tabellen-Spalten für Interpret/Titel/Album breiter, z.B. mit Mindestbreite ~220 px. Nur schmale Spalten
-  (Nr., Jahr, Dauer) bleiben schmal.
-- Die Seite insgesamt breiter nutzen (aktuell max. 1100 px), z.B. bis ~1400 px auf großen Bildschirmen
-- Optional: Feld beim Fokussieren ausklappen oder vollen Text als Tooltip anzeigen

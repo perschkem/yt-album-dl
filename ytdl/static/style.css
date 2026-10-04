@@ -75,7 +75,7 @@ body {
     linear-gradient(var(--bg-pattern) 2px, transparent 2px) 0 0 / 32px 32px,
     var(--bg);
 }
-main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 72px; }
+main { max-width: 1400px; margin: 0 auto; padding: 24px 16px 72px; }
 img { image-rendering: pixelated; }
 
 h1, h2, h3, button:not(.small-btn):not(.link):not(.chip):not(.ghost), .segmented {
@@ -162,8 +162,10 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: .9
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: .82rem; color: var(--frame); font-weight: 600; padding: 6px; border-bottom: 2px solid var(--frame-soft); }
 td { padding: 4px 6px; border-bottom: 1px solid var(--panel-hi); vertical-align: top; }
-td input:not([type=checkbox]) { min-width: 90px; }
-td.num input { width: 60px; min-width: 0; }
+/* Textspalten breit genug für lange Titel; nur Nr./Jahr/Datum/Zeit bleiben schmal */
+td input:not([type=checkbox]) { min-width: 220px; }
+td.num input { width: 72px; min-width: 0; }
+td.date input { width: 120px; min-width: 0; }
 td.orig { font-size: .8rem; color: var(--muted); max-width: 260px; }
 tr.already td { opacity: .6; }
 .badge { display: inline-block; font-size: .72rem; padding: 1px 6px; background: var(--shell); color: #fff3df; margin-top: 3px; }

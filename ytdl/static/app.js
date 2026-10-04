@@ -10,7 +10,7 @@ const COLUMNS = {
   ],
   podcast: [
     { key: "artist", label: "Kanal" },
-    { key: "date", label: "Datum", cls: "num" },
+    { key: "date", label: "Datum", cls: "date" },
     { key: "title", label: "Titel" },
   ],
 };
@@ -183,9 +183,10 @@ function renderRows() {
     const box = el("input", { type: "checkbox", checked: item.selected });
     box.addEventListener("change", () => (item.selected = box.checked));
     const cells = cols.map((c) => {
-      const input = el("input", { type: c.type || "text", value: item[c.key] ?? "" });
+      const input = el("input", { type: c.type || "text", value: item[c.key] ?? "", title: item[c.key] ?? "" });
       input.addEventListener("input", () => {
         item[c.key] = c.type === "number" ? (input.value ? Number(input.value) : null) : input.value;
+        input.title = input.value; // voller Text als Tooltip, falls das Feld zu schmal ist
       });
       return el("td", { class: c.cls || "" }, input);
     });
@@ -540,10 +541,10 @@ function renderAlbum() {
       if (v != null && v >= 0 && v < album.duration) t.start = v;
       renderAlbum();
     });
-    const artist = el("input", { value: t.artist });
-    artist.addEventListener("input", () => (t.artist = artist.value));
-    const title = el("input", { value: t.title });
-    title.addEventListener("input", () => (t.title = title.value));
+    const artist = el("input", { value: t.artist, title: t.artist });
+    artist.addEventListener("input", () => { t.artist = artist.value; artist.title = artist.value; });
+    const title = el("input", { value: t.title, title: t.title });
+    title.addEventListener("input", () => { t.title = title.value; title.title = title.value; });
 
     const play = el("button", { type: "button", class: "secondary", title: "Ab Start abspielen" }, "▶");
     play.addEventListener("click", () => { audio.currentTime = t.start; audio.play(); });
