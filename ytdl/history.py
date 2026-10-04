@@ -23,7 +23,8 @@ class History:
         self._lock = threading.Lock()
 
     def record(self, item: Item, result: str, *, path: str = "", error: str = "", attempts: int = 1,
-               audio_format: str = "", bitrate: int | None = None, job_id: str = "", job_title: str = "") -> dict:
+               audio_format: str = "", bitrate: int | None = None, job_id: str = "", job_title: str = "",
+               with_cookies: bool = False) -> dict:
         file = Path(path) if path else None
         entry = {
             "ts": time.time(),
@@ -47,6 +48,8 @@ class History:
             "cover_url": item.cover_url,
             "error": error,
             "attempts": attempts,
+            # nach einer YouTube-Bot-Prüfung mit hinterlegter Anmeldung (Cookies) geladen
+            "with_cookies": with_cookies,
         }
         line = json.dumps(entry, ensure_ascii=False)
         with self._lock:

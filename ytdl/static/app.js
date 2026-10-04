@@ -649,14 +649,50 @@ function renderJobs(jobs) {
   }));
 }
 
-/** Live-Updates der Job-Liste per Server-Sent Events; EventSource verbindet sich bei Abbruch selbst neu. */
+const clockTime = (ts) => new Date(ts * 1000).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+/** Hinweis oben, wenn YouTube eine Bot-Prüfung verlangt hat – damit man merkt, dass gerade mit
+ *  Anmeldung geladen wird bzw. warum Downloads pausieren. */
+function renderAuthNotice(auth) {
+  const box = $("#auth-notice");
+  const show = auth && (auth.cookies_active || auth.recent_bot_check);
+  box.hidden = !show;
+  if (!show) return;
+  const when = auth.last_bot_check ? clockTime(auth.last_bot_check) : "";
+  let text;
+  if (auth.cookies_active) {
+    text = `🔑 YouTube hat${when ? ` um ${when}` : ""} eine Bot-Prüfung verlangt. Downloads laufen deshalb bis ` +
+      `${clockTime(auth.cookies_until)} mit deiner YouTube-Anmeldung (Cookies), danach wieder ohne.`;
+  } else if (auth.cookies_configured) {
+    text = `⚠ YouTube hat${when ? ` um ${when}` : ""} eine Bot-Prüfung verlangt – auch mit Anmeldung. ` +
+      "Downloads pausieren; später erneut versuchen oder die Cookies neu exportieren.";
+  } else {
+    text = `⚠ YouTube hat${when ? ` um ${when}` : ""} eine Bot-Prüfung verlangt. Ohne hinterlegte ` +
+      "YouTube-Anmeldung pausieren Downloads, bis die Sperre vorbei ist (meist einige Stunden).";
+  }
+  $("#auth-notice-text").textContent = text;
+  $("#auth-notice-open").hidden = auth.cookies_active;
+}
+
+$("#auth-notice-open").addEventListener("click", openSettings);
+
+/** Live-Updates der Job-Liste (und des Anmeldestatus) per Server-Sent Events; EventSource verbindet sich
+ *  bei Abbruch selbst neu. */
 function connectJobs() {
   if (!window.EventSource) {
-    const poll = async () => { renderJobs(await api("/api/jobs").catch(() => [])); setTimeout(poll, 1000); };
+    const poll = async () => {
+      renderJobs(await api("/api/jobs").catch(() => []));
+      renderAuthNotice(await api("/api/auth").catch(() => null));
+      setTimeout(poll, 1000);
+    };
     return poll();
   }
   const source = new EventSource("/api/jobs/events");
-  source.onmessage = (event) => renderJobs(JSON.parse(event.data));
+  source.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    renderJobs(data.jobs);
+    renderAuthNotice(data.auth);
+  };
 }
 
 $("#clear-jobs").addEventListener("click", async () => {

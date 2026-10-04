@@ -14,7 +14,8 @@ from yt_dlp import YoutubeDL
 
 from .activity import Activity, NullActivity
 from .config import Config
-from .downloader import Archive, ProgressCallback, _base_opts, audio_format, choose_cover, place
+from .downloader import (Archive, ProgressCallback, _base_opts, _extract, audio_format, choose_cover, place,
+                         with_cookie_fallback)
 from .metadata import MUSIK, Item, clean_title, music_item, normalize_feat, split_artist_title
 from .ocr import overlay_titles, tracklist_from_frames
 from .split import (
@@ -101,7 +102,6 @@ def _fetch_audio(info: dict, folder: Path, step=None) -> Path:
         return audio
     folder.mkdir(parents=True, exist_ok=True)
     opts = {
-        **_base_opts(),
         "ignoreerrors": False,
         # m4a/webm spielen alle Browser ab
         "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
@@ -110,8 +110,12 @@ def _fetch_audio(info: dict, folder: Path, step=None) -> Path:
         "concurrent_fragment_downloads": 4,
         "progress_hooks": [_download_hook(step)] if step else [],
     }
-    with YoutubeDL(opts) as ydl:
-        ydl.download([info["webpage_url"]])
+
+    def run() -> None:
+        with YoutubeDL({**_base_opts(), **opts}) as ydl:
+            ydl.download([info["webpage_url"]])
+
+    with_cookie_fallback(run)
     audio = _audio_file(folder)
     if not audio:
         raise RuntimeError("Audio konnte nicht geladen werden")
@@ -131,13 +135,8 @@ def _envelope(folder: Path, audio: Path, step=None, duration: float | None = Non
 
 
 def _comment_tracklist(url: str, duration: float) -> tuple[list[Segment], int]:
-    opts = {
-        **_base_opts(),
-        "getcomments": True,
-        "extractor_args": {"youtube": {"max_comments": ["60"], "comment_sort": ["top"]}},
-    }
-    with YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False) or {}
+    info = with_cookie_fallback(lambda: _extract(
+        url, getcomments=True, extractor_args={"youtube": {"max_comments": ["60"], "comment_sort": ["top"]}})) or {}
     comments = sorted(
         info.get("comments") or [],
         key=lambda c: (not c.get("is_pinned"), not c.get("author_is_uploader"), -(c.get("like_count") or 0)),
@@ -192,8 +191,7 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
     cleanup_cache(cfg)
 
     step = act.step("Video-Infos laden")
-    with YoutubeDL(_base_opts()) as ydl:
-        info = ydl.extract_info(url, download=False)
+    info = with_cookie_fallback(lambda: _extract(url))
     if not info:
         raise ValueError("Keine Informationen gefunden – ist die URL korrekt?")
     duration = float(info.get("duration") or 0)
@@ -356,11 +354,15 @@ def scan_overlays(cfg: Config, video_id: str, artist: str, activity: Activity | 
     if video:
         step.done("aus dem Zwischenspeicher")
     else:
-        opts = {**_base_opts(), "ignoreerrors": False, "format": "bv*[height<=480]/b[height<=480]",
+        opts = {"ignoreerrors": False, "format": "bv*[height<=480]/b[height<=480]",
                 "outtmpl": str(folder / "video.%(ext)s"), "concurrent_fragment_downloads": 4,
                 "progress_hooks": [_download_hook(step)]}
-        with YoutubeDL(opts) as ydl:
-            ydl.download([meta["url"]])
+
+        def run() -> None:
+            with YoutubeDL({**_base_opts(), **opts}) as ydl:
+                ydl.download([meta["url"]])
+
+        with_cookie_fallback(run)
         video = next((p for p in folder.glob("video.*") if not p.name.endswith((".part", ".ytdl"))), None)
         if not video:
             raise RuntimeError("Video konnte nicht geladen werden")

@@ -20,6 +20,10 @@
       <button type="button" id="open-settings">⚙ Einstellungen</button>
     </nav>
   </header>
+  <p id="auth-notice" class="warning" hidden>
+    <span id="auth-notice-text"></span>
+    <button type="button" class="small-btn" id="auth-notice-open" hidden>⚙ YouTube-Anmeldung einrichten</button>
+  </p>
   <p id="folder-warning" class="warning" hidden>
     <span id="folder-warning-text"></span>
     <button type="button" class="small-btn" id="folder-warning-open">Einstellungen öffnen</button>
@@ -253,8 +257,9 @@
         <p class="field-error" data-for="sleep_seconds"></p></div>
     </div>
     <h3 class="settings-section">YouTube-Anmeldung (gegen „Sign in to confirm you’re not a bot“)</h3>
-    <p class="muted small">Optional. Meldet YouTube eine Bot-Prüfung, helfen Cookies einer YouTube-Anmeldung. Empfehlung:
-      ein Zweitkonto verwenden – YouTube kann Downloads sonst dem eigenen Konto zuordnen.</p>
+    <p class="muted small">Optional. Wird <strong>nur verwendet, wenn YouTube eine Bot-Prüfung verlangt</strong> – dann
+      wiederholt yt-album-dl den Aufruf mit diesen Cookies und lädt eine Stunde lang mit Anmeldung, danach wieder ohne.
+      Empfehlung: ein Zweitkonto verwenden – YouTube kann Downloads sonst dem eigenen Konto zuordnen.</p>
     <div class="settings-grid">
       <label class="label" for="set-cookie-file">cookies.txt</label>
       <div><input id="set-cookie-file" name="cookies_file" placeholder="z.B. D:\Downloads\youtube-cookies.txt">

@@ -61,6 +61,8 @@ function tagRows(e) {
   if (e.boundary_source) rows.push(el("tr", {}, el("th", {}, "Grenzen aus"), el("td", {}, e.boundary_source)));
   if (e.source_title) rows.push(el("tr", {}, el("th", {}, "Originaltitel"), el("td", {}, e.source_title)));
   rows.push(el("tr", {}, el("th", {}, "Versuche"), el("td", {}, String(e.attempts || 1))));
+  if (e.with_cookies) rows.push(el("tr", {}, el("th", {}, "Anmeldung"),
+    el("td", {}, "mit YouTube-Anmeldung (Cookies) – YouTube hatte eine Bot-Prüfung verlangt")));
   return rows;
 }
 

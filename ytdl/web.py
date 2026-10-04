@@ -18,7 +18,8 @@ from . import albumvideo
 from .activity import ActivityManager
 from .config import MissingFolder, load_config, to_local_path, update_env_file
 from .covers import CoverError, check_cover, thumbnail_preview
-from .downloader import BROWSERS, configure_auth, conflicts, ffmpeg_available, friendly_error, parse_browser_spec, probe
+from .downloader import (BROWSERS, auth_status, configure_auth, conflicts, ffmpeg_available, friendly_error,
+                         parse_browser_spec, probe)
 from .explorer import is_allowed, open_in_file_manager
 from .history import History
 from .jobs import JobManager
@@ -325,10 +326,17 @@ async def _event_stream(request: Request, snapshot, done=lambda data: False, int
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
+@app.get("/api/auth")
+def get_auth() -> dict:
+    """Status der YouTube-Anmeldung: Bot-Prüfung zuletzt? Laufen Downloads gerade mit Cookies?"""
+    return auth_status()
+
+
 @app.get("/api/jobs/events")
 async def job_events(request: Request) -> StreamingResponse:
-    return StreamingResponse(_event_stream(request, manager.snapshot), media_type="text/event-stream",
-                             headers=_SSE_HEADERS)
+    """Live-Updates: Job-Liste plus Anmeldestatus (für den Hinweis bei einer YouTube-Bot-Prüfung)."""
+    return StreamingResponse(_event_stream(request, lambda: {"jobs": manager.snapshot(), "auth": auth_status()}),
+                             media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
 class CoverRequest(BaseModel):

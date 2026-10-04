@@ -53,18 +53,65 @@ def test_repeated_bot_check_finally_fails(tmp_path, monkeypatch):
     assert "Einstellungen" in mgr.snapshot()[0]["tasks"][0]["error"]
 
 
-def test_cookie_file_gets_private_copy_per_run(tmp_path):
+@pytest.fixture()
+def cookie_cfg(tmp_path):
     cookies = tmp_path / "cookies.txt"
     cookies.write_text("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tabc\n")
     cfg = make_cfg(tmp_path)
     cfg.cookies_file = cookies
     downloader.configure_auth(cfg)
-    try:
-        a, b = downloader._base_opts()["cookiefile"], downloader._base_opts()["cookiefile"]
-        assert a != b and Path(a).read_text() == cookies.read_text()
-        assert str(cookies) not in (a, b)  # Original wird nie an yt-dlp gegeben (würde überschrieben)
-    finally:
-        downloader.configure_auth(make_cfg(tmp_path))
+    downloader._auth.update(active_until=0.0, last_bot_check=0.0)
+    yield cookies
+    downloader.configure_auth(make_cfg(tmp_path))
+    downloader._auth.update(active_until=0.0, last_bot_check=0.0)
+
+
+def test_cookies_only_after_bot_check(cookie_cfg):
+    assert "cookiefile" not in downloader._base_opts()  # normal: ohne Anmeldung
+    downloader._auth["active_until"] = time.time() + 60
+    a, b = downloader._base_opts()["cookiefile"], downloader._base_opts()["cookiefile"]
+    assert a != b and Path(a).read_text() == cookie_cfg.read_text()
+    assert str(cookie_cfg) not in (a, b)  # Original wird nie an yt-dlp gegeben (würde überschrieben)
+
+
+def test_fallback_retries_once_with_cookies(cookie_cfg):
+    seen = []
+
+    def call():
+        opts = downloader._base_opts()
+        seen.append("cookiefile" in opts)
+        if not opts.get("cookiefile"):
+            raise RuntimeError(BOT)
+        return "ok"
+
+    assert downloader.with_cookie_fallback(call) == "ok"
+    assert seen == [False, True]
+    status = downloader.auth_status()
+    assert status["cookies_active"] and status["recent_bot_check"] and status["cookies_until"] > time.time() + 3000
+    seen.clear()
+    assert downloader.with_cookie_fallback(call) == "ok" and seen == [True]  # bleibt eine Weile mit Anmeldung
+
+
+def test_fallback_without_cookies_raises_and_notes_bot_check(tmp_path):
+    downloader.configure_auth(make_cfg(tmp_path))
+    downloader._auth.update(active_until=0.0, last_bot_check=0.0)
+
+    def call():
+        raise RuntimeError(BOT)
+
+    with pytest.raises(RuntimeError, match="not a bot"):
+        downloader.with_cookie_fallback(call)
+    assert downloader.auth_status()["recent_bot_check"] and not downloader.auth_status()["cookies_active"]
+    downloader._auth["last_bot_check"] = 0.0
+
+
+def test_other_errors_do_not_trigger_cookies(cookie_cfg):
+    def call():
+        raise RuntimeError("HTTP Error 503")
+
+    with pytest.raises(RuntimeError, match="503"):
+        downloader.with_cookie_fallback(call)
+    assert not downloader.cookies_active()
 
 
 def test_browser_spec():

@@ -56,14 +56,59 @@ class Archive:
 
 BROWSERS = ("firefox", "chrome", "chromium", "edge", "brave", "opera", "vivaldi", "safari", "whale")
 _BOT_CHECK = ("not a bot", "confirm you’re not", "confirm you're not", "confirm that you're not")
-_auth: dict = {"browser": "", "file": None, "sleep": 0, "tmp": None}
+_auth: dict = {"browser": "", "file": None, "sleep": 0, "tmp": None, "active_until": 0.0, "last_bot_check": 0.0}
 COOKIE_COPY_MAX_AGE = 15 * 60  # Sekunden
+COOKIE_WINDOW = 60 * 60  # nach einer Bot-Prüfung so lange mit Anmeldung laden, danach wieder ohne
 
 
 def configure_auth(cfg: Config) -> None:
     """Cookie- und Pausen-Einstellungen übernehmen (beim Start und nach Änderung in den Einstellungen)."""
     _auth.update(browser=cfg.cookies_from_browser, file=cfg.cookies_file, sleep=cfg.sleep_seconds,
                  tmp=cfg.data_dir / "tmp")
+
+
+def cookies_configured() -> bool:
+    return bool(_auth["file"] or _auth["browser"])
+
+
+def cookies_active() -> bool:
+    return time.time() < _auth["active_until"]
+
+
+def note_bot_check() -> None:
+    """YouTube hat eine Bot-Prüfung verlangt – für den Hinweis in der Oberfläche merken."""
+    _auth["last_bot_check"] = time.time()
+
+
+def auth_status() -> dict:
+    """Für die Oberfläche: wurde YouTube zuletzt misstrauisch, und läuft gerade alles mit Anmeldung?"""
+    now = time.time()
+    return {
+        "cookies_configured": cookies_configured(),
+        "cookies_active": cookies_active(),
+        "cookies_until": _auth["active_until"] if cookies_active() else None,
+        "last_bot_check": _auth["last_bot_check"] or None,
+        "recent_bot_check": now - _auth["last_bot_check"] < COOKIE_WINDOW if _auth["last_bot_check"] else False,
+    }
+
+
+def with_cookie_fallback(call):
+    """Führt einen yt-dlp-Aufruf zuerst ohne Anmeldung aus. Verlangt YouTube eine Bot-Prüfung und sind Cookies
+    hinterlegt, wird derselbe Aufruf sofort mit Cookies wiederholt; danach laden alle Aufrufe COOKIE_WINDOW lang
+    mit Anmeldung (die Sperre hält erfahrungsgemäß eine Weile an). Ohne Cookies wird der Fehler weitergereicht.
+
+    `call` muss seine Optionen bei jedem Aufruf neu über _base_opts() bauen, damit die Wiederholung die Cookies erhält."""
+    used_cookies = cookies_active()
+    try:
+        return call()
+    except Exception as exc:
+        if not is_bot_check(str(exc)):
+            raise
+        note_bot_check()
+        if used_cookies or not cookies_configured():
+            raise
+        _auth["active_until"] = max(_auth["active_until"], time.time() + COOKIE_WINDOW)
+        return call()
 
 
 def is_bot_check(message: str) -> bool:
@@ -94,6 +139,9 @@ def parse_browser_spec(spec: str) -> tuple:
 
 
 def _cookie_opts() -> dict:
+    # Cookies nur, solange nach einer Bot-Prüfung das Anmelde-Fenster läuft – sonst wird ohne Konto geladen
+    if not cookies_active():
+        return {}
     if _auth["file"]:
         # yt-dlp schreibt die Cookie-Datei am Ende zurück – bei parallelen Downloads würden sich die Schreibvorgänge
         # in die Quere kommen. Deshalb bekommt jeder Lauf eine eigene, kurzlebige Kopie; das Original bleibt unverändert.
@@ -135,6 +183,12 @@ def is_album_video(info: dict) -> bool:
     )
 
 
+def _extract(url: str, **extra) -> dict | None:
+    """Infos abfragen; Fehler werden geworfen (nicht verschluckt), damit z.B. die Bot-Prüfung erkannt wird."""
+    with YoutubeDL({**_base_opts(), "ignoreerrors": False, **extra}) as ydl:
+        return ydl.extract_info(url, download=False)
+
+
 def _entry_url(entry: dict) -> str:
     url = entry.get("url") or entry.get("webpage_url") or ""
     if url.startswith("http"):
@@ -146,8 +200,7 @@ def probe(url: str, mode: str, cfg: Config, activity: Activity | None = None) ->
     """Lädt nur die Metadaten (Einzelvideo oder alle Playlist-Einträge) – Schritte landen im Protokoll."""
     act = activity or NullActivity()
     step = act.step("Video-Infos laden")
-    with YoutubeDL({**_base_opts(), "extract_flat": "in_playlist"}) as ydl:
-        info = ydl.extract_info(url, download=False)
+    info = with_cookie_fallback(lambda: _extract(url, extract_flat="in_playlist"))
     if not info:
         raise ValueError("Keine Informationen gefunden – ist die URL korrekt und das Video verfügbar?")
 
@@ -159,14 +212,21 @@ def probe(url: str, mode: str, cfg: Config, activity: Activity | None = None) ->
         entries: list[dict | None] = [None] * len(flat)
         finished = 0
 
+        bot_errors: list[str] = []
+
         def load(index: int) -> None:
-            with YoutubeDL(_base_opts()) as y:
-                entries[index] = y.extract_info(_entry_url(flat[index]), download=False)
+            try:
+                entries[index] = with_cookie_fallback(lambda: _extract(_entry_url(flat[index])))
+            except Exception as exc:  # einzelner Titel nicht verfügbar → überspringen; Bot-Prüfung → abbrechen
+                if is_bot_check(str(exc)):
+                    bot_errors.append(str(exc))
 
         with ThreadPoolExecutor(max_workers=PROBE_WORKERS) as pool:
             for _ in as_completed(pool.submit(load, i) for i in range(len(flat))):
                 finished += 1
                 details.update(f"{finished}/{len(flat)}", finished / max(1, len(flat)) * 100)
+        if bot_errors:
+            raise RuntimeError(bot_errors[0])
         missing = sum(e is None for e in entries)
         entries = [e for e in entries if e]
         details.done(f"{len(entries)} Titel" + (f", {missing} nicht verfügbar" if missing else ""))
@@ -293,7 +353,6 @@ def fetch(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> 
             report("lädt", min(100.0, done / total * 100) if total else 0.0, detail)
 
     opts = {
-        **_base_opts(),
         "ignoreerrors": False,
         # für M4A gleich die AAC-Spur nehmen – dann wird nur umverpackt, nicht neu kodiert
         "format": "bestaudio[ext=m4a]/bestaudio/best" if fmt == "m4a" else "bestaudio/best",
@@ -306,9 +365,13 @@ def fetch(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> 
     if _auth["sleep"]:  # Pause vor dem Download (zufällig n…2n s), um YouTube nicht zu viele Anfragen zu schicken
         opts.update(sleep_interval=_auth["sleep"], max_sleep_interval=_auth["sleep"] * 2)
     report("lädt", 0.0)
-    try:
-        with YoutubeDL(opts) as ydl:
+
+    def run() -> None:
+        with YoutubeDL({**_base_opts(), **opts}) as ydl:  # _base_opts() je Versuch → Cookies bei der Wiederholung
             ydl.download([item.url or item.id])
+
+    try:
+        with_cookie_fallback(run)
     except Exception:
         shutil.rmtree(folder, ignore_errors=True)
         raise

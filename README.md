@@ -229,7 +229,10 @@ Internetverbindung und hebt sich meist nach einigen Stunden von selbst. yt-album
 für 15 Minuten an (statt YouTube weiter anzufragen, was die Sperre verlängern würde) und zeigt einen Hinweis
 mit **„Jetzt fortsetzen“**.
 
-Abhilfe unter **⚙ Einstellungen → YouTube-Anmeldung**:
+Abhilfe unter **⚙ Einstellungen → YouTube-Anmeldung**. Die Cookies werden **nur verwendet, wenn YouTube eine
+Bot-Prüfung verlangt**: Dann wiederholt yt-album-dl den Aufruf sofort mit Anmeldung und lädt eine Stunde lang mit
+Cookies, danach wieder ohne. Ein Hinweis oben auf der Seite zeigt, wann das passiert ist und bis wann mit Anmeldung
+geladen wird; in der Historie ist es pro Titel vermerkt.
 
 - **cookies.txt** (empfohlen, auch unter WSL): Im Browser bei YouTube anmelden, mit einer Erweiterung wie
   „Get cookies.txt LOCALLY“ die Cookies von youtube.com exportieren und den Pfad zur Datei eintragen.

@@ -13,7 +13,8 @@ from pathlib import Path
 
 from .albumvideo import cut_track
 from .config import Config
-from .downloader import BOT_CHECK_HINT, Skipped, audio_format, convert, fetch, is_bot_check
+from .downloader import (BOT_CHECK_HINT, Skipped, audio_format, convert, cookies_active, fetch, is_bot_check,
+                         note_bot_check)
 from .history import FAILED, FINISHED as DONE, OVERWRITTEN, SKIPPED, History
 from .metadata import Item
 from .paths import to_windows_path
@@ -306,13 +307,14 @@ class JobManager:
             fmt = audio_format(task.item, self.cfg)
             self.history.record(task.item, result, path=task.path, error=task.error, attempts=task.attempt,
                                 audio_format=fmt, bitrate=self.cfg.bitrate, job_id=task.job_id,
-                                job_title=task.job_title)
+                                job_title=task.job_title, with_cookies=cookies_active())
         except Exception:
             pass
 
     def _failed(self, task: Task, message: str) -> None:
         with self._cond:
             if task.pool == NET and is_bot_check(message):
+                note_bot_check()
                 task.bot_pauses += 1
                 if task.bot_pauses >= MAX_BOT_PAUSES:
                     task.status, task.error, task.detail = "fehler", BOT_CHECK_HINT, ""
