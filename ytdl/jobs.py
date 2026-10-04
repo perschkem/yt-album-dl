@@ -13,9 +13,10 @@ from pathlib import Path
 
 from .albumvideo import cut_track
 from .config import Config
-from .downloader import (BOT_CHECK_HINT, Skipped, audio_format, convert, cookies_active, fetch, is_bot_check,
-                         note_bot_check)
+from .auth import BOT_CHECK_HINT, is_bot_check, youtube
+from .downloader import convert, fetch
 from .history import History
+from .library import Skipped, audio_format
 from .errors import clean_error
 from .metadata import Item
 from .paths import common_folder, win_path
@@ -307,14 +308,14 @@ class JobManager:
             fmt = audio_format(task.item, self.cfg)
             self.history.record(task.item, result, path=task.path, error=task.error, attempts=task.attempt,
                                 audio_format=fmt, bitrate=self.cfg.bitrate, job_id=task.job_id,
-                                job_title=task.job_title, with_cookies=cookies_active())
+                                job_title=task.job_title, with_cookies=youtube.cookies_active())
         except Exception:
             log.exception("Historie: Eintrag für %s nicht geschrieben", task.item.id)
 
     def _failed(self, task: Task, message: str) -> None:
         with self._cond:
             if task.pool == NET and is_bot_check(message):
-                note_bot_check()
+                youtube.note_bot_check()
                 task.bot_pauses += 1
                 if task.bot_pauses >= MAX_BOT_PAUSES:
                     task.status, task.error, task.detail = Status.FAILED, BOT_CHECK_HINT, ""

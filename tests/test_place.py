@@ -1,7 +1,7 @@
 import pytest
 
 from ytdl.config import Config
-from ytdl.downloader import Skipped, conflicts, final_path, place
+from ytdl.library import Skipped, conflicts, final_path, place
 from ytdl.metadata import MUSIK, Item
 
 

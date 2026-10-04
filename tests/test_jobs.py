@@ -6,7 +6,7 @@ import pytest
 
 from ytdl import jobs
 from ytdl.config import Config
-from ytdl.downloader import Skipped
+from ytdl.library import Skipped
 from ytdl.jobs import CONVERT, CPU, CUT, FETCH, NET, JobManager, backoff_delay, is_permanent, is_throttled
 from ytdl.metadata import MUSIK, Item
 

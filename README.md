@@ -367,15 +367,21 @@ Im Editor kontrollierst du das Ergebnis:
 ```
 ytdl/
   web.py          FastAPI-Server und API
-  downloader.py   yt-dlp: Metadaten abfragen, herunterladen, MP3 konvertieren
+  config.py       Einstellungen aus .env, Modi und Audio-Formate
+  downloader.py   Titel laden (Stufe 1) und umwandeln (Stufe 2), URL prüfen
+  ytdlp.py        yt-dlp-Aufrufe: gemeinsame Optionen, Infos, Download, Fortschritt
+  auth.py         YouTube-Anmeldung (Cookies) gegen die Bot-Prüfung
+  library.py      Ablage: Zielpfad, Konflikte, Archiv, Taggen + Ablegen
   metadata.py     Erkennung von Interpret/Titel/Album, Bereinigung
   paths.py        Windows-sichere Dateinamen, Zielpfade
-  tagger.py       ID3-Tags und Cover (mutagen, Pillow)
+  tagger.py       ID3-/MP4-Tags (mutagen)
+  covers.py       Cover: eigene URL laden, schwarze Balken entfernen, zuschneiden
   jobs.py         Warteschlange: parallele Worker, Backoff, Retry
   activity.py     Hintergrund-Vorgänge mit Schrittprotokoll
+  status.py       Status-Texte (fertig, fehler, pausiert …)
+  errors.py       Fehlermeldungen aufbereiten
   explorer.py     „Im Ordner öffnen“ (Windows-Explorer / xdg-open)
   history.py      Download-Historie (data/history.jsonl)
-  covers.py       Eigenes Cover per URL
   albumvideo.py   Album in einem Video: Analyse, Zwischenspeicher, Schnitt
   split.py        Tracklisten-Parser, Pausenerkennung, Schnitt per ffmpeg
   ocr.py          Text im Videobild lesen (RapidOCR)

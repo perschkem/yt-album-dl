@@ -10,12 +10,10 @@ import time
 from pathlib import Path
 
 import numpy as np
-from yt_dlp import YoutubeDL
 
 from .activity import Activity, NullActivity
 from .config import Config
-from .downloader import (Archive, ProgressCallback, _base_opts, _extract, audio_format, choose_cover, place,
-                         with_cookie_fallback)
+from .library import ProgressCallback, audio_format, downloaded_file, finish_track
 from .metadata import MUSIK, Item, clean_title, music_item, normalize_feat, split_artist_title
 from .ocr import overlay_titles, tracklist_from_frames
 from .split import (
@@ -32,7 +30,7 @@ from .split import (
     snap,
 )
 from .status import Status
-from .tagger import write_tags
+from .ytdlp import download as ytdlp_download, extract_info, mb
 
 CACHE_DAYS = 7
 SOURCE_LABELS = {
@@ -67,34 +65,13 @@ def cleanup_cache(cfg: Config) -> None:
             shutil.rmtree(entry, ignore_errors=True)
 
 
-_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
-
-
 def _audio_file(folder: Path) -> Path | None:
     """Die Audiospur im Zwischenspeicher – nicht das gleichnamige Vorschaubild (audio.webp/.jpg)."""
-    return next((p for p in sorted(folder.glob("audio.*"))
-                 if p.suffix.lower() not in _IMAGE_SUFFIXES and not p.name.endswith((".part", ".ytdl"))), None)
+    return downloaded_file(folder, "audio")
 
 
 def _thumbnail_file(folder: Path) -> Path | None:
-    return next((p for p in sorted(folder.glob("audio.*")) if p.suffix.lower() in _IMAGE_SUFFIXES), None)
-
-
-def _mb(value: float | None) -> str:
-    return f"{(value or 0) / 1_048_576:.1f}"
-
-
-def _download_hook(step):
-    def hook(d: dict) -> None:
-        if d["status"] != "downloading":
-            return
-        total = d.get("total_bytes") or d.get("total_bytes_estimate")
-        done = d.get("downloaded_bytes", 0)
-        detail = f"{_mb(done)} von {_mb(total)} MB" if total else f"{_mb(done)} MB"
-        if d.get("speed"):
-            detail += f" · {_mb(d['speed'])} MB/s"
-        step.update(detail, done / total * 100 if total else None)
-    return hook
+    return downloaded_file(folder, "audio", image=True)
 
 
 def _fetch_audio(info: dict, folder: Path, step=None) -> Path:
@@ -102,21 +79,9 @@ def _fetch_audio(info: dict, folder: Path, step=None) -> Path:
     if audio := _audio_file(folder):
         return audio
     folder.mkdir(parents=True, exist_ok=True)
-    opts = {
-        "ignoreerrors": False,
-        # m4a/webm spielen alle Browser ab
-        "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
-        "outtmpl": str(folder / "audio.%(ext)s"),
-        "writethumbnail": True,
-        "concurrent_fragment_downloads": 4,
-        "progress_hooks": [_download_hook(step)] if step else [],
-    }
-
-    def run() -> None:
-        with YoutubeDL({**_base_opts(), **opts}) as ydl:
-            ydl.download([info["webpage_url"]])
-
-    with_cookie_fallback(run)
+    # m4a/webm spielen alle Browser ab
+    ytdlp_download(info["webpage_url"], folder / "audio.%(ext)s", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
+                   step.update if step else None, writethumbnail=True)
     audio = _audio_file(folder)
     if not audio:
         raise RuntimeError("Audio konnte nicht geladen werden")
@@ -136,8 +101,8 @@ def _envelope(folder: Path, audio: Path, step=None, duration: float | None = Non
 
 
 def _comment_tracklist(url: str, duration: float) -> tuple[list[Segment], int]:
-    info = with_cookie_fallback(lambda: _extract(
-        url, getcomments=True, extractor_args={"youtube": {"max_comments": ["60"], "comment_sort": ["top"]}})) or {}
+    info = extract_info(url, getcomments=True,
+                        extractor_args={"youtube": {"max_comments": ["60"], "comment_sort": ["top"]}}) or {}
     comments = sorted(
         info.get("comments") or [],
         key=lambda c: (not c.get("is_pinned"), not c.get("author_is_uploader"), -(c.get("like_count") or 0)),
@@ -192,7 +157,7 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
     cleanup_cache(cfg)
 
     step = act.step("Video-Infos laden")
-    info = with_cookie_fallback(lambda: _extract(url))
+    info = extract_info(url)
     if not info:
         raise ValueError("Keine Informationen gefunden – ist die URL korrekt?")
     duration = float(info.get("duration") or 0)
@@ -202,7 +167,7 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
     cached = _audio_file(folder) is not None
     step = act.step("Audiospur laden")
     audio = _fetch_audio(info, folder, step)
-    step.done(f"{'aus dem Zwischenspeicher' if cached else 'geladen'} · {_mb(audio.stat().st_size)} MB")
+    step.done(f"{'aus dem Zwischenspeicher' if cached else 'geladen'} · {mb(audio.stat().st_size)} MB")
 
     cached = (folder / "envelope.npy").exists()
     step = act.step("Lautstärkeverlauf berechnen")
@@ -351,23 +316,15 @@ def scan_overlays(cfg: Config, video_id: str, artist: str, activity: Activity | 
     folder = cache_dir(cfg, video_id)
     meta = load_meta(cfg, video_id)
     step = act.step("Video in 480p laden")
-    video = next((p for p in folder.glob("video.*") if not p.name.endswith((".part", ".ytdl"))), None)
+    video = downloaded_file(folder, "video")
     if video:
         step.done("aus dem Zwischenspeicher")
     else:
-        opts = {"ignoreerrors": False, "format": "bv*[height<=480]/b[height<=480]",
-                "outtmpl": str(folder / "video.%(ext)s"), "concurrent_fragment_downloads": 4,
-                "progress_hooks": [_download_hook(step)]}
-
-        def run() -> None:
-            with YoutubeDL({**_base_opts(), **opts}) as ydl:
-                ydl.download([meta["url"]])
-
-        with_cookie_fallback(run)
-        video = next((p for p in folder.glob("video.*") if not p.name.endswith((".part", ".ytdl"))), None)
+        ytdlp_download(meta["url"], folder / "video.%(ext)s", "bv*[height<=480]/b[height<=480]", step.update)
+        video = downloaded_file(folder, "video")
         if not video:
             raise RuntimeError("Video konnte nicht geladen werden")
-        step.done(f"{_mb(video.stat().st_size)} MB")
+        step.done(f"{mb(video.stat().st_size)} MB")
     step = act.step("Einblendungen lesen (alle 10 s ein Bild)")
     segments = overlay_titles(video, meta["duration"],
                               on_progress=lambda n, total: step.update(f"Bild {n}/{total}", n / total * 100))
@@ -408,7 +365,7 @@ def build_items(cfg: Config, video_id: str, album: str, album_artist: str, year:
     return items
 
 
-def cut_track(item: Item, cfg: Config, progress: ProgressCallback) -> Path:
+def cut_track(item: Item, cfg: Config, progress: ProgressCallback, workdir: Path | None = None) -> Path:
     """Schneidet einen Titel aus dem zwischengespeicherten Audio, taggt und legt ihn ab."""
     folder = cache_dir(cfg, item.source_id)
     audio = _audio_file(folder)
@@ -419,10 +376,4 @@ def cut_track(item: Item, cfg: Config, progress: ProgressCallback) -> Path:
     with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
         out = Path(tmp) / f"track.{audio_format(item, cfg)}"
         cut(audio, item.start or 0.0, item.end, out, cfg.bitrate)
-        progress(Status.TAGGING, 90.0)
-        cover, crop = choose_cover(item, cfg, thumb, progress)
-        write_tags(out, item, cover, crop)
-        target = place(out, item, cfg)
-    Archive(cfg.data_dir, MUSIK).add(item.source_id)
-    progress(Status.DONE, 100.0)
-    return target
+        return finish_track(out, item, cfg, thumb, progress, 90.0)

@@ -19,11 +19,12 @@ from . import albumvideo
 from .activity import ActivityManager
 from .config import AUDIO_FORMATS, MissingFolder, load_config, to_local_path, update_env_file
 from .covers import CoverError, check_cover, thumbnail_preview
-from .downloader import (BROWSERS, auth_status, configure_auth, conflicts, ffmpeg_available, friendly_error,
-                         parse_browser_spec, probe)
+from .auth import BROWSERS, friendly_error, parse_browser_spec, youtube
+from .downloader import ffmpeg_available, probe
 from .explorer import is_allowed, open_in_file_manager
 from .history import History
 from .jobs import JobManager
+from .library import conflicts
 from .metadata import MUSIK, PODCAST, Item
 from .errors import clean_error
 from .paths import win_path
@@ -35,7 +36,7 @@ cfg = load_config()
 history = History(cfg.data_dir)
 manager = JobManager(cfg, history=history)
 activities = ActivityManager(format_error=friendly_error)
-configure_auth(cfg)
+youtube.configure(cfg)
 app = FastAPI(title="yt-album-dl")
 
 
@@ -244,7 +245,7 @@ def put_settings(req: SettingsRequest) -> dict:
     for field, value in changes.items():  # sofort wirksam, ohne Neustart
         setattr(cfg, field, value)
     manager.ensure_workers()
-    configure_auth(cfg)
+    youtube.configure(cfg)
     return get_settings()
 
 
@@ -332,13 +333,13 @@ _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 @app.get("/api/auth")
 def get_auth() -> dict:
     """Status der YouTube-Anmeldung: Bot-Prüfung zuletzt? Laufen Downloads gerade mit Cookies?"""
-    return auth_status()
+    return youtube.status()
 
 
 @app.get("/api/jobs/events")
 async def job_events(request: Request) -> StreamingResponse:
     """Live-Updates: Job-Liste plus Anmeldestatus (für den Hinweis bei einer YouTube-Bot-Prüfung)."""
-    return StreamingResponse(_event_stream(request, lambda: {"jobs": manager.snapshot(), "auth": auth_status()}),
+    return StreamingResponse(_event_stream(request, lambda: {"jobs": manager.snapshot(), "auth": youtube.status()}),
                              media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
