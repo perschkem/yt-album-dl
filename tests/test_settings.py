@@ -77,3 +77,12 @@ def test_running_job_keeps_its_folder(settings_client, tmp_path):
     settings_client.put("/api/settings", json={"musik_dir": str(tmp_path / "anderer")})
     task = next(t for j in web.manager.jobs for t in j.tasks)
     assert task.item.target_root == str(old_root)
+
+
+def test_audio_format_from_env_is_validated():
+    from ytdl.config import AUDIO_FORMATS, _audio_format
+
+    assert AUDIO_FORMATS == ("mp3", "m4a")
+    assert _audio_format(" M4A ") == "m4a"
+    with pytest.raises(ValueError, match="flac"):
+        _audio_format("flac")

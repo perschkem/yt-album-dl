@@ -66,3 +66,30 @@ def test_va_tags(tmp_path):
     write_tags(mp3, item)
     tags = ID3(mp3)
     assert str(tags["TPE2"]) == "Various Artists" and str(tags["TCMP"]) == "1" and str(tags["TPE1"]) == "B"
+
+
+def test_target_path_uses_one_root_for_both_modes():
+    from ytdl.paths import target_path
+
+    song = Item(id="1", url="", mode=MUSIK, title="T", artist="A")
+    episode = Item(id="2", url="", mode=PODCAST, title="F", artist="K", date="2026-01-02")
+    assert target_path(song, ROOT) == music_path(song, ROOT)
+    assert target_path(episode, ROOT) == podcast_path(episode, ROOT)
+
+
+def test_win_path_is_empty_without_path():
+    from ytdl.paths import win_path
+
+    assert win_path("/mnt/d/Musik/x.mp3") == "D:\\Musik\\x.mp3"
+    assert win_path(Path("/mnt/c")) == "C:\\"
+    assert win_path("/srv/musik") == "/srv/musik"
+    assert win_path("") == "" and win_path(None) == ""
+
+
+def test_common_folder():
+    from ytdl.paths import common_folder
+
+    assert common_folder([]) == ""
+    assert common_folder(["/m/A/Album/01.mp3"]) == "/m/A/Album"
+    assert common_folder(["/m/A/Album/01.mp3", "/m/A/Album/02.mp3"]) == "/m/A/Album"
+    assert common_folder(["/m/A/Singles/x.mp3", "/m/B/Singles/y.mp3"]) == "/m"

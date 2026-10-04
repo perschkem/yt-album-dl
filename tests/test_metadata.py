@@ -1,6 +1,8 @@
 import pytest
 
 from ytdl.metadata import (
+    MUSIK,
+    Item,
     apply_playlist,
     clean_channel,
     clean_title,
@@ -120,3 +122,19 @@ def test_apply_playlist_mixed_playlist_stays_singles():
     items = [music_item({"id": "1", "title": "A - Eins"}), music_item({"id": "2", "title": "B - Zwei"})]
     apply_playlist(items, {"id": "PLabc", "title": "Meine Mix-Playlist"})
     assert all(i.album == "" and i.track_no is None for i in items)
+
+
+def test_item_label_and_from_dict_ignores_unknown_keys():
+    item = Item.from_dict({"id": "x", "url": "", "mode": MUSIK, "title": "Titel", "artist": "Band",
+                           "selected": True, "already": False})
+    assert item.label == "Band - Titel"
+    assert Item.from_dict(item.to_dict()) == item
+
+
+def test_music_and_podcast_items_share_common_fields():
+    info = {"id": "abc", "original_url": "https://youtu.be/abc", "thumbnail": "https://i/x.jpg", "duration": 61,
+            "title": "Band - Song", "channel": "Kanal"}
+    for make in (music_item, podcast_item):
+        item = make(info)
+        assert (item.id, item.url, item.thumbnail, item.duration, item.source_title) == (
+            "abc", "https://youtu.be/abc", "https://i/x.jpg", 61, "Band - Song")

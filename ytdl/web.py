@@ -7,6 +7,7 @@ from pathlib import Path
 import asyncio
 import json
 import os
+import time
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -16,7 +17,7 @@ from pydantic import BaseModel
 
 from . import albumvideo
 from .activity import ActivityManager
-from .config import MissingFolder, load_config, to_local_path, update_env_file
+from .config import AUDIO_FORMATS, MissingFolder, load_config, to_local_path, update_env_file
 from .covers import CoverError, check_cover, thumbnail_preview
 from .downloader import (BROWSERS, auth_status, configure_auth, conflicts, ffmpeg_available, friendly_error,
                          parse_browser_spec, probe)
@@ -24,7 +25,8 @@ from .explorer import is_allowed, open_in_file_manager
 from .history import History
 from .jobs import JobManager
 from .metadata import MUSIK, PODCAST, Item
-from .paths import to_windows_path
+from .errors import clean_error
+from .paths import win_path
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -90,7 +92,7 @@ def _album_call(func, *args):
     try:
         return func(*args)
     except Exception as exc:
-        raise HTTPException(400, str(exc).removeprefix("ERROR: ")) from exc
+        raise HTTPException(400, clean_error(exc)) from exc
 
 
 def _check_mode(mode: str) -> None:
@@ -99,7 +101,7 @@ def _check_mode(mode: str) -> None:
 
 
 def _check_format(fmt: str) -> None:
-    if fmt not in ("", "mp3", "m4a"):
+    if fmt and fmt not in AUDIO_FORMATS:
         raise HTTPException(400, f"Unbekanntes Format: {fmt}")
 
 
@@ -110,8 +112,8 @@ def _items(req: JobRequest) -> list[Item]:
 @app.get("/api/config")
 def get_config() -> dict:
     return {
-        "musik_dir": to_windows_path(cfg.musik_dir) if cfg.musik_dir else "",
-        "podcast_dir": to_windows_path(cfg.podcast_dir) if cfg.podcast_dir else "",
+        "musik_dir": win_path(cfg.musik_dir),
+        "podcast_dir": win_path(cfg.podcast_dir),
         "audio_format": cfg.audio_format,
         "parallel_downloads": cfg.parallel_downloads,
         "bitrate": cfg.bitrate,
@@ -231,7 +233,7 @@ def put_settings(req: SettingsRequest) -> dict:
         else:
             env["SLEEP_SECONDS"], changes["sleep_seconds"] = str(req.sleep_seconds), req.sleep_seconds
     if req.audio_format is not None:
-        if req.audio_format not in ("mp3", "m4a"):
+        if req.audio_format not in AUDIO_FORMATS:
             errors["audio_format"] = "mp3 oder m4a"
         else:
             env["AUDIO_FORMAT"], changes["audio_format"] = req.audio_format, req.audio_format
@@ -451,8 +453,7 @@ def album_job(video_id: str, req: AlbumJobRequest) -> dict:
 # ---------- Historie ----------
 
 def _history_filters(q: str, mode: str, result: str, days: int | None) -> dict:
-    import time as _time
-    return {"q": q, "mode": mode, "result": result, "since": _time.time() - days * 86400 if days else None}
+    return {"q": q, "mode": mode, "result": result, "since": time.time() - days * 86400 if days else None}
 
 
 @app.get("/api/history")

@@ -15,10 +15,10 @@ from yt_dlp import YoutubeDL
 
 from .activity import Activity, NullActivity
 
-from .config import Config, load_config
+from .config import AUDIO_FORMATS, Config, load_config, to_local_path
 from .metadata import MUSIK, PODCAST, Item, apply_playlist, music_item, podcast_item
 from .covers import CoverError, fetch_cover
-from .paths import target_path, to_windows_path
+from .paths import target_path, win_path
 from .split import encode
 from .tagger import write_tags
 
@@ -133,7 +133,6 @@ def parse_browser_spec(spec: str) -> tuple:
     if browser not in BROWSERS:
         raise ValueError(f"Unbekannter Browser: {browser!r} (möglich: {', '.join(BROWSERS)})")
     if profile.strip():
-        from .config import to_local_path
         return (browser, str(to_local_path(profile.strip())), None, None)
     return (browser, None, None, None)
 
@@ -274,13 +273,13 @@ class Skipped(Exception):
 
 
 def audio_format(item: Item, cfg: Config) -> str:
-    return item.audio_format if item.audio_format in ("mp3", "m4a") else cfg.audio_format
+    return item.audio_format if item.audio_format in AUDIO_FORMATS else cfg.audio_format
 
 
 def final_path(item: Item, cfg: Config) -> Path:
     """Zielpfad inkl. Endung des gewählten Formats (ohne Kollisionsbehandlung)."""
     root = Path(item.target_root) if item.target_root else cfg.root(item.mode)
-    return target_path(item, root, root).with_suffix(f".{audio_format(item, cfg)}")
+    return target_path(item, root).with_suffix(f".{audio_format(item, cfg)}")
 
 
 def place(src: Path, item: Item, cfg: Config) -> Path:
@@ -312,8 +311,7 @@ def conflicts(items: list[Item], cfg: Config) -> list[dict]:
         path = final_path(item, cfg)
         if path.exists():
             stat = path.stat()
-            found.append({"id": item.id, "label": f"{item.artist} - {item.title}", "path": str(path),
-                          "win_path": to_windows_path(path), "size": stat.st_size, "modified": stat.st_mtime})
+            found.append({"id": item.id, "label": item.label, "path": str(path), "win_path": win_path(path), "size": stat.st_size, "modified": stat.st_mtime})
     return found
 
 

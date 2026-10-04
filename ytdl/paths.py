@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -59,10 +60,8 @@ def podcast_path(item: Item, root: Path) -> Path:
     return root / sanitize(item.artist) / f"{sanitize(base)}.mp3"
 
 
-def target_path(item: Item, musik_root: Path, podcast_root: Path) -> Path:
-    if item.mode == MUSIK:
-        return music_path(item, musik_root)
-    return podcast_path(item, podcast_root)
+def target_path(item: Item, root: Path) -> Path:
+    return music_path(item, root) if item.mode == MUSIK else podcast_path(item, root)
 
 
 _WSL_MOUNT = re.compile(r"^/mnt/([a-z])(?:/(.*))?$")
@@ -75,3 +74,15 @@ def to_windows_path(path: Path) -> str:
         return str(path)
     drive, rest = match.groups()
     return f"{drive.upper()}:\\" + (rest or "").replace("/", "\\")
+
+
+def win_path(path: str | Path | None) -> str:
+    """Wie to_windows_path, aber leer, wenn kein Pfad da ist (für die Anzeige in der Oberfläche)."""
+    return to_windows_path(Path(path)) if path else ""
+
+
+def common_folder(paths: list[str]) -> str:
+    """Gemeinsamer Ordner mehrerer Dateien (z.B. Album-/Kanalordner); leer, wenn keine Dateien."""
+    if not paths:
+        return ""
+    return os.path.commonpath([str(Path(p).parent) for p in paths])

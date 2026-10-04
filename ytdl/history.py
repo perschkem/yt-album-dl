@@ -5,13 +5,12 @@ from __future__ import annotations
 import csv
 import io
 import json
-import os
 import threading
 import time
 from pathlib import Path
 
 from .metadata import Item
-from .paths import to_windows_path
+from .paths import common_folder, win_path
 
 FINISHED, SKIPPED, OVERWRITTEN, FAILED = "fertig", "übersprungen", "überschrieben", "fehler"
 _TAG_KEYS = ("artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date", "genre")
@@ -41,7 +40,7 @@ class History:
             "end": item.end,
             "boundary_source": item.boundary_source,
             "path": path,
-            "win_path": to_windows_path(file) if file else "",
+            "win_path": win_path(file),
             "size": file.stat().st_size if file and file.exists() else None,
             "tags": {k: getattr(item, k) for k in _TAG_KEYS if getattr(item, k) not in (None, "")},
             "cover": "eigene URL" if item.cover_url else "YouTube-Vorschaubild",
@@ -118,10 +117,8 @@ class History:
             for e in group["entries"]:
                 counts[e["result"]] = counts.get(e["result"], 0) + 1
             existing = [e["path"] for e in group["entries"] if e.get("exists")]
-            folder = existing[0] if len(existing) == 1 else (
-                os.path.commonpath([str(Path(p).parent) for p in existing]) if existing else "")
-            group.update(count=len(group["entries"]), counts=counts, folder=folder,
-                         win_folder=to_windows_path(Path(folder)) if folder else "")
+            folder = existing[0] if len(existing) == 1 else common_folder(existing)  # einzelne Datei: markieren
+            group.update(count=len(group["entries"]), counts=counts, folder=folder, win_folder=win_path(folder))
             result_groups.append(group)
         return {"total": len(result_groups), "entries_total": len(entries),
                 "groups": result_groups[offset:offset + limit]}

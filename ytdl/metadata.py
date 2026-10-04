@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 
-MUSIK = "musik"
-PODCAST = "podcast"
+from .config import MUSIK, PODCAST  # noqa: F401  (hier re-exportiert, viele Module importieren sie von hier)
 
 # Schlagwörter, an denen man "Müll" in Klammern erkennt: (Official Video), [HD], (Lyrics) ...
 _JUNK_WORDS = (
@@ -75,13 +74,18 @@ class Item:
     # wird beim Ablegen gesetzt, wenn eine vorhandene Datei ersetzt wurde
     overwritten: bool = False
 
+    @property
+    def label(self) -> str:
+        """„Interpret - Titel“ für Listen und Dialoge."""
+        return f"{self.artist} - {self.title}"
+
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Item":
-        fields = cls.__dataclass_fields__
-        return cls(**{k: v for k, v in data.items() if k in fields})
+        names = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in names})
 
 
 def _squash(text: str) -> str:
@@ -146,6 +150,17 @@ def _info_artist(info: dict) -> str:
     return (info.get("artist") or info.get("creator") or "").strip()
 
 
+def _common_fields(info: dict) -> dict:
+    """Felder, die Musik- und Podcast-Items gleich aus den yt-dlp-Infos übernehmen."""
+    return {
+        "id": info.get("id") or "",
+        "url": info.get("webpage_url") or info.get("original_url") or "",
+        "thumbnail": info.get("thumbnail") or "",
+        "duration": info.get("duration"),
+        "source_title": info.get("title") or "",
+    }
+
+
 def music_item(info: dict) -> Item:
     """Erzeugt Musik-Metadaten aus einem einzelnen yt-dlp-Video-Info-Dict."""
     source_title = info.get("title") or ""
@@ -171,8 +186,7 @@ def music_item(info: dict) -> Item:
         genre = info["genres"][0]
 
     return Item(
-        id=info.get("id") or "",
-        url=info.get("webpage_url") or info.get("original_url") or "",
+        **_common_fields(info),
         mode=MUSIK,
         title=title or "Unbekannt",
         artist=artist,
@@ -181,9 +195,6 @@ def music_item(info: dict) -> Item:
         track_no=info.get("track_number"),
         year=_year(info),
         genre=genre,
-        thumbnail=info.get("thumbnail") or "",
-        duration=info.get("duration"),
-        source_title=source_title,
     )
 
 
@@ -192,12 +203,10 @@ def podcast_item(info: dict) -> Item:
     upload = str(info.get("upload_date") or info.get("release_date") or "")
     date = f"{upload[:4]}-{upload[4:6]}-{upload[6:8]}" if len(upload) == 8 else ""
     channel = clean_channel(info.get("channel") or info.get("uploader") or "") or "Unbekannt"
-    source_title = info.get("title") or ""
     return Item(
-        id=info.get("id") or "",
-        url=info.get("webpage_url") or info.get("original_url") or "",
+        **_common_fields(info),
         mode=PODCAST,
-        title=_squash(source_title) or "Unbekannt",
+        title=_squash(info.get("title") or "") or "Unbekannt",
         artist=channel,
         album=channel,
         album_artist=channel,
@@ -205,9 +214,6 @@ def podcast_item(info: dict) -> Item:
         date=date,
         genre="Podcast",
         description=(info.get("description") or "").strip(),
-        thumbnail=info.get("thumbnail") or "",
-        duration=info.get("duration"),
-        source_title=source_title,
     )
 
 

@@ -271,3 +271,19 @@ def test_progress_never_jumps_back_between_stages(tmp_path):
     mgr.submit("x", MUSIK, [item(1)])
     assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
     assert seen == sorted(seen) and seen[-1] == 100.0
+
+
+def test_history_errors_are_logged_not_raised(tmp_path, caplog):
+    class BrokenHistory:
+        def record(self, *a, **kw):
+            raise OSError("Platte voll")
+
+    def runner(it, cfg, report):
+        report("fertig", 100.0)
+
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path), history=BrokenHistory())
+    with caplog.at_level("ERROR", logger="ytdl.jobs"):
+        mgr.submit("x", MUSIK, [item(1)])
+        assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
+        assert wait_until(lambda: "Historie" in caplog.text)
+    assert mgr.snapshot()[0]["tasks"][0]["status"] == "fertig"  # Download bleibt erfolgreich

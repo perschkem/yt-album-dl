@@ -13,6 +13,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # YTDL_ENV_FILE erlaubt eine andere Datei (z.B. für Tests, damit die echte .env unangetastet bleibt)
 ENV_FILE = Path(os.getenv("YTDL_ENV_FILE") or PROJECT_ROOT / ".env")
 
+MUSIK = "musik"
+PODCAST = "podcast"
+AUDIO_FORMATS = ("mp3", "m4a")
+
 _WIN_DRIVE = re.compile(r"^([A-Za-z]):[\\/]*(.*)$")
 
 
@@ -60,8 +64,6 @@ class Config:
 
     def root(self, mode: str) -> Path:
         """Zielordner für einen Modus; Fehler mit Hinweis auf die Einstellungen, wenn keiner gesetzt ist."""
-        from .metadata import MUSIK
-
         root = self.musik_dir if mode == MUSIK else self.podcast_dir
         if root is None:
             name = "Musik" if mode == MUSIK else "Podcasts"
@@ -99,7 +101,7 @@ def load_config() -> Config:
 
 def _audio_format(value: str) -> str:
     value = value.strip().lower()
-    if value not in ("mp3", "m4a"):
+    if value not in AUDIO_FORMATS:
         raise ValueError(f"AUDIO_FORMAT muss mp3 oder m4a sein, nicht {value!r}")
     return value
 

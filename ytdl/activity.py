@@ -8,6 +8,8 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .errors import clean_error
+
 RUNNING = "läuft"
 DONE = "fertig"
 NOTHING = "nichts gefunden"
@@ -112,7 +114,7 @@ class ActivityManager:
                     step.done()
             activity.result, activity.status = result, DONE
         except Exception as exc:
-            message = format_error(str(exc).removeprefix("ERROR: ").strip())
+            message = format_error(clean_error(exc))
             running = next((s for s in reversed(activity.steps) if s.state == RUNNING), None)
             if running:
                 running.state, running.detail, running.progress, running.ended = FAILED, message, None, time.time()

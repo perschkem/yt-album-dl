@@ -3,7 +3,7 @@ mit exponentiellem Backoff pro Titel und Stufe."""
 
 from __future__ import annotations
 
-import os
+import logging
 import random
 import threading
 import time
@@ -16,8 +16,11 @@ from .config import Config
 from .downloader import (BOT_CHECK_HINT, Skipped, audio_format, convert, cookies_active, fetch, is_bot_check,
                          note_bot_check)
 from .history import FAILED, FINISHED as DONE, OVERWRITTEN, SKIPPED, History
+from .errors import clean_error
 from .metadata import Item
-from .paths import to_windows_path
+from .paths import common_folder, win_path
+
+log = logging.getLogger(__name__)
 
 MAX_JOBS_KEPT = 50
 BACKOFF_BASE = 2.0  # Sekunden vor dem 1. neuen Versuch
@@ -94,13 +97,13 @@ class Task:
         wait = max(0.0, self.next_try - time.time()) if self.status in ("neuer Versuch", "pausiert") else 0.0
         return {
             "id": self.item.id,
-            "label": f"{self.item.artist} - {self.item.title}",
+            "label": self.item.label,
             "status": self.status,
             "stage": self.stage,
             "progress": round(self.progress, 1),
             "detail": self.detail,
             "path": self.path,
-            "win_path": to_windows_path(Path(self.path)) if self.path else "",
+            "win_path": win_path(self.path),
             "error": self.error,
             "attempt": self.attempt,
             "max_attempts": max_attempts,
@@ -124,10 +127,7 @@ class Job:
 
     def folder(self) -> str:
         """Gemeinsamer Ordner der fertigen Titel (Album-/Kanalordner)."""
-        paths = [t.path for t in self.tasks if t.path]
-        if not paths:
-            return ""
-        return os.path.commonpath([str(Path(p).parent) for p in paths])
+        return common_folder([t.path for t in self.tasks if t.path])
 
     def to_dict(self) -> dict:
         folder = self.folder()
@@ -142,7 +142,7 @@ class Job:
             "skipped": sum(t.status == "übersprungen" for t in self.tasks),
             "total": len(self.tasks),
             "folder": folder,
-            "win_folder": to_windows_path(Path(folder)) if folder else "",
+            "win_folder": win_path(folder),
             "tasks": [t.to_dict(self.max_attempts) for t in self.tasks],
         }
 
@@ -274,7 +274,7 @@ class JobManager:
                 task.status, task.detail, task.progress = "übersprungen", str(exc), 100.0
                 self._record(task, SKIPPED)
             except Exception as exc:  # ein Fehler soll die Warteschlange nie stoppen
-                self._failed(task, str(exc).removeprefix("ERROR: ").strip())
+                self._failed(task, clean_error(exc))
                 if task.status == "fehler":
                     self._record(task, FAILED)
             finally:
@@ -309,7 +309,7 @@ class JobManager:
                                 audio_format=fmt, bitrate=self.cfg.bitrate, job_id=task.job_id,
                                 job_title=task.job_title, with_cookies=cookies_active())
         except Exception:
-            pass
+            log.exception("Historie: Eintrag für %s nicht geschrieben", task.item.id)
 
     def _failed(self, task: Task, message: str) -> None:
         with self._cond:
