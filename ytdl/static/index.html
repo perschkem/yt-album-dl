@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ytdl – YouTube zu MP3</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>YouTube → MP3</h1>
+    <p id="dirs" class="muted"></p>
+    <p id="ffmpeg-warning" class="warning" hidden>
+      ffmpeg wurde nicht gefunden. Bitte in WSL installieren: <code>sudo apt install ffmpeg</code>
+    </p>
+  </header>
+
+  <form id="probe-form" class="card">
+    <label for="url">Video- oder Playlist-URL</label>
+    <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=… oder …/playlist?list=…" required autofocus>
+    <div class="row">
+      <div class="segmented" role="radiogroup" aria-label="Modus">
+        <label><input type="radio" name="mode" value="musik" checked> Musik</label>
+        <label><input type="radio" name="mode" value="podcast"> Podcast / Audio</label>
+      </div>
+      <button type="submit" id="probe-btn">Prüfen</button>
+    </div>
+    <p id="probe-error" class="error" hidden></p>
+  </form>
+
+  <section id="preview" class="card" hidden>
+    <div class="row spread">
+      <h2 id="preview-title"></h2>
+      <span id="preview-count" class="muted"></span>
+    </div>
+
+    <div id="bulk" class="bulk" hidden>
+      <label>Album für alle <input id="bulk-album" placeholder="leer = Singles"></label>
+      <label>Albuminterpret <input id="bulk-album-artist"></label>
+      <label>Jahr <input id="bulk-year" inputmode="numeric" size="4"></label>
+      <button type="button" id="bulk-apply" class="secondary">Übernehmen</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="preview-head"></tr></thead>
+        <tbody id="preview-body"></tbody>
+      </table>
+    </div>
+
+    <div class="row spread">
+      <span class="muted">Bereits geladene Titel sind abgewählt – Haken setzen, um sie erneut zu laden.</span>
+      <button type="button" id="download-btn">Herunterladen</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Downloads</h2>
+    <div id="jobs"><p class="muted">Noch keine Downloads.</p></div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
