@@ -20,3 +20,14 @@ def test_open_selects_file_in_windows_explorer(tmp_path, monkeypatch):
     monkeypatch.setattr(explorer.subprocess, "Popen", lambda args, **kw: calls.append(args))
     explorer.open_in_file_manager(f)
     assert calls[0][0].endswith("explorer.exe") and calls[0][1].startswith("/select,")
+
+
+def test_open_reveals_file_in_finder_on_mac(tmp_path, monkeypatch):
+    f = tmp_path / "x.mp3"
+    f.write_bytes(b"x")
+    calls = []
+    monkeypatch.setattr(explorer.shutil, "which", lambda name: None)
+    monkeypatch.setattr(explorer.sys, "platform", "darwin")
+    monkeypatch.setattr(explorer.subprocess, "Popen", lambda args, **kw: calls.append(args))
+    explorer.open_in_file_manager(f)
+    assert calls == [["open", "-R", str(f)]]

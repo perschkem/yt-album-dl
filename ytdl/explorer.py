@@ -1,9 +1,10 @@
-"""Dateien/Ordner im Dateimanager öffnen – unter WSL im Windows-Explorer."""
+"""Dateien/Ordner im Dateimanager öffnen – unter WSL im Windows-Explorer, auf dem Mac im Finder, sonst xdg-open."""
 
 from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from .paths import to_windows_path
@@ -34,8 +35,13 @@ def open_in_file_manager(path: Path) -> str:
         # explorer.exe liefert auch bei Erfolg Exit-Code 1 → Ergebnis nicht auswerten
         subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return win
+    if sys.platform == "darwin":
+        # macOS: Finder öffnen, Datei markieren (-R)
+        args = ["open", "-R", str(path)] if path.is_file() else ["open", str(path)]
+        subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return str(path)
     folder = path.parent if path.is_file() else path
     if not shutil.which("xdg-open"):
-        raise RuntimeError("Kein Dateimanager gefunden (weder explorer.exe noch xdg-open)")
+        raise RuntimeError("Kein Dateimanager gefunden (weder explorer.exe, Finder noch xdg-open)")
     subprocess.Popen(["xdg-open", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return str(folder)
