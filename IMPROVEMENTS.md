@@ -28,3 +28,30 @@ Beim Album-Aufteilen gilt dasselbe für jeden Schnitt.
   gleichzeitig den Status „lädt“ haben können.
 - Die Album-Analyse (`/api/album/analyze`) blockiert aktuell eine Anfrage, bis sie fertig ist (ca. 1 Min.).
   Auch sie könnte als Hintergrund-Job mit Fortschritt laufen.
+
+## Download-Retry
+
+**Ist-Zustand:** Schlägt ein Titel fehl (Netzwerkabbruch, YouTube-Drosselung/429, kurzzeitig nicht verfügbar),
+steht er in der Oberfläche auf „fehler“ und bleibt dort. Man muss die URL erneut prüfen und herunterladen.
+
+**Idee:**
+- **Automatisch:** Bei vorübergehenden Fehlern 2–3 neue Versuche mit wachsender Wartezeit (z.B. 5 s, 20 s, 60 s).
+  yt-dlp bringt dafür schon `retries`, `fragment_retries` und `retry_sleep` mit. Zusätzlich ein eigener Retry
+  um den ganzen Titel in `JobManager._worker` (`ytdl/jobs.py`).
+- **Manuell:** Ein Button „Erneut versuchen“ bei fehlgeschlagenen Titeln und „Alle fehlgeschlagenen wiederholen“
+  pro Job. Neuer Endpunkt, z.B. `POST /api/jobs/{job_id}/retry`, der die Tasks wieder in die Warteschlange legt.
+- Dauerhafte Fehler (Video privat/gelöscht, Altersbeschränkung) nicht wiederholen, sondern verständlich anzeigen.
+
+## „Im Ordner öffnen“ pro Download
+
+**Ist-Zustand:** Fertige Titel zeigen nur den Pfad als Text (WSL-Pfad wie `/mnt/d/Musik/Musik/…`).
+
+**Idee:**
+- Ein Button „Im Ordner öffnen“ an jedem fertigen Titel (und pro Job für den Album-/Kanalordner).
+- Der Browser darf aus Sicherheitsgründen keine lokalen Ordner öffnen. Deshalb übernimmt das der Server:
+  Neuer Endpunkt, z.B. `POST /api/open` mit dem Pfad, der unter WSL den Windows-Explorer startet:
+  `explorer.exe /select,"D:\Musik\…\datei.mp3"`. Dafür wird der WSL-Pfad per `wslpath -w`
+  in einen Windows-Pfad umgewandelt. Mit `/select` ist die Datei gleich markiert.
+- Unter reinem Linux als Fallback `xdg-open <ordner>`.
+- **Sicherheit:** Nur Pfade innerhalb von `MUSIK_DIR`/`PODCAST_DIR` zulassen. Der Server läuft nur auf `127.0.0.1`.
+- Zusätzlich praktisch: Windows-Pfad statt WSL-Pfad in der Oberfläche anzeigen und zum Kopieren anbieten.
