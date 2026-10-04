@@ -1,7 +1,10 @@
 import json
 import time
 
-from ytdl.history import FAILED, FINISHED, History
+from ytdl.history import History
+from ytdl.status import Status
+
+FAILED, FINISHED = Status.FAILED, Status.DONE
 from ytdl.metadata import MUSIK, PODCAST, Item
 
 

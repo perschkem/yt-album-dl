@@ -9,12 +9,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from .errors import clean_error
+from .status import Status
 
-RUNNING = "läuft"
-DONE = "fertig"
-NOTHING = "nichts gefunden"
-SKIPPED = "übersprungen"
-FAILED = "fehler"
 
 MAX_KEPT = 30
 
@@ -22,7 +18,7 @@ MAX_KEPT = 30
 @dataclass
 class Step:
     label: str
-    state: str = RUNNING
+    state: str = Status.RUNNING
     detail: str = ""
     progress: float | None = None  # 0..100, None = unbestimmt
     started: float = field(default_factory=lambda: time.time())  # zur Laufzeit nachschlagen (testbar)
@@ -35,10 +31,10 @@ class Step:
             self.progress = max(0.0, min(100.0, progress))
 
     def done(self, detail: str = "") -> None:
-        self.state, self.detail, self.progress, self.ended = DONE, detail or self.detail, None, time.time()
+        self.state, self.detail, self.progress, self.ended = Status.DONE, detail or self.detail, None, time.time()
 
     def nothing(self, detail: str = "") -> None:
-        self.state, self.detail, self.progress, self.ended = NOTHING, detail or self.detail, None, time.time()
+        self.state, self.detail, self.progress, self.ended = Status.NOTHING, detail or self.detail, None, time.time()
 
     def to_dict(self) -> dict:
         # Laufzeit in ganzen Sekunden – ändert sich jede Sekunde, damit die Oberfläche „· 4 s“ hochzählen kann
@@ -52,7 +48,7 @@ class Step:
 class Activity:
     id: str
     kind: str
-    status: str = RUNNING
+    status: str = Status.RUNNING
     steps: list[Step] = field(default_factory=list)
     result: dict | None = None
     error: str = ""
@@ -61,7 +57,7 @@ class Activity:
     def step(self, label: str, detail: str = "") -> Step:
         """Beginnt einen neuen Schritt; ein noch laufender vorheriger Schritt gilt als fertig."""
         for previous in self.steps:
-            if previous.state == RUNNING:
+            if previous.state == Status.RUNNING:
                 previous.done()
         step = Step(label, detail=detail)
         self.steps.append(step)
@@ -69,14 +65,14 @@ class Activity:
 
     def skip(self, label: str, detail: str = "") -> None:
         now = time.time()
-        self.steps.append(Step(label, state=SKIPPED, detail=detail, started=now, ended=now))
+        self.steps.append(Step(label, state=Status.SKIPPED, detail=detail, started=now, ended=now))
 
     def log(self) -> list[dict]:
         return [s.to_dict() for s in list(self.steps)]
 
     def to_dict(self) -> dict:
         return {"id": self.id, "kind": self.kind, "status": self.status, "steps": self.log(),
-                "result": self.result if self.status == DONE else None, "error": self.error}
+                "result": self.result if self.status == Status.DONE else None, "error": self.error}
 
 
 class NullActivity(Activity):
@@ -110,15 +106,15 @@ class ActivityManager:
         try:
             result = func(activity)
             for step in activity.steps:
-                if step.state == RUNNING:
+                if step.state == Status.RUNNING:
                     step.done()
-            activity.result, activity.status = result, DONE
+            activity.result, activity.status = result, Status.DONE
         except Exception as exc:
             message = format_error(clean_error(exc))
-            running = next((s for s in reversed(activity.steps) if s.state == RUNNING), None)
+            running = next((s for s in reversed(activity.steps) if s.state == Status.RUNNING), None)
             if running:
-                running.state, running.detail, running.progress, running.ended = FAILED, message, None, time.time()
+                running.state, running.detail, running.progress, running.ended = Status.FAILED, message, None, time.time()
                 activity.error = f"Fehler bei „{running.label}“: {message}"
             else:
                 activity.error = message
-            activity.status = FAILED
+            activity.status = Status.FAILED

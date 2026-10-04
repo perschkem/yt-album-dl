@@ -1,6 +1,9 @@
 import time
 
-from ytdl.activity import DONE, FAILED, NOTHING, SKIPPED, ActivityManager
+from ytdl.activity import ActivityManager
+from ytdl.status import Status
+
+DONE, FAILED, NOTHING, SKIPPED = Status.DONE, Status.FAILED, Status.NOTHING, Status.SKIPPED
 
 
 def wait(act, timeout=3.0):

@@ -15,10 +15,11 @@ from .albumvideo import cut_track
 from .config import Config
 from .downloader import (BOT_CHECK_HINT, Skipped, audio_format, convert, cookies_active, fetch, is_bot_check,
                          note_bot_check)
-from .history import FAILED, FINISHED as DONE, OVERWRITTEN, SKIPPED, History
+from .history import History
 from .errors import clean_error
 from .metadata import Item
 from .paths import common_folder, win_path
+from .status import FINISHED, Status
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +39,6 @@ CUT = "cut"
 NET = "net"
 CPU = "cpu"
 POOL = {FETCH: NET, CONVERT: CPU, CUT: CPU}
-FINISHED = ("fertig", "fehler", "übersprungen")
 # Anteil jeder Stufe am Gesamtbalken eines Titels: Laden 0–70 %, Umwandeln + Taggen 70–100 %
 STAGE_RANGE = {FETCH: (0.0, 70.0), CONVERT: (70.0, 100.0), CUT: (0.0, 100.0)}
 
@@ -77,7 +77,7 @@ def is_throttled(message: str) -> bool:
 class Task:
     item: Item
     stage: str
-    status: str = "wartet"  # wartet | lädt | konvertiert | schneidet | taggt | neuer Versuch | fertig | fehler | übersprungen
+    status: str = Status.WAITING
     progress: float = 0.0
     detail: str = ""
     path: str = ""
@@ -94,7 +94,7 @@ class Task:
         return POOL[self.stage]
 
     def to_dict(self, max_attempts: int) -> dict:
-        wait = max(0.0, self.next_try - time.time()) if self.status in ("neuer Versuch", "pausiert") else 0.0
+        wait = max(0.0, self.next_try - time.time()) if self.status in (Status.RETRYING, Status.PAUSED) else 0.0
         return {
             "id": self.item.id,
             "label": self.item.label,
@@ -138,8 +138,8 @@ class Job:
             "audio_format": self.audio_format,
             "created": self.created,
             "done": sum(t.status in FINISHED for t in self.tasks),
-            "failed": sum(t.status == "fehler" for t in self.tasks),
-            "skipped": sum(t.status == "übersprungen" for t in self.tasks),
+            "failed": sum(t.status == Status.FAILED for t in self.tasks),
+            "skipped": sum(t.status == Status.SKIPPED for t in self.tasks),
             "total": len(self.tasks),
             "folder": folder,
             "win_folder": win_path(folder),
@@ -203,8 +203,8 @@ class JobManager:
             if job is None:
                 raise KeyError(job_id)
             for task in job.tasks:
-                if task.status == "fehler" and (task_id is None or task.item.id == task_id):
-                    task.status, task.error, task.detail = "wartet", "", ""
+                if task.status == Status.FAILED and (task_id is None or task.item.id == task_id):
+                    task.status, task.error, task.detail = Status.WAITING, "", ""
                     task.attempt, task.next_try = 1, 0.0
                     if task.stage == CONVERT and not Path(task.workdir or "/nonexistent").exists():
                         task.stage = FETCH  # Download ist weg → von vorn
@@ -219,8 +219,8 @@ class JobManager:
             self.paused_until = 0.0
             count = 0
             for task in self._pending:
-                if task.status == "pausiert":
-                    task.next_try, task.status, task.detail = 0.0, "wartet", ""
+                if task.status == Status.PAUSED:
+                    task.next_try, task.status, task.detail = 0.0, Status.WAITING, ""
                     count += 1
             self._cond.notify_all()
             return count
@@ -268,15 +268,15 @@ class JobManager:
 
             try:
                 self._run(task, report)
-                if task.status == "fertig":
-                    self._record(task, OVERWRITTEN if task.item.overwritten else DONE)
+                if task.status == Status.DONE:
+                    self._record(task, Status.OVERWRITTEN if task.item.overwritten else Status.DONE)
             except Skipped as exc:
-                task.status, task.detail, task.progress = "übersprungen", str(exc), 100.0
-                self._record(task, SKIPPED)
+                task.status, task.detail, task.progress = Status.SKIPPED, str(exc), 100.0
+                self._record(task, Status.SKIPPED)
             except Exception as exc:  # ein Fehler soll die Warteschlange nie stoppen
                 self._failed(task, clean_error(exc))
-                if task.status == "fehler":
-                    self._record(task, FAILED)
+                if task.status == Status.FAILED:
+                    self._record(task, Status.FAILED)
             finally:
                 with self._cond:
                     self._active[pool] -= 1
@@ -289,7 +289,7 @@ class JobManager:
             # Download fertig → in den CPU-Pool weiterreichen; der Netzwerk-Worker nimmt sofort den nächsten Titel
             with self._cond:
                 task.stage, task.attempt, task.next_try = CONVERT, 1, 0.0
-                task.status, task.progress, task.detail = "wartet auf Konvertierung", STAGE_RANGE[CONVERT][0], ""
+                task.status, task.progress, task.detail = Status.WAITING_FOR_CONVERT, STAGE_RANGE[CONVERT][0], ""
                 self._pending.append(task)
                 self._cond.notify_all()
             return
@@ -317,13 +317,13 @@ class JobManager:
                 note_bot_check()
                 task.bot_pauses += 1
                 if task.bot_pauses >= MAX_BOT_PAUSES:
-                    task.status, task.error, task.detail = "fehler", BOT_CHECK_HINT, ""
+                    task.status, task.error, task.detail = Status.FAILED, BOT_CHECK_HINT, ""
                     return
                 # Alle Downloads anhalten statt sofort weiter anzufragen – das würde die Sperre nur verlängern.
                 # Kein Versuch wird verbraucht; „Jetzt fortsetzen“ hebt die Pause auf.
                 self.paused_until = max(self.paused_until, time.time() + BOT_PAUSE_SECONDS)
                 task.next_try = self.paused_until
-                task.status, task.progress = "pausiert", STAGE_RANGE[task.stage][0]
+                task.status, task.progress = Status.PAUSED, STAGE_RANGE[task.stage][0]
                 until = time.strftime("%H:%M", time.localtime(self.paused_until))
                 task.detail = f"YouTube-Bot-Prüfung – Downloads pausieren bis {until}"
                 self._pending.append(task)
@@ -332,7 +332,7 @@ class JobManager:
             if task.pool == NET and is_throttled(message):
                 self._throttle_until = time.time() + THROTTLE_SECONDS
             if is_permanent(message) or task.attempt >= self.max_attempts:
-                task.status, task.error, task.detail = "fehler", message, ""
+                task.status, task.error, task.detail = Status.FAILED, message, ""
                 if task.attempt > 1 and not is_permanent(message):
                     task.error = f"{message} (nach {task.attempt} Versuchen)"
                 return
@@ -341,7 +341,7 @@ class JobManager:
             delay = backoff_delay(task.attempt)
             task.attempt += 1
             task.next_try = time.time() + delay
-            task.status, task.progress = "neuer Versuch", STAGE_RANGE[task.stage][0]
+            task.status, task.progress = Status.RETRYING, STAGE_RANGE[task.stage][0]
             task.detail = f"Versuch {task.attempt}/{self.max_attempts} – letzter Fehler: {message[:160]}"
             self._pending.append(task)
             self._cond.notify_all()

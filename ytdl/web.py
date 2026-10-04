@@ -27,6 +27,7 @@ from .jobs import JobManager
 from .metadata import MUSIK, PODCAST, Item
 from .errors import clean_error
 from .paths import win_path
+from .status import Status
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -265,7 +266,7 @@ async def activity_events(activity_id: str, request: Request) -> StreamingRespon
     activity = activities.get(activity_id)
     if activity is None:
         raise HTTPException(404, "Vorgang nicht gefunden")
-    return StreamingResponse(_event_stream(request, activity.to_dict, done=lambda d: d["status"] != "läuft"),
+    return StreamingResponse(_event_stream(request, activity.to_dict, done=lambda d: d["status"] != Status.RUNNING),
                              media_type="text/event-stream", headers=_SSE_HEADERS)
 
 

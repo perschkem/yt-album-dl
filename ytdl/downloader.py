@@ -20,6 +20,7 @@ from .metadata import MUSIK, PODCAST, Item, apply_playlist, music_item, podcast_
 from .covers import CoverError, fetch_cover
 from .paths import target_path, win_path
 from .split import encode
+from .status import Status
 from .tagger import write_tags
 
 ProgressCallback = Callable[..., None]  # (Status, Prozent 0..100, Detailtext="")
@@ -325,7 +326,7 @@ def choose_cover(item: Item, cfg: Config, thumbnail: Path | None, report) -> tup
         try:
             return fetch_cover(item.cover_url, cfg.data_dir / "covers"), item.cover_crop
         except CoverError as exc:
-            report("taggt", 85.0, f"{exc} – nehme das YouTube-Vorschaubild")
+            report(Status.TAGGING, 85.0, f"{exc} – nehme das YouTube-Vorschaubild")
     return thumbnail, True
 
 
@@ -348,7 +349,7 @@ def fetch(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> 
             detail = f"{_mb(done)} von {_mb(total)} MB" if total else f"{_mb(done)} MB"
             if d.get("speed"):
                 detail += f" · {_mb(d['speed'])} MB/s"
-            report("lädt", min(100.0, done / total * 100) if total else 0.0, detail)
+            report(Status.DOWNLOADING, min(100.0, done / total * 100) if total else 0.0, detail)
 
     opts = {
         "ignoreerrors": False,
@@ -362,7 +363,7 @@ def fetch(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> 
     }
     if _auth["sleep"]:  # Pause vor dem Download (zufällig n…2n s), um YouTube nicht zu viele Anfragen zu schicken
         opts.update(sleep_interval=_auth["sleep"], max_sleep_interval=_auth["sleep"] * 2)
-    report("lädt", 0.0)
+    report(Status.DOWNLOADING, 0.0)
 
     def run() -> None:
         with YoutubeDL({**_base_opts(), **opts}) as ydl:  # _base_opts() je Versuch → Cookies bei der Wiederholung
@@ -386,10 +387,10 @@ def convert(item: Item, cfg: Config, progress: ProgressCallback | None, folder: 
         raise RuntimeError("Heruntergeladene Datei fehlt – bitte erneut versuchen")
     thumb = next((p for p in files if p.suffix.lower() in _IMAGE_SUFFIXES), None)
     try:
-        report("konvertiert", 0.0, f"{source.suffix.lstrip('.').upper()} → {fmt.upper()}")
+        report(Status.CONVERTING, 0.0, f"{source.suffix.lstrip('.').upper()} → {fmt.upper()}")
         out = folder / f"out.{fmt}"
         encode(source, out, cfg.bitrate)
-        report("taggt", 80.0)
+        report(Status.TAGGING, 80.0)
         cover, crop = choose_cover(item, cfg, thumb, report)
         write_tags(out, item, cover, crop)
         target = place(out, item, cfg)
@@ -398,7 +399,7 @@ def convert(item: Item, cfg: Config, progress: ProgressCallback | None, folder: 
         raise
     shutil.rmtree(folder, ignore_errors=True)
     Archive(cfg.data_dir, item.mode).add(item.id)
-    report("fertig", 100.0)
+    report(Status.DONE, 100.0)
     return target
 
 

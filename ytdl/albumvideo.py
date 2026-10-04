@@ -31,6 +31,7 @@ from .split import (
     segments_from_chapters,
     snap,
 )
+from .status import Status
 from .tagger import write_tags
 
 CACHE_DAYS = 7
@@ -414,14 +415,14 @@ def cut_track(item: Item, cfg: Config, progress: ProgressCallback) -> Path:
     if not audio:
         raise RuntimeError("Zwischengespeichertes Audio fehlt – bitte Video erneut analysieren")
     thumb = _thumbnail_file(folder)
-    progress("schneidet", 10.0)
+    progress(Status.CUTTING, 10.0)
     with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
         out = Path(tmp) / f"track.{audio_format(item, cfg)}"
         cut(audio, item.start or 0.0, item.end, out, cfg.bitrate)
-        progress("taggt", 90.0)
+        progress(Status.TAGGING, 90.0)
         cover, crop = choose_cover(item, cfg, thumb, progress)
         write_tags(out, item, cover, crop)
         target = place(out, item, cfg)
     Archive(cfg.data_dir, MUSIK).add(item.source_id)
-    progress("fertig", 100.0)
+    progress(Status.DONE, 100.0)
     return target
