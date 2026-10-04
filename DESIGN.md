@@ -52,6 +52,7 @@ Die Bilder kommen wegen des Rate-Limits des Bild-Tools nach und nach. ✅ = vorh
 | ✅ | **Prüfen** | prüft mit Lupe | Ladeanzeige beim Prüfen/Analysieren, Konflikt-Dialog | `pruefen.webp` |
 | ⏳ | **Downloads** | z.B. trägt einen Stapel Platten auf dem Panzer | neben der Überschrift „Downloads“ | `downloads.webp` |
 | ⏳ | **Historie** | z.B. blättert in einem dicken Plattenarchiv / Logbuch | im Kopf der Seite „Historie“ | `historie.webp` |
+| ⏳ | **Einstellungen** | z.B. dreht mit einem Schraubenschlüssel an einem Plattenspieler | im Kopf des Einstellungsdialogs | `einstellungen.webp` |
 
 ## Anforderungen an die Bilder
 
