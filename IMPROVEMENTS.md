@@ -56,14 +56,6 @@ Was wann wohin geladen wurde, ist nicht nachvollziehbar, und die Job-Liste geht 
 - Die Historie ergänzt das Archiv, ersetzt es aber nicht. Das Archiv bleibt die schnelle Prüfung auf
   „schon geladen“.
 
-## Kleine Schrift ohne Pixel-Schrift
-
-Die Pixel-Schrift ist bei kleinen Größen schwer lesbar. Sie soll nur noch für Überschriften und normale
-Buttons verwendet werden. Status, Tabellenköpfe, Feldbeschriftungen, Schrittprotokoll, kleine Buttons und
-Hinweise bekommen die normale Schrift.
-
-*Vorarbeit liegt im selben Git-Stash.*
-
 ## Album-Art per URL
 
 **Ist-Zustand:** Als Cover dient immer das YouTube-Vorschaubild (mittig quadratisch zugeschnitten).

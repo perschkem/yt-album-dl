@@ -78,7 +78,7 @@ body {
 main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 72px; }
 img { image-rendering: pixelated; }
 
-h1, h2, h3, .label, button, .segmented, .status, summary, th {
+h1, h2, h3, button:not(.small-btn):not(.link):not(.chip):not(.ghost), .segmented {
   font-family: var(--font-pixel); letter-spacing: .02em;
 }
 h1 { margin: 0; font-size: 2.1rem; line-height: 1.1; color: var(--frame); }
@@ -87,7 +87,7 @@ section > .row > h2, .downloads h2 { margin: 30px 0 12px; }
 code { background: var(--panel-2); padding: 1px 5px; }
 .muted { color: var(--muted); margin: 0; }
 .small { font-size: .85rem; }
-.label { display: block; font-size: 1rem; margin-bottom: 6px; }
+.label { display: block; font-size: .95rem; font-weight: 600; margin-bottom: 6px; }
 
 /* Pixel-Rahmen: gestufte Ecken über box-shadow statt border-radius */
 .panel, .job, .hint, .warning, dialog {
@@ -160,7 +160,7 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: .9
 /* Tabellen */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; font-size: .85rem; color: var(--frame); font-weight: 400; padding: 6px; border-bottom: 2px solid var(--frame-soft); }
+th { text-align: left; font-size: .82rem; color: var(--frame); font-weight: 600; padding: 6px; border-bottom: 2px solid var(--frame-soft); }
 td { padding: 4px 6px; border-bottom: 1px solid var(--panel-hi); vertical-align: top; }
 td input:not([type=checkbox]) { min-width: 90px; }
 td.num input { width: 60px; min-width: 0; }
@@ -171,7 +171,7 @@ tr.already td { opacity: .6; }
 /* Schildkröten */
 .turtle { display: inline-block; image-rendering: pixelated; flex: none; }
 .turtle.round { border-radius: 50%; }
-.busy-turtle { display: flex; align-items: center; gap: 12px; margin-top: 14px; color: var(--muted); font-family: var(--font-pixel); }
+.busy-turtle { display: flex; align-items: center; gap: 12px; margin-top: 14px; color: var(--muted); }
 .busy-turtle .turtle { width: 64px; height: 64px; }
 .walking { animation: walk .6s steps(2) infinite; }
 @keyframes walk { 50% { transform: translateY(-2px); } }
@@ -179,7 +179,7 @@ tr.already td { opacity: .6; }
 /* Schrittprotokoll */
 .steps { margin-top: 12px; display: grid; gap: 4px; font-size: .88rem; }
 .step { display: grid; grid-template-columns: 22px auto 1fr; gap: 2px 8px; align-items: baseline; }
-.step-icon { text-align: center; font-weight: 700; font-family: var(--font-pixel); }
+.step-icon { text-align: center; font-weight: 700; }
 .step-label { font-weight: 600; }
 .step-detail { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .step .bar { grid-column: 2 / -1; margin-top: 16px; }
@@ -216,7 +216,7 @@ tr.already td { opacity: .6; }
 .job-actions { margin: 0 0 6px; }
 .task { padding: 10px 0 8px; border-top: 1px solid var(--panel-hi); }
 .task-head { display: flex; justify-content: space-between; gap: 12px; font-size: .92rem; }
-.status { font-size: .85rem; white-space: nowrap; }
+.status { font-size: .85rem; font-weight: 600; white-space: nowrap; }
 .status.fertig { color: var(--ok); }
 .status.fehler { color: var(--err); }
 .status.neuer-Versuch, .status.wartet-auf-Konvertierung { color: var(--warn); }
