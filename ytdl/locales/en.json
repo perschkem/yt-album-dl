@@ -416,5 +416,8 @@
   "hist.untitled": "Download",
   "hist.empty_filtered": "No entries for these filters.",
   "hist.empty": "No entries yet.",
-  "hist.clear_confirm": "Delete the whole history? The downloaded files are kept."
+  "hist.clear_confirm": "Delete the whole history? The downloaded files are kept.",
+  "settings.language": "Language",
+  "settings.language_note": "Applies to the interface and messages; the page reloads afterwards. Folder and tag names in the music library (e.g. “Unbekannt”, “Singles”) stay as they are.",
+  "settings.unknown_language": "Unknown language"
 }

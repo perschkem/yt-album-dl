@@ -416,5 +416,8 @@
   "hist.untitled": "Download",
   "hist.empty_filtered": "Keine Einträge für diese Filter.",
   "hist.empty": "Noch keine Einträge.",
-  "hist.clear_confirm": "Die komplette Historie löschen? Die heruntergeladenen Dateien bleiben erhalten."
+  "hist.clear_confirm": "Die komplette Historie löschen? Die heruntergeladenen Dateien bleiben erhalten.",
+  "settings.language": "Sprache",
+  "settings.language_note": "Gilt für Oberfläche und Meldungen; die Seite lädt danach neu. Ordner- und Tag-Namen in der Musiksammlung (z.B. „Unbekannt“, „Singles“) bleiben unverändert.",
+  "settings.unknown_language": "Unbekannte Sprache"
 }

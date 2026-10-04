@@ -87,3 +87,25 @@ def test_audio_format_from_env_is_validated():
     assert _audio_format(" M4A ") == "m4a"
     with pytest.raises(ValueError, match="flac"):
         _audio_format("flac")
+
+
+def test_switch_language(settings_client, english):
+    from ytdl import i18n
+
+    i18n.configure("de")
+    assert settings_client.get("/api/settings").json()["languages"] == {"de": "Deutsch", "en": "English"}
+    bad = settings_client.put("/api/settings", json={"language": "fr"})
+    assert bad.status_code == 400 and bad.json()["detail"]["fields"] == {"language": "Unbekannte Sprache"}
+    res = settings_client.put("/api/settings", json={"language": "en"})
+    assert res.status_code == 200 and res.json()["language"] == "en"
+    assert dotenv_values(settings_client.env)["LANGUAGE"] == "en"
+    assert settings_client.get("/api/i18n").json()["language"] == "en"
+    assert settings_client.get("/api/activities/x").json()["detail"] == "Task not found"
+
+
+def test_language_from_env(monkeypatch):
+    from ytdl.config import _language
+
+    assert _language(" EN ") == "en" and _language("") == "de"
+    with pytest.raises(ValueError, match="LANGUAGE"):
+        _language("fr")

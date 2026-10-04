@@ -3,6 +3,7 @@
 import { api } from "./api.js";
 import { loadConfig } from "./config.js";
 import { $, el, hideError, showError } from "./dom.js";
+import { language } from "./i18n.js";
 
 const settingsDialog = $("#settings-dialog");
 
@@ -11,6 +12,8 @@ export async function openSettings() {
   const form = $("#settings-form");
   $("#set-bitrate").replaceChildren(...s.bitrates.map((b) => el("option", { value: b }, `${b} kbit/s`)));
   $("#browser-list").replaceChildren(...s.browsers.map((b) => el("option", { value: b })));
+  // Sprachnamen in der jeweils eigenen Sprache („Deutsch“, „English“)
+  $("#set-language").replaceChildren(...Object.entries(s.languages).map(([code, name]) => el("option", { value: code }, name)));
   for (const [name, [min, max]] of Object.entries(s.limits)) Object.assign(form.elements[name], { min, max });
   for (const [name, value] of Object.entries(s)) {
     if (form.elements[name]) form.elements[name].value = value;
@@ -36,6 +39,8 @@ $("#settings-form").addEventListener("submit", async (event) => {
   $("#settings-save").disabled = true;
   try {
     await api("/api/settings", body, "PUT");
+    // Neue Sprache: Seite neu laden, damit alle Texte (auch die festen im HTML) neu übersetzt werden
+    if (body.language && body.language !== language()) return location.reload();
     settingsDialog.close();
     await loadConfig();
   } catch (err) {

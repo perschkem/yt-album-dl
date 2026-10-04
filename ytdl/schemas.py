@@ -66,6 +66,7 @@ class SettingsRequest(BaseModel):
     cookies_from_browser: str | None = None
     cookies_file: str | None = None
     sleep_seconds: int | None = None
+    language: str | None = None
 
 
 class CoverRequest(BaseModel):

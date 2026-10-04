@@ -33,6 +33,7 @@ in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, n
 - 🔁 **Keine Duplikate** – bereits geladene Titel werden erkannt, vorhandene Dateien nie überschrieben
 - 🪟 **WSL-freundlich** – Windows-Pfade wie `D:\Musik` funktionieren direkt
 - ⚙ **Einstellungen in der Oberfläche** – Zielordner, Format, Bitrate, Parallelität; gespeichert in `.env`
+- 🌐 **Deutsch und Englisch** – Sprache der Oberfläche und Meldungen unter ⚙ Einstellungen umschaltbar
 
 ## Screenshots
 
@@ -348,6 +349,7 @@ Im Editor kontrollierst du das Ergebnis:
 
 | Variable          | Standard                    | Bedeutung                                  |
 |-------------------|-----------------------------|--------------------------------------------|
+| `LANGUAGE`        | `de`                        | Sprache der Oberfläche: `de` oder `en`     |
 | `MUSIK_DIR`       | – (nicht gesetzt)           | Zielordner Musik (Windows-Pfade erlaubt)   |
 | `PODCAST_DIR`     | – (nicht gesetzt)           | Zielordner Podcasts/Audio                  |
 | `AUDIO_FORMAT`    | `mp3`                       | Standardformat `mp3`/`m4a` (in der Oberfläche änderbar) |
@@ -382,7 +384,8 @@ ytdl/
   jobs.py         Warteschlange: parallele Worker, Backoff, Retry
   activity.py     Hintergrund-Vorgänge mit Schrittprotokoll
   status.py       Status-Texte (fertig, fehler, pausiert …)
-  errors.py       Fehlermeldungen aufbereiten
+  errors.py       Fehlermeldungen aufbereiten, PermanentError
+  i18n.py         Übersetzungen: t(), Wörterbücher in locales/ (de, en)
   explorer.py     „Im Ordner öffnen“ (Windows-Explorer / xdg-open)
   history.py      Download-Historie (data/history.jsonl)
   albumvideo.py   Album in einem Video: Analyse, Zwischenspeicher, Schnitt
@@ -407,6 +410,18 @@ YouTube ändert regelmäßig etwas – wenn Downloads fehlschlagen, hilft meist
 `uv lock --upgrade-package yt-dlp && uv sync`.
 
 Geplante Verbesserungen stehen in [IMPROVEMENTS.md](IMPROVEMENTS.md).
+
+### Übersetzungen
+
+Alle Texte der Oberfläche und der Meldungen stehen in `ytdl/locales/<sprache>.json` – ein Wörterbuch je
+Sprache, gemeinsam für Backend (`t()` aus `ytdl/i18n.py`) und Oberfläche (`t()` aus `static/js/i18n.js`,
+feste Texte im HTML über `data-i18n`). Platzhalter schreiben sich `{name}`, Mehrzahl als `{"one": …, "other": …}`.
+Gespeichert werden nur sprachneutrale Codes (Status, Cover, Quelle der Trackgrenzen), übersetzt wird beim Anzeigen.
+
+Neue Sprache: Datei `ytdl/locales/<code>.json` mit denselben Schlüsseln anlegen und den Code in `LANGUAGES`
+in `ytdl/i18n.py` eintragen. Die Tests prüfen, dass alle Sprachen dieselben Schlüssel und Platzhalter haben, jeder
+benutzte Schlüssel existiert und keine Texte mehr fest im Code stehen. Namen in der Musiksammlung („Unbekannt“,
+„Singles“) werden bewusst nicht übersetzt, damit eine bestehende Sammlung beim Sprachwechsel nicht umzieht.
 
 ## Hinweis
 

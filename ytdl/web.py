@@ -177,7 +177,8 @@ def get_config() -> dict:
 
 @app.get("/api/settings")
 def get_settings() -> dict:
-    return {**settings.current(cfg), "bitrates": settings.BITRATES, "browsers": BROWSERS, "limits": settings.limits()}
+    return {**settings.current(cfg), "bitrates": settings.BITRATES, "browsers": BROWSERS, "limits": settings.limits(),
+            "languages": i18n.LANGUAGES}
 
 
 @app.put("/api/settings")
@@ -191,6 +192,7 @@ def put_settings(req: SettingsRequest) -> dict:
         setattr(cfg, field, value)
     manager.ensure_workers()
     youtube.configure(cfg)
+    i18n.configure(cfg.language)
     return get_settings()
 
 

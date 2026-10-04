@@ -10,7 +10,7 @@ from typing import Any
 
 from .auth import parse_browser_spec
 from .config import AUDIO_FORMATS, Config, to_local_path
-from .i18n import t
+from .i18n import LANGUAGES, t
 
 BITRATES = (128, 160, 192, 256, 320)
 
@@ -105,6 +105,7 @@ SETTINGS: dict[str, Setting] = {
     "cookies_from_browser": Setting("COOKIES_FROM_BROWSER", _browser, _attr("cookies_from_browser")),
     "cookies_file": Setting("COOKIES_FILE", _cookie_file, _env("COOKIES_FILE")),
     "sleep_seconds": _number("SLEEP_SECONDS", "sleep_seconds", 0, 120),
+    "language": Setting("LANGUAGE", _one_of(tuple(LANGUAGES), lambda: t("settings.unknown_language")), _attr("language")),
 }
 
 

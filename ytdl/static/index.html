@@ -245,6 +245,10 @@
     <h2 data-i18n="settings.heading">Einstellungen</h2>
     <p class="muted small" data-i18n-html="settings.intro">Wird in <code>.env</code> im Projektordner gespeichert und gilt sofort. Laufende Downloads behalten ihren Zielordner.</p>
     <div class="settings-grid">
+      <label class="label" for="set-language" data-i18n="settings.language">Sprache</label>
+      <div><select id="set-language" name="language"></select>
+        <p class="muted small" data-i18n="settings.language_note">Gilt für Oberfläche und Meldungen; die Seite lädt danach neu.</p>
+        <p class="field-error" data-for="language"></p></div>
       <label class="label" for="set-musik" data-i18n="settings.music_dir">Ordner für Musik</label>
       <div><input id="set-musik" name="musik_dir" placeholder="z.B. D:\Musik oder /home/ich/Musik" data-i18n-placeholder="settings.music_dir_placeholder"><p class="field-error" data-for="musik_dir"></p></div>
       <label class="label" for="set-podcast" data-i18n="settings.podcast_dir">Ordner für Podcasts / Audio</label>
