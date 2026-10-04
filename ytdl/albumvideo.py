@@ -14,7 +14,7 @@ from yt_dlp import YoutubeDL
 
 from .activity import Activity, NullActivity
 from .config import Config
-from .downloader import Archive, ProgressCallback, _base_opts, place
+from .downloader import Archive, ProgressCallback, _base_opts, audio_format, place
 from .metadata import MUSIK, Item, clean_title, music_item, normalize_feat, split_artist_title
 from .ocr import overlay_titles, tracklist_from_frames
 from .split import (
@@ -384,7 +384,7 @@ def audio_path(cfg: Config, video_id: str) -> Path | None:
 
 
 def build_items(cfg: Config, video_id: str, album: str, album_artist: str, year: str, genre: str,
-                tracks: list[dict]) -> list[Item]:
+                tracks: list[dict], fmt: str = "") -> list[Item]:
     meta = load_meta(cfg, video_id)
     ordered = sorted(tracks, key=lambda t: float(t["start"]))
     items = []
@@ -397,6 +397,7 @@ def build_items(cfg: Config, video_id: str, album: str, album_artist: str, year:
             album=album.strip(), album_artist=album_artist.strip(),
             track_no=n, track_total=len(ordered), year=year.strip(), genre=genre.strip(),
             start=float(track["start"]), end=float(end), source_id=video_id,
+            audio_format=fmt, on_conflict=track.get("on_conflict") or "keep_both",
         ))
     return items
 
@@ -410,11 +411,11 @@ def cut_track(item: Item, cfg: Config, progress: ProgressCallback) -> Path:
     thumb = _thumbnail_file(folder)
     progress("schneidet", 10.0)
     with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
-        out = Path(tmp) / f"track.{cfg.audio_format}"
+        out = Path(tmp) / f"track.{audio_format(item, cfg)}"
         cut(audio, item.start or 0.0, item.end, out, cfg.bitrate)
         progress("taggt", 90.0)
         write_tags(out, item, thumb)
-        target = place(out, item, cfg, f".{cfg.audio_format}")
+        target = place(out, item, cfg)
     Archive(cfg.data_dir, MUSIK).add(item.source_id)
     progress("fertig", 100.0)
     return target

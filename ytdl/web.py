@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import asyncio
+import json
+
 import uvicorn
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import albumvideo
 from .activity import ActivityManager
 from .config import load_config
-from .downloader import ffmpeg_available, probe
+from .downloader import conflicts, ffmpeg_available, probe
 from .explorer import is_allowed, open_in_file_manager
 from .jobs import JobManager
 from .metadata import MUSIK, PODCAST, Item
@@ -35,6 +38,7 @@ class ProbeRequest(BaseModel):
 class JobRequest(BaseModel):
     title: str = ""
     mode: str = MUSIK
+    audio_format: str = ""  # leer = AUDIO_FORMAT aus .env
     items: list[dict]
 
 
@@ -63,6 +67,7 @@ class AlbumJobRequest(BaseModel):
     album_artist: str
     year: str = ""
     genre: str = ""
+    audio_format: str = ""
     tracks: list[dict]
 
 
@@ -76,6 +81,15 @@ def _album_call(func, *args):
 def _check_mode(mode: str) -> None:
     if mode not in (MUSIK, PODCAST):
         raise HTTPException(400, f"Unbekannter Modus: {mode}")
+
+
+def _check_format(fmt: str) -> None:
+    if fmt not in ("", "mp3", "m4a"):
+        raise HTTPException(400, f"Unbekanntes Format: {fmt}")
+
+
+def _items(req: JobRequest) -> list[Item]:
+    return [Item.from_dict({**data, "mode": req.mode, "audio_format": req.audio_format}) for data in req.items]
 
 
 @app.get("/api/config")
@@ -103,6 +117,15 @@ def get_activity(activity_id: str) -> dict:
     return activity.to_dict()
 
 
+@app.get("/api/activities/{activity_id}/events")
+async def activity_events(activity_id: str, request: Request) -> StreamingResponse:
+    activity = activities.get(activity_id)
+    if activity is None:
+        raise HTTPException(404, "Vorgang nicht gefunden")
+    return StreamingResponse(_event_stream(request, activity.to_dict, done=lambda d: d["status"] != "läuft"),
+                             media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
 @app.post("/api/probe")
 def post_probe(req: ProbeRequest) -> dict:
     _check_mode(req.mode)
@@ -112,17 +135,60 @@ def post_probe(req: ProbeRequest) -> dict:
 @app.post("/api/jobs")
 def post_job(req: JobRequest) -> dict:
     _check_mode(req.mode)
+    _check_format(req.audio_format)
     if not ffmpeg_available(cfg):
         raise HTTPException(400, "ffmpeg fehlt – bitte installieren: sudo apt install ffmpeg")
-    items = [Item.from_dict({**data, "mode": req.mode}) for data in req.items]
+    items = [i for i in _items(req) if i.on_conflict != "skip"]
     if not items:
         raise HTTPException(400, "Keine Titel ausgewählt")
     return manager.submit(req.title, req.mode, items).to_dict()
 
 
+@app.post("/api/conflicts")
+def post_conflicts(req: JobRequest) -> list[dict]:
+    """Welche Zieldateien existieren schon? Grundlage für den Dialog Überschreiben/Überspringen/Beide behalten."""
+    _check_mode(req.mode)
+    _check_format(req.audio_format)
+    return conflicts(_items(req), cfg)
+
+
 @app.get("/api/jobs")
 def get_jobs() -> list[dict]:
     return manager.snapshot()
+
+
+@app.delete("/api/jobs")
+def clear_jobs() -> dict:
+    """„Liste leeren“: abgeschlossene Jobs ausblenden. Dateien, Archiv und laufende Jobs bleiben."""
+    return {"removed": manager.clear_finished()}
+
+
+async def _event_stream(request: Request, snapshot, done=lambda data: False, interval: float = 0.25):
+    """Server-Sent Events: schickt den Zustand, sobald er sich ändert (plus Keep-alive alle 15 s)."""
+    last, idle = None, 0.0
+    while not await request.is_disconnected():
+        data = snapshot()
+        payload = json.dumps(data, ensure_ascii=False)
+        if payload != last:
+            last, idle = payload, 0.0
+            yield f"data: {payload}\n\n"
+            if done(data):
+                return
+        else:
+            idle += interval
+            if idle >= 15:
+                idle = 0.0
+                yield ": keep-alive\n\n"
+        await asyncio.sleep(interval)
+
+
+_SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
+@app.get("/api/jobs/events")
+async def job_events(request: Request) -> StreamingResponse:
+    return StreamingResponse(_event_stream(request, manager.snapshot), media_type="text/event-stream",
+                             headers=_SSE_HEADERS)
 
 
 class OpenRequest(BaseModel):
@@ -184,12 +250,24 @@ def album_audio(video_id: str) -> FileResponse:
     return FileResponse(path)
 
 
-@app.post("/api/album/{video_id}/jobs")
-def album_job(video_id: str, req: AlbumJobRequest) -> dict:
+def _album_items(video_id: str, req: AlbumJobRequest) -> list[Item]:
+    _check_format(req.audio_format)
     if not req.tracks:
         raise HTTPException(400, "Keine Titel")
-    items = _album_call(albumvideo.build_items, cfg, video_id, req.album, req.album_artist, req.year,
-                        req.genre, req.tracks)
+    return _album_call(albumvideo.build_items, cfg, video_id, req.album, req.album_artist, req.year,
+                       req.genre, req.tracks, req.audio_format)
+
+
+@app.post("/api/album/{video_id}/conflicts")
+def album_conflicts(video_id: str, req: AlbumJobRequest) -> list[dict]:
+    return conflicts(_album_items(video_id, req), cfg)
+
+
+@app.post("/api/album/{video_id}/jobs")
+def album_job(video_id: str, req: AlbumJobRequest) -> dict:
+    items = [i for i in _album_items(video_id, req) if i.on_conflict != "skip"]
+    if not items:
+        raise HTTPException(400, "Alle Titel übersprungen")
     return manager.submit(req.album or video_id, MUSIK, items).to_dict()
 
 

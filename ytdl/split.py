@@ -209,7 +209,9 @@ def cut(source: Path, start: float, end: float | None, target: Path, bitrate: in
     """Schneidet einen Abschnitt heraus (ohne Metadaten der Quelle).
 
     Ziel .mp3 → MP3 mit `bitrate`; Ziel .m4a → aus M4A-Quelle ohne Neukodierung, sonst AAC 256 kbit/s."""
-    cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.2f}"]
+    cmd = ["ffmpeg", "-v", "error", "-y"]
+    if start:
+        cmd += ["-ss", f"{start:.2f}"]
     if end:
         cmd += ["-to", f"{end:.2f}"]
     if target.suffix.lower() == ".m4a":
@@ -217,4 +219,11 @@ def cut(source: Path, start: float, end: float | None, target: Path, bitrate: in
     else:
         codec = ["-c:a", "libmp3lame", "-b:a", f"{bitrate}k"]
     cmd += ["-i", str(source), "-vn", "-map_metadata", "-1", *codec, str(target)]
-    subprocess.run(cmd, check=True, capture_output=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg: {proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else 'unbekannter Fehler'}")
+
+
+def encode(source: Path, target: Path, bitrate: int) -> None:
+    """Ganze Datei umwandeln (MP3) bzw. umverpacken (M4A aus AAC)."""
+    cut(source, 0.0, None, target, bitrate)

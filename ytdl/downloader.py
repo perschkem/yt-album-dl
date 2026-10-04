@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import shutil
-import tempfile
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -16,7 +15,8 @@ from .activity import Activity, NullActivity
 
 from .config import Config, load_config
 from .metadata import MUSIK, PODCAST, Item, apply_playlist, music_item, podcast_item
-from .paths import target_path
+from .paths import target_path, to_windows_path
+from .split import encode
 from .tagger import write_tags
 
 ProgressCallback = Callable[..., None]  # (Status, Prozent 0..100, Detailtext="")
@@ -142,27 +142,71 @@ def _unique(path: Path) -> Path:
 
 
 _PLACE_LOCK = threading.Lock()
+KEEP_BOTH, OVERWRITE, SKIP = "keep_both", "overwrite", "skip"
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 
 
-def place(src: Path, item: Item, cfg: Config, suffix: str = ".mp3") -> Path:
-    """Verschiebt die fertige Datei an ihren Zielort. Gesperrt, damit parallele Titel mit gleichem
-    Namen nicht beide denselben freien Dateinamen wählen."""
-    target = target_path(item, cfg.musik_dir, cfg.podcast_dir).with_suffix(suffix)
+class Skipped(Exception):
+    """Zieldatei existiert und der Titel soll übersprungen werden."""
+
+
+def audio_format(item: Item, cfg: Config) -> str:
+    return item.audio_format if item.audio_format in ("mp3", "m4a") else cfg.audio_format
+
+
+def final_path(item: Item, cfg: Config) -> Path:
+    """Zielpfad inkl. Endung des gewählten Formats (ohne Kollisionsbehandlung)."""
+    return target_path(item, cfg.musik_dir, cfg.podcast_dir).with_suffix(f".{audio_format(item, cfg)}")
+
+
+def place(src: Path, item: Item, cfg: Config) -> Path:
+    """Verschiebt die fertige Datei an ihren Zielort – je nach item.on_conflict:
+    keep_both → „… (2)“, overwrite → ersetzen, skip → Skipped. Gesperrt, damit parallele Titel
+    mit gleichem Namen nicht beide denselben freien Dateinamen wählen."""
+    target = final_path(item, cfg)
     with _PLACE_LOCK:
-        target = _unique(target)
         target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            if item.on_conflict == SKIP:
+                raise Skipped(f"übersprungen – existiert bereits: {target.name}")
+            if item.on_conflict == OVERWRITE:
+                # erst neben das Ziel kopieren, dann atomar ersetzen – bei Fehlern bleibt die alte Datei
+                staging = target.with_name(f".{target.stem}.neu{target.suffix}")
+                shutil.move(str(src), staging)
+                staging.replace(target)
+                return target
+            target = _unique(target)
         shutil.move(str(src), target)
     return target
+
+
+def conflicts(items: list[Item], cfg: Config) -> list[dict]:
+    """Titel, deren Zieldatei schon existiert – für den Dialog in der Oberfläche."""
+    found = []
+    for item in items:
+        path = final_path(item, cfg)
+        if path.exists():
+            stat = path.stat()
+            found.append({"id": item.id, "label": f"{item.artist} - {item.title}", "path": str(path),
+                          "win_path": to_windows_path(path), "size": stat.st_size, "modified": stat.st_mtime})
+    return found
 
 
 def _mb(value: float | None) -> str:
     return f"{(value or 0) / 1_048_576:.1f}"
 
 
-def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> Path:
-    """Lädt einen Titel herunter, konvertiert zu MP3/M4A, schreibt Tags und verschiebt ihn in den Zielordner."""
-    fmt = cfg.audio_format
+def work_dir(cfg: Config, item: Item) -> Path:
+    return cfg.data_dir / "work" / f"{item.mode}-{item.id}"
+
+
+def fetch(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> Path:
+    """Stufe 1 (Netzwerk): Audiospur + Vorschaubild in ein Arbeitsverzeichnis laden. Gibt das Verzeichnis zurück."""
     report = progress or (lambda status, pct, detail="": None)
+    fmt = audio_format(item, cfg)
+    folder = work_dir(cfg, item)
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True)
 
     def on_download(d: dict) -> None:
         if d["status"] == "downloading":
@@ -171,46 +215,57 @@ def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) 
             detail = f"{_mb(done)} von {_mb(total)} MB" if total else f"{_mb(done)} MB"
             if d.get("speed"):
                 detail += f" · {_mb(d['speed'])} MB/s"
-            report("lädt", min(90.0, done / total * 90) if total else 0.0, detail)
-        elif d["status"] == "finished":
-            report("konvertiert", 90.0, f"zu {cfg.audio_format.upper()}")
+            report("lädt", min(100.0, done / total * 100) if total else 0.0, detail)
 
-    with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
-        tmp_dir = Path(tmp)
-        opts = {
-            **_base_opts(),
-            "ignoreerrors": False,
-            # für M4A gleich die AAC-Spur nehmen – dann wird nur umverpackt, nicht neu kodiert
-            "format": "bestaudio[ext=m4a]/bestaudio/best" if fmt == "m4a" else "bestaudio/best",
-            "outtmpl": str(tmp_dir / "%(id)s.%(ext)s"),
-            "writethumbnail": True,
-            "concurrent_fragment_downloads": 4,
-            "retry_sleep_functions": {"http": lambda n: min(30, 2 ** n), "fragment": lambda n: min(30, 2 ** n)},
-            "progress_hooks": [on_download],
-            "postprocessors": [
-                {"key": "FFmpegExtractAudio", "preferredcodec": fmt, "preferredquality": str(cfg.bitrate)}
-            ],
-        }
-        if cfg.ffmpeg_location:
-            opts["ffmpeg_location"] = cfg.ffmpeg_location
-
-        report("lädt", 0.0)
+    opts = {
+        **_base_opts(),
+        "ignoreerrors": False,
+        # für M4A gleich die AAC-Spur nehmen – dann wird nur umverpackt, nicht neu kodiert
+        "format": "bestaudio[ext=m4a]/bestaudio/best" if fmt == "m4a" else "bestaudio/best",
+        "outtmpl": str(folder / "source.%(ext)s"),
+        "writethumbnail": True,
+        "concurrent_fragment_downloads": 4,
+        "retry_sleep_functions": {"http": lambda n: min(30, 2 ** n), "fragment": lambda n: min(30, 2 ** n)},
+        "progress_hooks": [on_download],
+    }
+    report("lädt", 0.0)
+    try:
         with YoutubeDL(opts) as ydl:
             ydl.download([item.url or item.id])
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    return folder
 
-        mp3s = list(tmp_dir.glob(f"*.{fmt}"))
-        if not mp3s:
-            raise RuntimeError(f"Konvertierung zu {fmt.upper()} fehlgeschlagen (ist ffmpeg installiert?)")
-        thumbs = [p for p in tmp_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
 
-        report("taggt", 95.0)
-        write_tags(mp3s[0], item, thumbs[0] if thumbs else None)
-
-        target = place(mp3s[0], item, cfg, f".{fmt}")
-
+def convert(item: Item, cfg: Config, progress: ProgressCallback | None, folder: Path) -> Path:
+    """Stufe 2 (CPU): umwandeln (ffmpeg), taggen, ablegen, Arbeitsverzeichnis aufräumen."""
+    report = progress or (lambda status, pct, detail="": None)
+    fmt = audio_format(item, cfg)
+    files = [p for p in folder.glob("source.*") if not p.name.endswith((".part", ".ytdl"))]
+    source = next((p for p in files if p.suffix.lower() not in _IMAGE_SUFFIXES), None)
+    if source is None:
+        raise RuntimeError("Heruntergeladene Datei fehlt – bitte erneut versuchen")
+    thumb = next((p for p in files if p.suffix.lower() in _IMAGE_SUFFIXES), None)
+    try:
+        report("konvertiert", 0.0, f"{source.suffix.lstrip('.').upper()} → {fmt.upper()}")
+        out = folder / f"out.{fmt}"
+        encode(source, out, cfg.bitrate)
+        report("taggt", 80.0)
+        write_tags(out, item, thumb)
+        target = place(out, item, cfg)
+    except Skipped:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    shutil.rmtree(folder, ignore_errors=True)
     Archive(cfg.data_dir, item.mode).add(item.id)
     report("fertig", 100.0)
     return target
+
+
+def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> Path:
+    """Beide Stufen nacheinander (für die Kommandozeile)."""
+    return convert(item, cfg, progress, fetch(item, cfg, progress))
 
 
 def main() -> None:

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from ytdl import web
 from ytdl.config import Config
-from ytdl.jobs import CUT, DOWNLOAD, JobManager
+from ytdl.jobs import CONVERT, CUT, FETCH, JobManager
 
 
 @pytest.fixture()
@@ -28,7 +28,9 @@ def client(tmp_path, monkeypatch):
         return target
 
     monkeypatch.setattr(web, "cfg", cfg)
-    monkeypatch.setattr(web, "manager", JobManager(cfg, runners={DOWNLOAD: fake, CUT: fake}))
+    runners = {FETCH: lambda it, cfg, report: tmp_path, CONVERT: lambda it, cfg, report, folder: fake(it, cfg, report),
+               CUT: fake}
+    monkeypatch.setattr(web, "manager", JobManager(cfg, runners=runners))
     monkeypatch.setattr(web, "ffmpeg_available", lambda cfg: True)
     monkeypatch.setattr("ytdl.jobs.BACKOFF_BASE", 0.01)
     c = TestClient(web.app)
@@ -97,3 +99,69 @@ def test_invalid_album_id(client):
     assert client.post("/api/album/bad!id/detect", json={}).status_code == 400
     # Pfad-Tricks erreichen die Route gar nicht
     assert client.post("/api/album/..%2Fetc/detect", json={}).status_code >= 400
+
+
+def test_conflicts_endpoint_and_format(client):
+    existing = client.cfg.musik_dir / "A" / "Singles" / "A - T1.mp3"
+    existing.parent.mkdir(parents=True)
+    existing.write_bytes(b"x")
+    body = {"mode": "musik", "items": [item(1), item(2)]}
+    found = client.post("/api/conflicts", json=body).json()
+    assert [c["id"] for c in found] == ["v1"] and found[0]["size"] == 1
+    assert client.post("/api/conflicts", json={**body, "audio_format": "m4a"}).json() == []
+    assert client.post("/api/conflicts", json={**body, "audio_format": "flac"}).status_code == 400
+
+
+def test_skipped_items_are_not_submitted(client):
+    res = client.post("/api/jobs", json={"mode": "musik", "items": [{**item(1), "on_conflict": "skip"}, item(2)]})
+    assert res.json()["total"] == 1
+    only_skip = client.post("/api/jobs", json={"mode": "musik", "items": [{**item(3), "on_conflict": "skip"}]})
+    assert only_skip.status_code == 400
+
+
+def test_clear_finished_jobs(client):
+    client.post("/api/jobs", json={"title": "x", "mode": "musik", "items": [item(1)]})
+    wait_jobs(client, lambda j: j["done"] == 1)
+    assert client.delete("/api/jobs").json() == {"removed": 1}
+    assert client.get("/api/jobs").json() == []
+
+
+def test_event_stream_sends_changes_and_stops():
+    """SSE-Generator direkt testen (der TestClient beendet unendliche Streams nicht sauber)."""
+    import asyncio
+
+    states = iter([{"n": 1}, {"n": 1}, {"n": 2}, {"n": 3, "fertig": True}])
+    current = {"n": 0}
+
+    def snapshot():
+        current.update(next(states, current))
+        return dict(current)
+
+    class FakeRequest:
+        async def is_disconnected(self):
+            return False
+
+    async def collect():
+        return [m async for m in web._event_stream(FakeRequest(), snapshot, done=lambda d: d.get("fertig"),
+                                                    interval=0)]
+
+    messages = asyncio.run(collect())
+    assert [json.loads(m[6:])["n"] for m in messages] == [1, 2, 3]  # unveränderter Zustand wird nicht erneut gesendet
+
+
+def test_event_stream_stops_on_disconnect():
+    import asyncio
+
+    class Gone:
+        async def is_disconnected(self):
+            return True
+
+    async def collect():
+        return [m async for m in web._event_stream(Gone(), lambda: {"x": 1}, interval=0)]
+
+    assert asyncio.run(collect()) == []
+
+
+def test_job_events_route_exists(client):
+    routes = {r.path for r in web.app.routes}
+    assert {"/api/jobs/events", "/api/activities/{activity_id}/events"} <= routes

@@ -1,4 +1,5 @@
-"""Warteschlange: mehrere Worker laden/schneiden parallel, mit exponentiellem Backoff pro Titel."""
+"""Warteschlange als Pipeline: Downloads (Netzwerk) und ffmpeg-Arbeit (CPU) in getrennten Pools,
+mit exponentiellem Backoff pro Titel und Stufe."""
 
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from pathlib import Path
 
 from .albumvideo import cut_track
 from .config import Config
-from .downloader import download
+from .downloader import Skipped, convert, fetch
 from .metadata import Item
 from .paths import to_windows_path
 
@@ -22,8 +23,15 @@ BACKOFF_MAX = 120.0
 BACKOFF_JITTER = 0.2  # ±20 %, damit parallele Worker nicht gleichzeitig erneut anfragen
 THROTTLE_SECONDS = 120.0  # nach HTTP 429 so lange nur ein Download gleichzeitig
 
-DOWNLOAD = "download"
+# Stufen eines Titels: Download = FETCH → CONVERT, Album-Schnitt = CUT
+FETCH = "fetch"
+CONVERT = "convert"
 CUT = "cut"
+# Pools: Netzwerk (PARALLEL_DOWNLOADS) und CPU/ffmpeg (PARALLEL_CUTS)
+NET = "net"
+CPU = "cpu"
+POOL = {FETCH: NET, CONVERT: CPU, CUT: CPU}
+FINISHED = ("fertig", "fehler", "übersprungen")
 
 # Fehler, bei denen ein neuer Versuch nichts bringt
 _PERMANENT = (
@@ -53,14 +61,19 @@ def is_throttled(message: str) -> bool:
 @dataclass
 class Task:
     item: Item
-    kind: str
-    status: str = "wartet"  # wartet | lädt | konvertiert | schneidet | taggt | neuer Versuch | fertig | fehler
+    stage: str
+    status: str = "wartet"  # wartet | lädt | konvertiert | schneidet | taggt | neuer Versuch | fertig | fehler | übersprungen
     progress: float = 0.0
     detail: str = ""
     path: str = ""
     error: str = ""
     attempt: int = 1
     next_try: float = 0.0
+    workdir: str = ""  # Ergebnis der FETCH-Stufe
+
+    @property
+    def pool(self) -> str:
+        return POOL[self.stage]
 
     def to_dict(self, max_attempts: int) -> dict:
         wait = max(0.0, self.next_try - time.time()) if self.status == "neuer Versuch" else 0.0
@@ -68,6 +81,7 @@ class Task:
             "id": self.item.id,
             "label": f"{self.item.artist} - {self.item.title}",
             "status": self.status,
+            "stage": self.stage,
             "progress": round(self.progress, 1),
             "detail": self.detail,
             "path": self.path,
@@ -86,7 +100,12 @@ class Job:
     mode: str
     tasks: list[Task]
     max_attempts: int = 1
+    audio_format: str = ""
     created: float = field(default_factory=time.time)
+
+    @property
+    def finished(self) -> bool:
+        return all(t.status in FINISHED for t in self.tasks)
 
     def folder(self) -> str:
         """Gemeinsamer Ordner der fertigen Titel (Album-/Kanalordner)."""
@@ -101,9 +120,11 @@ class Job:
             "id": self.id,
             "title": self.title,
             "mode": self.mode,
+            "audio_format": self.audio_format,
             "created": self.created,
-            "done": sum(t.status in ("fertig", "fehler") for t in self.tasks),
+            "done": sum(t.status in FINISHED for t in self.tasks),
             "failed": sum(t.status == "fehler" for t in self.tasks),
+            "skipped": sum(t.status == "übersprungen" for t in self.tasks),
             "total": len(self.tasks),
             "folder": folder,
             "win_folder": to_windows_path(Path(folder)) if folder else "",
@@ -115,9 +136,9 @@ class JobManager:
     def __init__(self, cfg: Config, runners: dict | None = None):
         self.cfg = cfg
         self.jobs: list[Job] = []
-        self._runners = runners or {DOWNLOAD: download, CUT: cut_track}
+        self._runners = runners or {FETCH: fetch, CONVERT: convert, CUT: cut_track}
         self._pending: list[Task] = []
-        self._active = {DOWNLOAD: 0, CUT: 0}
+        self._active = {NET: 0, CPU: 0}
         self._throttle_until = 0.0
         self._cond = threading.Condition()
         for n in range(cfg.parallel_downloads + cfg.parallel_cuts):
@@ -128,8 +149,10 @@ class JobManager:
         return self.cfg.max_retries + 1
 
     def submit(self, title: str, mode: str, items: list[Item]) -> Job:
-        tasks = [Task(item=i, kind=CUT if i.start is not None else DOWNLOAD) for i in items]
-        job = Job(id=uuid.uuid4().hex[:8], title=title, mode=mode, tasks=tasks, max_attempts=self.max_attempts)
+        tasks = [Task(item=i, stage=CUT if i.start is not None else FETCH) for i in items]
+        fmt = items[0].audio_format if items else ""
+        job = Job(id=uuid.uuid4().hex[:8], title=title, mode=mode, tasks=tasks, max_attempts=self.max_attempts,
+                  audio_format=fmt or self.cfg.audio_format)
         with self._cond:
             self.jobs.insert(0, job)
             del self.jobs[MAX_JOBS_KEPT:]
@@ -147,16 +170,25 @@ class JobManager:
                 if task.status == "fehler" and (task_id is None or task.item.id == task_id):
                     task.status, task.progress, task.error, task.detail = "wartet", 0.0, "", ""
                     task.attempt, task.next_try = 1, 0.0
+                    if task.stage == CONVERT and not Path(task.workdir or "/nonexistent").exists():
+                        task.stage = FETCH  # Download ist weg → von vorn
                     self._pending.append(task)
             self._cond.notify_all()
             return job.to_dict()
+
+    def clear_finished(self) -> int:
+        """Entfernt abgeschlossene Jobs aus der Liste (nur Anzeige – Dateien bleiben)."""
+        with self._cond:
+            before = len(self.jobs)
+            self.jobs = [j for j in self.jobs if not j.finished]
+            return before - len(self.jobs)
 
     def snapshot(self) -> list[dict]:
         with self._cond:
             return [job.to_dict() for job in self.jobs]
 
-    def _limit(self, kind: str, now: float) -> int:
-        if kind == CUT:
+    def _limit(self, pool: str, now: float) -> int:
+        if pool == CPU:
             return self.cfg.parallel_cuts
         return 1 if now < self._throttle_until else self.cfg.parallel_downloads
 
@@ -166,9 +198,9 @@ class JobManager:
             while True:
                 now = time.time()
                 for task in self._pending:
-                    if task.next_try <= now and self._active[task.kind] < self._limit(task.kind, now):
+                    if task.next_try <= now and self._active[task.pool] < self._limit(task.pool, now):
                         self._pending.remove(task)
-                        self._active[task.kind] += 1
+                        self._active[task.pool] += 1
                         return task
                 upcoming = [t.next_try for t in self._pending if t.next_try > now]
                 self._cond.wait(timeout=min(upcoming) - now if upcoming else None)
@@ -176,29 +208,50 @@ class JobManager:
     def _worker(self) -> None:
         while True:
             task = self._take()
+            pool = task.pool
 
             def report(status: str, pct: float, detail: str = "", task: Task = task) -> None:
                 task.status, task.progress, task.detail = status, pct, detail
 
             try:
-                task.path = str(self._runners[task.kind](task.item, self.cfg, report))
-                task.detail = ""
+                self._run(task, report)
+            except Skipped as exc:
+                task.status, task.detail, task.progress = "übersprungen", str(exc), 100.0
             except Exception as exc:  # ein Fehler soll die Warteschlange nie stoppen
                 self._failed(task, str(exc).removeprefix("ERROR: ").strip())
             finally:
                 with self._cond:
-                    self._active[task.kind] -= 1
+                    self._active[pool] -= 1
                     self._cond.notify_all()
+
+    def _run(self, task: Task, report) -> None:
+        runner = self._runners[task.stage]
+        if task.stage == FETCH:
+            task.workdir = str(runner(task.item, self.cfg, report))
+            # Download fertig → in den CPU-Pool weiterreichen; der Netzwerk-Worker nimmt sofort den nächsten Titel
+            with self._cond:
+                task.stage, task.attempt, task.next_try = CONVERT, 1, 0.0
+                task.status, task.progress, task.detail = "wartet auf Konvertierung", 0.0, ""
+                self._pending.append(task)
+                self._cond.notify_all()
+            return
+        if task.stage == CONVERT:
+            task.path = str(runner(task.item, self.cfg, report, Path(task.workdir)))
+        else:
+            task.path = str(runner(task.item, self.cfg, report))
+        task.detail = ""
 
     def _failed(self, task: Task, message: str) -> None:
         with self._cond:
-            if is_throttled(message):
+            if task.pool == NET and is_throttled(message):
                 self._throttle_until = time.time() + THROTTLE_SECONDS
             if is_permanent(message) or task.attempt >= self.max_attempts:
                 task.status, task.error, task.detail = "fehler", message, ""
                 if task.attempt > 1 and not is_permanent(message):
                     task.error = f"{message} (nach {task.attempt} Versuchen)"
                 return
+            if task.stage == CONVERT and not Path(task.workdir or "/nonexistent").exists():
+                task.stage = FETCH
             delay = backoff_delay(task.attempt)
             task.attempt += 1
             task.next_try = time.time() + delay

@@ -61,6 +61,10 @@ class Item:
     start: float | None = None
     end: float | None = None
     source_id: str = ""
+    # Pro Job wählbar; leer = AUDIO_FORMAT aus .env
+    audio_format: str = ""
+    # Was tun, wenn die Zieldatei schon existiert: keep_both (… (2).mp3) | overwrite | skip
+    on_conflict: str = "keep_both"
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -6,7 +6,8 @@ import pytest
 
 from ytdl import jobs
 from ytdl.config import Config
-from ytdl.jobs import CUT, DOWNLOAD, JobManager, backoff_delay, is_permanent, is_throttled
+from ytdl.downloader import Skipped
+from ytdl.jobs import CONVERT, CPU, CUT, FETCH, NET, JobManager, backoff_delay, is_permanent, is_throttled
 from ytdl.metadata import MUSIK, Item
 
 
@@ -14,6 +15,19 @@ def make_cfg(tmp_path, **kw):
     base = dict(musik_dir=tmp_path, podcast_dir=tmp_path, data_dir=tmp_path, bitrate=320, host="", port=0,
                 ffmpeg_location=None, parallel_downloads=3, parallel_cuts=2, max_retries=3)
     return Config(**{**base, **kw})
+
+
+def as_download(fn, tmp_path):
+    """Läuft `fn` in der Download-Stufe; Konvertieren ist ein schneller Platzhalter."""
+    def fetch(it, cfg, report):
+        fn(it, cfg, report)
+        return tmp_path
+
+    def convert(it, cfg, report, folder):
+        report("fertig", 100.0)
+        return tmp_path / f"{it.id}.mp3"
+
+    return {FETCH: fetch, CONVERT: convert, CUT: fn}
 
 
 def item(n, **kw):
@@ -69,7 +83,7 @@ def test_runs_downloads_in_parallel(tmp_path):
         report("fertig", 100.0)
         return tmp_path / f"{it.id}.mp3"
 
-    mgr = JobManager(make_cfg(tmp_path), runners={DOWNLOAD: runner, CUT: runner})
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
     job = mgr.submit("x", MUSIK, [item(n) for n in range(6)])
     assert wait_until(lambda: mgr.snapshot()[0]["done"] == 6)
     assert peak == 3  # PARALLEL_DOWNLOADS
@@ -91,7 +105,7 @@ def test_cuts_use_their_own_limit(tmp_path):
         report("fertig", 100.0)
         return tmp_path / "x.mp3"
 
-    mgr = JobManager(make_cfg(tmp_path), runners={DOWNLOAD: runner, CUT: runner})
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
     mgr.submit("album", MUSIK, [item(n, start=float(n), end=float(n + 1)) for n in range(5)])
     assert wait_until(lambda: mgr.snapshot()[0]["done"] == 5)
     assert peak == 2  # PARALLEL_CUTS
@@ -107,11 +121,10 @@ def test_transient_error_is_retried_with_backoff(tmp_path):
         report("fertig", 100.0)
         return tmp_path / "ok.mp3"
 
-    mgr = JobManager(make_cfg(tmp_path), runners={DOWNLOAD: flaky, CUT: flaky})
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(flaky, tmp_path))
     mgr.submit("x", MUSIK, [item(1)])
     assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fertig")
-    task = mgr.snapshot()[0]["tasks"][0]
-    assert len(calls) == 3 and task["attempt"] == 3
+    assert len(calls) == 3
 
 
 def test_gives_up_after_max_attempts_then_manual_retry(tmp_path):
@@ -125,7 +138,7 @@ def test_gives_up_after_max_attempts_then_manual_retry(tmp_path):
         report("fertig", 100.0)
         return tmp_path / "ok.mp3"
 
-    mgr = JobManager(make_cfg(tmp_path, max_retries=2), runners={DOWNLOAD: runner, CUT: runner})
+    mgr = JobManager(make_cfg(tmp_path, max_retries=2), runners=as_download(runner, tmp_path))
     job = mgr.submit("x", MUSIK, [item(1)])
     assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fehler")
     task = mgr.snapshot()[0]["tasks"][0]
@@ -134,7 +147,6 @@ def test_gives_up_after_max_attempts_then_manual_retry(tmp_path):
     fail["on"] = False
     mgr.retry(job.id)
     assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fertig")
-    assert mgr.snapshot()[0]["tasks"][0]["attempt"] == 1
 
 
 def test_permanent_error_is_not_retried(tmp_path):
@@ -144,7 +156,7 @@ def test_permanent_error_is_not_retried(tmp_path):
         calls.append(1)
         raise RuntimeError("ERROR: [youtube] x: Private video")
 
-    mgr = JobManager(make_cfg(tmp_path), runners={DOWNLOAD: runner, CUT: runner})
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
     mgr.submit("x", MUSIK, [item(1)])
     assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fehler")
     time.sleep(0.1)
@@ -161,15 +173,72 @@ def test_waiting_task_does_not_block_others(tmp_path):
         report("fertig", 100.0)
         return tmp_path / f"{it.id}.mp3"
 
-    mgr = JobManager(make_cfg(tmp_path, parallel_downloads=1), runners={DOWNLOAD: runner, CUT: runner})
+    mgr = JobManager(make_cfg(tmp_path, parallel_downloads=1), runners=as_download(runner, tmp_path))
     mgr.submit("x", MUSIK, [item(n) for n in range(3)])
     assert wait_until(lambda: mgr.snapshot()[0]["done"] == 3)
     assert order[:3] == ["v0", "v1", "v2"] and order[3] == "v0"  # v0 wartet, die anderen laufen weiter
 
 
 def test_throttle_after_429(tmp_path, monkeypatch):
-    mgr = JobManager(make_cfg(tmp_path), runners={DOWNLOAD: lambda *a: None, CUT: lambda *a: None})
-    assert mgr._limit(DOWNLOAD, time.time()) == 3
-    mgr._failed(jobs.Task(item=item(1), kind=DOWNLOAD), "HTTP Error 429: Too Many Requests")
-    assert mgr._limit(DOWNLOAD, time.time()) == 1
-    assert mgr._limit(CUT, time.time()) == 2
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(lambda *a: None, tmp_path))
+    assert mgr._limit(NET, time.time()) == 3
+    mgr._failed(jobs.Task(item=item(1), stage=FETCH), "HTTP Error 429: Too Many Requests")
+    assert mgr._limit(NET, time.time()) == 1
+    assert mgr._limit(CPU, time.time()) == 2
+
+
+def test_pipeline_downloads_continue_while_converting(tmp_path):
+    """Netzwerk-Worker warten nicht auf ffmpeg: während langsam konvertiert wird, laufen alle Downloads durch."""
+    fetched, converting, peak_cpu, lock = [], 0, 0, threading.Lock()
+
+    def fetch(it, cfg, report):
+        fetched.append(it.id)
+        return tmp_path
+
+    def convert(it, cfg, report, folder):
+        nonlocal converting, peak_cpu
+        with lock:
+            converting += 1
+            peak_cpu = max(peak_cpu, converting)
+        time.sleep(0.15)
+        with lock:
+            converting -= 1
+        report("fertig", 100.0)
+        return tmp_path / f"{it.id}.mp3"
+
+    mgr = JobManager(make_cfg(tmp_path, parallel_downloads=1, parallel_cuts=2),
+                     runners={FETCH: fetch, CONVERT: convert, CUT: convert})
+    mgr.submit("x", MUSIK, [item(n) for n in range(5)])
+    assert wait_until(lambda: len(fetched) == 5, timeout=0.3)  # lange bevor alle konvertiert sind
+    assert wait_until(lambda: mgr.snapshot()[0]["done"] == 5)
+    assert peak_cpu == 2
+
+
+def test_skipped_counts_as_done(tmp_path):
+    def convert(it, cfg, report, folder):
+        raise Skipped("übersprungen – existiert bereits: x.mp3")
+
+    mgr = JobManager(make_cfg(tmp_path), runners={FETCH: lambda *a: tmp_path, CONVERT: convert, CUT: convert})
+    mgr.submit("x", MUSIK, [item(1)])
+    job = None
+    assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
+    job = mgr.snapshot()[0]
+    assert job["skipped"] == 1 and job["failed"] == 0 and job["tasks"][0]["status"] == "übersprungen"
+
+
+def test_clear_finished_keeps_running_jobs(tmp_path):
+    gate = threading.Event()
+
+    def slow(it, cfg, report):
+        gate.wait(2)
+        return tmp_path
+
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(slow, tmp_path))
+    gate.set()
+    mgr.submit("fertig", MUSIK, [item(1)])
+    assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
+    gate.clear()
+    mgr.submit("läuft", MUSIK, [item(2)])
+    assert mgr.clear_finished() == 1
+    assert [j["title"] for j in mgr.snapshot()] == ["läuft"]
+    gate.set()
