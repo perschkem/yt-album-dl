@@ -16,7 +16,6 @@ const COLUMNS = {
 };
 
 let preview = null; // { title, mode, items: [...] }
-let polling = null;
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -29,13 +28,37 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-async function api(path, body) {
-  const res = await fetch(path, body ? {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+async function api(path, body, method) {
+  const res = await fetch(path, body || method ? {
+    method: method || "POST", headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
   } : undefined);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || `Fehler ${res.status}`);
   return data;
+}
+
+// ---------- Schildkröten ----------
+// Fertige Bilder je Situation (DESIGN.md). Fehlende kommen nach und nach – bis dahin der Pixel-Platzhalter.
+const TURTLES = {
+  pruefen: { src: "img/turtles/pruefen.webp", round: true },
+};
+const TURTLE_PLACEHOLDER = "img/turtles/platzhalter.svg";
+
+function turtle(situation, { size = 64, walking = false, alt = "" } = {}) {
+  const known = TURTLES[situation];
+  const img = el("img", { src: known ? known.src : TURTLE_PLACEHOLDER, alt, width: size,
+    height: known ? size : Math.round(size * 9 / 16), class: "turtle" });
+  if (known?.round) img.classList.add("round");
+  if (walking) img.classList.add("walking");
+  return img;
+}
+
+document.querySelectorAll("[data-turtle]").forEach((slot) => slot.append(turtle(slot.dataset.turtle, { size: 72 })));
+
+function showBusy(box, text) {
+  box.hidden = !text;
+  if (text) box.replaceChildren(turtle("pruefen", { size: 64, walking: true }), el("span", {}, text));
 }
 
 const STEP_ICONS = { "läuft": "", "fertig": "✓", "nichts gefunden": "✗", "übersprungen": "–", "fehler": "⚠" };
@@ -51,28 +74,54 @@ function renderSteps(box, steps) {
   )));
 }
 
-/** Startet einen Hintergrund-Vorgang und zeigt dessen Schritte live in `box`; liefert das Ergebnis. */
+/** Startet einen Hintergrund-Vorgang und zeigt dessen Schritte live in `box` (Server-Sent Events,
+ *  Fallback: Abfrage); liefert das Ergebnis. */
 async function runActivity(path, body, box) {
   const { activity_id } = await api(path, body);
-  while (true) {
-    await new Promise((r) => setTimeout(r, 400));
-    const act = await api(`/api/activities/${activity_id}`);
+  const finish = (act) => {
     renderSteps(box, act.steps);
-    if (act.status === "fertig") return { ...act.result, steps: act.result.steps || act.steps };
-    if (act.status === "fehler") throw new Error(act.error);
-  }
+    if (act.status === "fertig") return { done: true, value: { ...act.result, steps: act.result.steps || act.steps } };
+    if (act.status === "fehler") return { done: true, error: new Error(act.error) };
+    return { done: false };
+  };
+  return new Promise((resolve, reject) => {
+    const settle = (r) => (r.error ? reject(r.error) : resolve(r.value));
+    const poll = async () => {
+      try {
+        while (true) {
+          const r = finish(await api(`/api/activities/${activity_id}`));
+          if (r.done) return settle(r);
+          await new Promise((ok) => setTimeout(ok, 500));
+        }
+      } catch (err) { reject(err); }
+    };
+    if (!window.EventSource) return poll();
+    const source = new EventSource(`/api/activities/${activity_id}/events`);
+    source.onmessage = (event) => {
+      const r = finish(JSON.parse(event.data));
+      if (r.done) { source.close(); settle(r); }
+    };
+    source.onerror = () => { source.close(); poll(); };
+  });
 }
 
 async function loadConfig() {
   const cfg = await api("/api/config");
-  const fmtLabel = cfg.audio_format === "mp3" ? `MP3 ${cfg.bitrate} kbit/s` : "M4A";
-  $("#dirs").textContent = `Musik: ${cfg.musik_dir} · Podcasts: ${cfg.podcast_dir} · ${fmtLabel} · ` +
+  bitrate = cfg.bitrate;
+  document.querySelector(`input[name=fmt][value=${cfg.audio_format}]`).checked = true;
+  $("#dirs").textContent = `Musik: ${cfg.musik_dir} · Podcasts: ${cfg.podcast_dir} · ` +
     `${cfg.parallel_downloads} Downloads gleichzeitig`;
   $("#ffmpeg-warning").hidden = cfg.ffmpeg;
 }
 
+let bitrate = 320;
+
 function selectedMode() {
   return document.querySelector("input[name=mode]:checked").value;
+}
+
+function selectedFormat() {
+  return document.querySelector("input[name=fmt]:checked")?.value || "";
 }
 
 $("#probe-form").addEventListener("submit", async (event) => {
@@ -83,6 +132,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
   btn.textContent = "Prüfe …";
   $("#probe-error").hidden = true;
   $("#preview").hidden = true;
+  showBusy($("#probe-busy"), "Die Schildkröte schaut sich das an …");
   try {
     const data = await runActivity("/api/probe", { url: $("#url").value, mode }, $("#probe-steps"));
     $("#probe-steps").hidden = true;
@@ -95,6 +145,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
     $("#probe-error").textContent = err.message;
     $("#probe-error").hidden = false;
   } finally {
+    showBusy($("#probe-busy"), "");
     btn.disabled = false;
     btn.textContent = "Prüfen";
   }
@@ -178,16 +229,51 @@ $("#bulk-apply").addEventListener("click", () => {
   renderRows();
 });
 
+// ---------- Konflikt-Dialog: Überschreiben / Überspringen / Beide behalten ----------
+
+const CONFLICT_CHOICES = [["keep_both", "Beide behalten (… (2))"], ["overwrite", "Überschreiben"], ["skip", "Überspringen"]];
+
+function formatSize(bytes) {
+  return bytes > 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
+
+/** Zeigt den Dialog für bereits vorhandene Dateien; liefert {id: Entscheidung} oder null bei Abbruch. */
+function resolveConflicts(conflicts) {
+  if (!conflicts.length) return Promise.resolve({});
+  const dialog = $("#conflict-dialog");
+  const selects = conflicts.map((c) => {
+    const select = el("select", { "aria-label": `Entscheidung für ${c.label}` },
+      ...CONFLICT_CHOICES.map(([value, label]) => el("option", { value }, label)));
+    return [c, select];
+  });
+  $("#conflict-list").replaceChildren(...selects.map(([c, select]) => el("div", { class: "conflict" },
+    el("strong", {}, c.label), select,
+    el("div", { class: "path" }, `${c.win_path} · ${formatSize(c.size)} · ${new Date(c.modified * 1000).toLocaleString("de-DE")}`))));
+  dialog.querySelectorAll("[data-all]").forEach((b) => {
+    b.onclick = () => selects.forEach(([, select]) => (select.value = b.dataset.all));
+  });
+  return new Promise((resolve) => {
+    dialog.onclose = () => resolve(dialog.returnValue === "ok"
+      ? Object.fromEntries(selects.map(([c, select]) => [c.id, select.value])) : null);
+    dialog.returnValue = "";
+    dialog.showModal();
+  });
+}
+
 $("#download-btn").addEventListener("click", async () => {
   const items = preview.items.filter((i) => i.selected).map(({ selected, already, ...rest }) => rest);
   if (!items.length) return;
   const btn = $("#download-btn");
   btn.disabled = true;
   try {
-    await api("/api/jobs", { title: preview.title || items[0].title, mode: preview.mode, items });
+    const body = { title: preview.title || items[0].title, mode: preview.mode, audio_format: selectedFormat(), items };
+    const decisions = await resolveConflicts(await api("/api/conflicts", body));
+    if (decisions === null) return;
+    items.forEach((i) => { if (decisions[i.id]) i.on_conflict = decisions[i.id]; });
+    if (!items.some((i) => i.on_conflict !== "skip")) return;
+    await api("/api/jobs", body);
     $("#preview").hidden = true;
     $("#url").value = "";
-    startPolling();
   } catch (err) {
     $("#probe-error").textContent = err.message;
     $("#probe-error").hidden = false;
@@ -207,14 +293,19 @@ function button(label, onClick, opts = {}) {
 
 const openPath = (path) => api("/api/open", { path });
 const copyText = (text) => navigator.clipboard.writeText(text);
-const retry = async (jobId, taskId = null) => {
-  await api(`/api/jobs/${jobId}/retry`, { task_id: taskId });
-  startPolling();
-};
+const retry = (jobId, taskId = null) => api(`/api/jobs/${jobId}/retry`, { task_id: taskId });
 
 function taskStatus(t) {
   if (t.status === "neuer Versuch") return `neuer Versuch in ${t.retry_in} s`;
   return t.status;
+}
+
+const cssName = (status) => status.replaceAll(" ", "-");
+
+function progressBar(progress) {
+  return el("div", { class: "bar" },
+    el("div", { class: "fill", style: `width:${progress}%` }),
+    el("div", { class: "runner", style: `left:${Math.min(97, Math.max(3, progress))}%` }));
 }
 
 function renderTask(job, t) {
@@ -224,10 +315,10 @@ function renderTask(job, t) {
     actions.push(button("Pfad kopieren", () => copyText(t.win_path)));
   }
   if (t.status === "fehler") actions.push(button("↻ Erneut versuchen", () => retry(job.id, t.id), { cls: "small-btn" }));
-  return el("div", { class: `task ${t.status.replace(" ", "-")}` },
+  return el("div", { class: `task ${cssName(t.status)}` },
     el("div", { class: "task-head" }, el("span", {}, t.label),
-      el("span", { class: `status ${t.status.replace(" ", "-")}` }, taskStatus(t))),
-    el("div", { class: "bar" }, el("div", { style: `width:${t.progress}%` })),
+      el("span", { class: `status ${cssName(t.status)}` }, taskStatus(t))),
+    progressBar(t.progress),
     t.detail ? el("div", { class: "detail" }, t.detail) : null,
     t.win_path ? el("div", { class: "path" }, t.win_path) : null,
     t.error ? el("div", { class: "err" }, t.error) : null,
@@ -236,12 +327,18 @@ function renderTask(job, t) {
 }
 
 function renderJobs(jobs) {
-  if (!jobs.length) return;
+  $("#clear-jobs").hidden = !jobs.some((j) => j.done === j.total);
+  if (!jobs.length) {
+    $("#jobs").replaceChildren(el("div", { class: "empty" }, turtle("leer", { size: 72 }),
+      el("span", {}, "Noch keine Downloads. Die Schildkröte wartet geduldig auf die erste URL.")));
+    return;
+  }
   $("#jobs").replaceChildren(...jobs.map((job) => {
     const head = [];
     if (job.folder) head.push(button("📂 Ordner öffnen", () => openPath(job.folder)));
     if (job.failed) head.push(button(`↻ ${job.failed} fehlgeschlagene wiederholen`, () => retry(job.id), { cls: "small-btn" }));
-    const counter = `${job.done}/${job.total}` + (job.failed ? ` · ${job.failed} Fehler` : "");
+    const counter = `${job.done}/${job.total}` + (job.failed ? ` · ${job.failed} Fehler` : "") +
+      (job.skipped ? ` · ${job.skipped} übersprungen` : "") + ` · ${(job.audio_format || "").toUpperCase()}`;
     return el("div", { class: "job" },
       el("h3", {}, el("span", {}, `${job.mode === "musik" ? "🎵" : "🎙️"} ${job.title}`),
         el("span", { class: "muted" }, counter)),
@@ -251,20 +348,19 @@ function renderJobs(jobs) {
   }));
 }
 
-async function refreshJobs() {
-  const jobs = await api("/api/jobs");
-  renderJobs(jobs);
-  const active = jobs.some((j) => j.done < j.total);
-  if (!active && polling) {
-    clearInterval(polling);
-    polling = null;
+/** Live-Updates der Job-Liste per Server-Sent Events; EventSource verbindet sich bei Abbruch selbst neu. */
+function connectJobs() {
+  if (!window.EventSource) {
+    const poll = async () => { renderJobs(await api("/api/jobs").catch(() => [])); setTimeout(poll, 1000); };
+    return poll();
   }
+  const source = new EventSource("/api/jobs/events");
+  source.onmessage = (event) => renderJobs(JSON.parse(event.data));
 }
 
-function startPolling() {
-  if (!polling) polling = setInterval(refreshJobs, 1000);
-  refreshJobs();
-}
+$("#clear-jobs").addEventListener("click", async () => {
+  await api("/api/jobs", null, "DELETE");
+});
 
 // ---------- Album in einem Video ----------
 
@@ -285,8 +381,9 @@ function parseTime(text) {
   return parts.reduce((acc, v) => acc * 60 + v, 0);
 }
 
-function albumBusy(busy) {
+function albumBusy(busy, text = "Die Schildkröte hört genau hin …") {
   document.querySelectorAll("#album button").forEach((b) => (b.disabled = busy));
+  showBusy($("#album-busy"), busy ? text : "");
   if (busy) $("#album-error").hidden = true;
   else $("#album-steps").hidden = true;
 }
@@ -451,7 +548,7 @@ function drawWave() {
   const ctx = wave.getContext("2d");
   ctx.scale(dpr, dpr);
   const css = getComputedStyle(document.documentElement);
-  const accent = css.getPropertyValue("--accent").trim();
+  const accent = css.getPropertyValue("--frame").trim();
   const muted = css.getPropertyValue("--muted").trim();
   const text = css.getPropertyValue("--text").trim();
 
@@ -544,17 +641,27 @@ $("#det-text-run").addEventListener("click", () => albumAction("text", { text: $
 $("#det-scan").addEventListener("click", () => albumAction("scan", {}));
 
 $("#album-cut").addEventListener("click", async () => {
-  albumBusy(true);
+  albumBusy(true, "Prüfe, ob schon etwas da ist …");
   try {
-    await api(`/api/album/${album.id}/jobs`, {
+    sortTracks();
+    album.tracks.forEach((t) => delete t.on_conflict);
+    const body = {
       album: $("#album-name").value, album_artist: $("#album-artist").value,
       year: $("#album-year").value, genre: $("#album-genre").value,
-      tracks: album.tracks,
+      audio_format: selectedFormat(), tracks: album.tracks,
+    };
+    const decisions = await resolveConflicts(await api(`/api/album/${album.id}/conflicts`, body));
+    if (decisions === null) return;
+    // Titel-IDs vergibt der Server in Start-Reihenfolge: <video-id>-01, -02 …
+    album.tracks.forEach((t, i) => {
+      const choice = decisions[`${album.id}-${String(i + 1).padStart(2, "0")}`];
+      if (choice) t.on_conflict = choice;
     });
+    if (!album.tracks.some((t) => t.on_conflict !== "skip")) return;
+    await api(`/api/album/${album.id}/jobs`, body);
     audio.pause();
     $("#album").hidden = true;
     $("#url").value = "";
-    startPolling();
   } catch (err) {
     albumError(err);
   } finally {
@@ -563,4 +670,4 @@ $("#album-cut").addEventListener("click", async () => {
 });
 
 loadConfig();
-startPolling();
+connectJobs();

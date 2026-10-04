@@ -23,7 +23,9 @@ in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, n
   Kommentaren oder Pausenerkennung, mit Editor zur Kontrolle (Wellenform, Player, verschiebbare Grenzen)
 - ✏️ **Vorschau vor dem Download** – erkannte Interpreten/Titel/Alben direkt in der Tabelle korrigieren
 - 🧹 **Saubere Erkennung** – entfernt „(Official Video)“, „[HD]“, „(Lyrics)“ usw., vereinheitlicht „feat.“
-- ⚡ **Parallel** – mehrere Downloads und Schnitte gleichzeitig, optional M4A ohne Umkodieren
+- ⚡ **Parallel** – Downloads und Umwandeln laufen in getrennten Pools gleichzeitig; MP3 oder M4A pro Download wählbar
+- 🤔 **Nachfrage bei Dubletten** – liegt ein Titel schon da: überschreiben, überspringen oder beide behalten
+- 🐢 **Schildkröten-Design** – Pixel-Look passend zum Logo, Live-Updates ohne Neuladen
 - 🔄 **Robust** – automatische neue Versuche mit exponentiellem Backoff pro Titel, „Erneut versuchen“-Button
 - 📋 **Nachvollziehbar** – jeder Vorgang zeigt Schritt für Schritt, was gerade passiert und was gefunden wurde
 - 📂 **Im Ordner öffnen** – fertige Titel direkt im Windows-Explorer anzeigen
@@ -68,8 +70,12 @@ Dann im Browser **http://localhost:8000** öffnen (unter WSL auch im Windows-Bro
 1. URL einfügen (Einzelvideo oder Playlist), Modus **Musik** oder **Podcast / Audio** wählen, **Prüfen**
 2. Erkannte Metadaten kontrollieren und bei Bedarf in der Tabelle korrigieren. Bei Playlists lassen sich
    Album, Albuminterpret und Jahr für alle Titel auf einmal setzen (leeres Album → Ablage als Singles).
-3. **Herunterladen** – der Fortschritt wird pro Titel angezeigt. Während Downloads laufen, kannst du
-   weitere URLs prüfen und hinzufügen.
+3. **Herunterladen** – der Fortschritt wird pro Titel live angezeigt. Während Downloads laufen, kannst du
+   weitere URLs prüfen und hinzufügen. **🧹 Liste leeren** blendet abgeschlossene Jobs aus (Dateien bleiben).
+
+Neben dem Modus wählst du das Format: **MP3** (läuft überall) oder **M4A** (ohne Umkodieren, schneller,
+Originalqualität). Liegt eine Zieldatei schon vor, fragt ein Dialog pro Titel: **Überschreiben**,
+**Überspringen** oder **Beide behalten** (neue Datei als „… (2)“).
 
 Schlägt ein Titel vorübergehend fehl (Verbindungsabbruch, YouTube-Drosselung), versucht das Programm es
 automatisch erneut: nach 2 s, 4 s, 8 s … (max. 2 Min.). Andere Titel laufen in der Zwischenzeit weiter.
@@ -111,10 +117,10 @@ Im Editor kontrollierst du das Ergebnis:
 |-------------------|-----------------------------|--------------------------------------------|
 | `MUSIK_DIR`       | `D:\Musik`      | Zielordner Musik (Windows-Pfade erlaubt)   |
 | `PODCAST_DIR`     | `D:\Podcasts`   | Zielordner Podcasts/Audio                  |
-| `AUDIO_FORMAT`    | `mp3`                       | `mp3` oder `m4a` (ohne Umkodieren)         |
+| `AUDIO_FORMAT`    | `mp3`                       | Standardformat `mp3`/`m4a` (in der Oberfläche änderbar) |
 | `BITRATE`         | `320`                       | MP3-Bitrate in kbit/s                      |
 | `PARALLEL_DOWNLOADS` | `3`                      | gleichzeitige Downloads                    |
-| `PARALLEL_CUTS`   | Anzahl CPU-Kerne            | gleichzeitige Schnitte beim Aufteilen      |
+| `PARALLEL_CUTS`   | Anzahl CPU-Kerne            | gleichzeitige ffmpeg-Arbeiten (Umwandeln, Schneiden) |
 | `MAX_RETRIES`     | `5`                         | neue Versuche bei vorübergehenden Fehlern  |
 | `HOST` / `PORT`   | `127.0.0.1` / `8000`        | Webserver                                  |
 | `FFMPEG_LOCATION` | –                           | Ordner mit ffmpeg, falls nicht im PATH     |
@@ -135,7 +141,7 @@ ytdl/
   albumvideo.py   Album in einem Video: Analyse, Zwischenspeicher, Schnitt
   split.py        Tracklisten-Parser, Pausenerkennung, Schnitt per ffmpeg
   ocr.py          Text im Videobild lesen (RapidOCR)
-  static/         Weboberfläche (HTML/CSS/JS, ohne Build-Schritt)
+  static/         Weboberfläche (HTML/CSS/JS, ohne Build-Schritt), Schrift, Schildkröten-Bilder
 tests/            pytest
 ```
 

@@ -9,29 +9,38 @@
 </head>
 <body>
 <main>
-  <header>
-    <h1>yt-album-dl</h1>
-    <p id="dirs" class="muted"></p>
-    <p id="ffmpeg-warning" class="warning" hidden>
-      ffmpeg wurde nicht gefunden. Bitte in WSL installieren: <code>sudo apt install ffmpeg</code>
-    </p>
+  <header class="masthead">
+    <img src="img/logo.webp" alt="" class="logo" width="88" height="88">
+    <div>
+      <h1>yt-album-dl</h1>
+      <p class="tagline">langsam, aber gründlich – YouTube zu sauber getaggter Musik</p>
+      <p id="dirs" class="muted small"></p>
+    </div>
   </header>
+  <p id="ffmpeg-warning" class="warning" hidden>
+    ffmpeg wurde nicht gefunden. Bitte in WSL installieren: <code>sudo apt install ffmpeg</code>
+  </p>
 
-  <form id="probe-form" class="card">
-    <label for="url">Video- oder Playlist-URL</label>
+  <form id="probe-form" class="panel">
+    <label for="url" class="label">Video- oder Playlist-URL</label>
     <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=… oder …/playlist?list=…" required autofocus>
     <div class="row">
       <div class="segmented" role="radiogroup" aria-label="Modus">
-        <label><input type="radio" name="mode" value="musik" checked> Musik</label>
-        <label><input type="radio" name="mode" value="podcast"> Podcast / Audio</label>
+        <label><input type="radio" name="mode" value="musik" checked> 🎵 Musik</label>
+        <label><input type="radio" name="mode" value="podcast"> 🎙️ Podcast / Audio</label>
       </div>
-      <button type="submit" id="probe-btn">Prüfen</button>
+      <div class="segmented" role="radiogroup" aria-label="Format">
+        <label title="läuft überall"><input type="radio" name="fmt" value="mp3"> MP3</label>
+        <label title="ohne Umkodieren – schneller, Originalqualität"><input type="radio" name="fmt" value="m4a"> M4A</label>
+      </div>
+      <button type="submit" id="probe-btn" class="primary">Prüfen</button>
     </div>
+    <div id="probe-busy" class="busy-turtle" hidden></div>
     <div id="probe-steps" class="steps" hidden></div>
     <p id="probe-error" class="error" hidden></p>
   </form>
 
-  <section id="preview" class="card" hidden>
+  <section id="preview" class="panel" hidden>
     <div class="row spread">
       <h2 id="preview-title"></h2>
       <span id="preview-count" class="muted"></span>
@@ -39,14 +48,14 @@
 
     <div id="album-hint" class="hint" hidden>
       <span>Dieses Video enthält vermutlich ein ganzes Album.</span>
-      <button type="button" id="album-open">Als Album aufteilen</button>
+      <button type="button" id="album-open" class="primary">Als Album aufteilen</button>
     </div>
 
     <div id="bulk" class="bulk" hidden>
       <label>Album für alle <input id="bulk-album" placeholder="leer = Singles"></label>
       <label>Albuminterpret <input id="bulk-album-artist"></label>
-      <label>Jahr <input id="bulk-year" inputmode="numeric" size="4"></label>
-      <button type="button" id="bulk-apply" class="secondary">Für alle übernehmen</button>
+      <label class="narrow">Jahr <input id="bulk-year" inputmode="numeric" size="4"></label>
+      <button type="button" id="bulk-apply">Für alle übernehmen</button>
       <div class="checks">
         <label class="check"><input type="checkbox" id="bulk-va"> Verschiedene Interpreten (Sampler)</label>
         <label class="check"><input type="checkbox" id="bulk-same-artist"> Interpret aller Titel = Albuminterpret</label>
@@ -61,16 +70,17 @@
     </div>
 
     <div class="row spread">
-      <span class="muted">Bereits geladene Titel sind abgewählt – Haken setzen, um sie erneut zu laden.</span>
-      <button type="button" id="download-btn">Herunterladen</button>
+      <span class="muted small">Bereits geladene Titel sind abgewählt – Haken setzen, um sie erneut zu laden.</span>
+      <button type="button" id="download-btn" class="primary">Herunterladen</button>
     </div>
   </section>
 
-  <section id="album" class="card" hidden>
+  <section id="album" class="panel" hidden>
     <div class="row spread">
       <h2>Album aufteilen</h2>
-      <span id="album-source" class="muted"></span>
+      <span id="album-source" class="muted small"></span>
     </div>
+    <div id="album-busy" class="busy-turtle" hidden></div>
     <div id="album-steps" class="steps" hidden></div>
     <p id="album-error" class="error" hidden></p>
 
@@ -78,15 +88,15 @@
       <div class="bulk">
         <label>Album <input id="album-name"></label>
         <label>Albuminterpret <input id="album-artist"></label>
-        <label>Jahr <input id="album-year" inputmode="numeric" size="4"></label>
+        <label class="narrow">Jahr <input id="album-year" inputmode="numeric" size="4"></label>
         <label>Genre <input id="album-genre"></label>
-        <button type="button" class="secondary" id="album-apply" title="Albuminterpret als Interpret aller Titel setzen">Interpret für alle übernehmen</button>
+        <button type="button" id="album-apply" title="Albuminterpret als Interpret aller Titel setzen">Interpret für alle übernehmen</button>
         <div class="checks">
           <label class="check"><input type="checkbox" id="album-va"> Verschiedene Interpreten (Sampler)</label>
           <button type="button" class="link" id="album-artist-col">Interpret pro Titel bearbeiten</button>
         </div>
       </div>
-      <p id="album-hints" class="muted" hidden></p>
+      <p id="album-hints" class="muted small" hidden></p>
       <details class="album-log">
         <summary>Wie wurden die Grenzen gefunden?</summary>
         <div id="album-log-steps" class="steps"></div>
@@ -103,7 +113,7 @@
         </table>
       </div>
       <div class="row tools">
-        <button type="button" class="secondary" id="album-add">+ Titel an aktueller Position</button>
+        <button type="button" id="album-add">+ Titel an aktueller Position</button>
       </div>
 
       <details class="redetect">
@@ -112,28 +122,55 @@
           <label>Anzahl Titel <input id="det-count" type="number" min="2" placeholder="automatisch"></label>
           <label>Mindestpause (s) <input id="det-pause" type="number" step="0.1" value="1.0"></label>
           <label>Empfindlichkeit (dB) <input id="det-sens" type="number" step="1" value="25"></label>
-          <button type="button" class="secondary" id="det-run">Pausen erkennen</button>
+          <button type="button" id="det-run">Pausen erkennen</button>
         </div>
-        <label for="det-text">Trackliste einfügen – mit Zeitstempeln oder nur Titel (eine Zeile pro Titel)</label>
+        <label for="det-text" class="label">Trackliste einfügen – mit Zeitstempeln oder nur Titel (eine Zeile pro Titel)</label>
         <textarea id="det-text" rows="6" placeholder="0:00 Erster Titel&#10;4:12 Zweiter Titel&#10;…"></textarea>
         <div class="row tools">
-          <button type="button" class="secondary" id="det-text-run">Trackliste übernehmen</button>
-          <button type="button" class="secondary" id="det-scan">Titeleinblendungen im Video scannen (dauert einige Minuten)</button>
+          <button type="button" id="det-text-run">Trackliste übernehmen</button>
+          <button type="button" id="det-scan">Titeleinblendungen im Video scannen (dauert einige Minuten)</button>
         </div>
       </details>
 
       <div class="row spread">
-        <span class="muted">Bitte Grenzen kurz anhören – ▶ spielt ab dem Start des Titels.</span>
-        <button type="button" id="album-cut">Schneiden &amp; speichern</button>
+        <span class="muted small">Bitte Grenzen kurz anhören – ▶ spielt ab dem Start des Titels.</span>
+        <button type="button" id="album-cut" class="primary">Schneiden &amp; speichern</button>
       </div>
     </div>
   </section>
 
-  <section>
-    <h2>Downloads</h2>
-    <div id="jobs"><p class="muted">Noch keine Downloads.</p></div>
+  <section class="downloads">
+    <div class="row spread">
+      <h2>Downloads</h2>
+      <button type="button" id="clear-jobs" class="ghost" hidden title="Abgeschlossene Jobs ausblenden – Dateien bleiben erhalten">🧹 Liste leeren</button>
+    </div>
+    <div id="jobs"></div>
   </section>
 </main>
+
+<dialog id="conflict-dialog">
+  <form method="dialog" class="dialog-body">
+    <div class="dialog-head">
+      <span data-turtle="pruefen" class="dialog-turtle"></span>
+      <div>
+        <h2>Schon vorhanden</h2>
+        <p class="muted small">Diese Titel liegen bereits im Zielordner. Was soll passieren?</p>
+      </div>
+    </div>
+    <div class="row conflict-all">
+      <span class="muted small">Für alle:</span>
+      <button type="button" data-all="overwrite">Überschreiben</button>
+      <button type="button" data-all="skip">Überspringen</button>
+      <button type="button" data-all="keep_both">Beide behalten</button>
+    </div>
+    <div id="conflict-list" class="conflict-list"></div>
+    <div class="row spread">
+      <button value="cancel" class="ghost">Abbrechen</button>
+      <button value="ok" class="primary" id="conflict-ok">Weiter</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="app.js"></script>
 </body>
 </html>

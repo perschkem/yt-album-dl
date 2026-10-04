@@ -8,6 +8,16 @@ Maskottchen, das in jeder Situation zeigt, was gerade passiert.
   <img src="docs/turtles/pruefen.webp" alt="Schildkröte prüft" width="200">
 </p>
 
+## Stand
+
+Umgesetzt: Farben, Pixel-Schrift (Pixelify Sans, lokal in `ytdl/static/fonts/`, OFL-Lizenz), Pixel-Rahmen,
+helle und dunkle Variante, Logo im Kopf, laufende Schildkröte auf dem Fortschrittsbalken und im
+Schrittprotokoll. Für fehlende Situationsbilder springt `ytdl/static/img/turtles/platzhalter.svg` ein.
+
+**Neues Bild einbauen:** Datei nach `ytdl/static/img/turtles/<situation>.png` legen und in `TURTLES` in
+`ytdl/static/app.js` eintragen (z.B. `leer: { src: "img/turtles/leer.png" }`), dann hier abhaken.
+Im Code bereits verwendet: `pruefen` (Prüfen, Analyse, Konflikt-Dialog) und `leer` (leere Download-Liste).
+
 ## Farben aus dem Logo
 
 - Hintergrund Nachtblau `#0b0f1a`, Flächen `#13243f`
@@ -22,7 +32,7 @@ Maskottchen, das in jeder Situation zeigt, was gerade passiert.
 - Pixel-Schrift für Überschriften und Buttons (z.B. „Pixelify Sans“ oder „Silkscreen“, lokal eingebunden,
   damit es offline läuft), normale Schrift für Fließtext und Tabellen (Lesbarkeit)
 - Kantige Pixel-Rahmen (gestufte Ecken per `box-shadow`) statt runder Ecken, `image-rendering: pixelated`
-- Fortschrittsbalken: eine kleine Schildkröte läuft auf dem Balken mit dem Fortschritt mit
+- ✅ Fortschrittsbalken: eine kleine Schildkröte läuft auf dem Balken mit dem Fortschritt mit
   („langsam, aber sie kommt an“)
 - Lade-Spinner durch eine animierte Schildkröte ersetzen (z.B. Kopf ein-/ausfahren, 2–4 Frames)
 - Logo im Kopfbereich, Favicon als vereinfachter Schildkrötenkopf (16/32 px)
