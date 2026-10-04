@@ -1,4 +1,4 @@
-"""Eigenes Cover per URL: laden, prüfen, zwischenspeichern."""
+"""Cover: eigenes Bild per URL laden, prüfen, zwischenspeichern – und Bilder für das Einbetten aufbereiten."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
+COVER_SIZE = 1000
 MAX_BYTES = 10 * 1024 * 1024
 TIMEOUT = 15
 _HEADERS = {"User-Agent": "Mozilla/5.0 (yt-album-dl)"}
@@ -60,15 +61,68 @@ def fetch_cover(url: str, cache_dir: Path) -> Path:
     return target
 
 
-def thumbnail_preview(url: str, size: int = 300) -> bytes:
-    """Vorschaubild so, wie es als Cover eingebettet würde: schwarze Balken weg, mittig quadratisch."""
-    from .tagger import trim_bars  # hier importiert, um Kreisimporte zu vermeiden
+# ---------- Bilder aufbereiten ----------
 
-    img = trim_bars(_open(_download(url)).convert("RGB"))
+BAR_LUMA = 28  # Pixel dunkler als das gelten als „schwarz“ (JPEG-Rauschen toleriert)
+BAR_SHARE = 0.97  # so viel Anteil einer Zeile/Spalte muss dunkel sein
+BAR_MAX = 0.45  # höchstens so viel pro Seite abschneiden
+
+
+def trim_bars(img: Image.Image) -> Image.Image:
+    """Schneidet schwarze Balken ab (links/rechts bei quadratischem Cover im 16:9-Vorschaubild, oben/unten bei
+    Letterbox). Einfarbig dunkle Bilder bleiben unverändert."""
+    gray = img.convert("L")
+    w, h = gray.size
+    px = gray.load()
+
+    def dark_col(x: int) -> bool:
+        return sum(px[x, y] < BAR_LUMA for y in range(0, h, 2)) >= BAR_SHARE * len(range(0, h, 2))
+
+    def dark_row(y: int) -> bool:
+        return sum(px[x, y] < BAR_LUMA for x in range(0, w, 2)) >= BAR_SHARE * len(range(0, w, 2))
+
+    left = 0
+    while left < w * BAR_MAX and dark_col(left):
+        left += 1
+    right = w
+    while w - right < w * BAR_MAX and dark_col(right - 1):
+        right -= 1
+    top = 0
+    while top < h * BAR_MAX and dark_row(top):
+        top += 1
+    bottom = h
+    while h - bottom < h * BAR_MAX and dark_row(bottom - 1):
+        bottom -= 1
+    if right - left < w * 0.2 or bottom - top < h * 0.2:  # fast alles dunkel → nichts abschneiden
+        return img
+    return img.crop((left, top, right, bottom)) if (left, top, right, bottom) != (0, 0, w, h) else img
+
+
+def center_square(img: Image.Image) -> Image.Image:
+    """Mittig quadratisch zuschneiden."""
     side = min(img.size)
     left, top = (img.width - side) // 2, (img.height - side) // 2
-    img = img.crop((left, top, left + side, top + side))
+    return img.crop((left, top, left + side, top + side))
+
+
+def to_jpeg(img: Image.Image, size: int, quality: int, crop: bool = True) -> bytes:
+    """JPEG-Bytes, höchstens size × size px. crop=True entfernt schwarze Balken und schneidet mittig quadratisch zu
+    (für YouTube-Vorschaubilder, die 16:9 sind)."""
+    img = img.convert("RGB")
+    if crop:
+        img = center_square(trim_bars(img))  # erst schwarze Ränder weg, dann mittig quadratisch
     img.thumbnail((size, size), Image.LANCZOS)
     buffer = io.BytesIO()
-    img.save(buffer, format="JPEG", quality=88)
+    img.save(buffer, format="JPEG", quality=quality)
     return buffer.getvalue()
+
+
+def cover_jpeg(image_path: Path, crop: bool = True) -> bytes:
+    """Cover zum Einbetten, max. COVER_SIZE px; eigene Cover bleiben auf Wunsch unbeschnitten (crop=False)."""
+    with Image.open(image_path) as img:
+        return to_jpeg(img, COVER_SIZE, quality=90, crop=crop)
+
+
+def thumbnail_preview(url: str, size: int = 300) -> bytes:
+    """Vorschaubild so, wie es als Cover eingebettet würde: schwarze Balken weg, mittig quadratisch."""
+    return to_jpeg(_open(_download(url)), size, quality=88)

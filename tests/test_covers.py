@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from ytdl import covers
-from ytdl.tagger import cover_jpeg
+from ytdl.covers import cover_jpeg
 
 
 def png_bytes(w, h):
@@ -80,7 +80,7 @@ def test_cover_crop_only_on_request(tmp_path):
 
 
 def test_trim_black_side_bars(tmp_path):
-    from ytdl.tagger import trim_bars
+    from ytdl.covers import trim_bars
 
     img = Image.new("RGB", (1280, 720), (3, 3, 3))  # fast schwarz wie bei JPEG
     img.paste(Image.new("RGB", (720, 720), (200, 40, 40)), (280, 0))
@@ -89,7 +89,7 @@ def test_trim_black_side_bars(tmp_path):
 
 
 def test_trim_letterbox_and_keep_dark_artwork():
-    from ytdl.tagger import trim_bars
+    from ytdl.covers import trim_bars
 
     letterbox = Image.new("RGB", (1280, 720), "black")
     letterbox.paste(Image.new("RGB", (1280, 540), (40, 120, 200)), (0, 90))
@@ -106,3 +106,28 @@ def test_cover_jpeg_thumbnail_with_bars_becomes_artwork(tmp_path):
     out = Image.open(io.BytesIO(cover_jpeg(path, crop=True)))
     assert out.size == (720, 720)
     assert out.getpixel((5, 360))[1] > 150  # Rand ist grün, nicht schwarz
+
+
+def test_center_square():
+    img = Image.new("RGB", (400, 100))
+    img.paste(Image.new("RGB", (100, 100), "white"), (150, 0))
+    square = covers.center_square(img)
+    assert square.size == (100, 100) and square.getpixel((50, 50)) == (255, 255, 255)
+    assert covers.center_square(Image.new("RGB", (50, 80))).size == (50, 50)
+
+
+def test_to_jpeg_respects_size_and_crop():
+    img = Image.new("RGB", (800, 400), "blue")
+    assert Image.open(io.BytesIO(covers.to_jpeg(img, 100, quality=80))).size == (100, 100)
+    assert Image.open(io.BytesIO(covers.to_jpeg(img, 100, quality=80, crop=False))).size == (100, 50)
+
+
+def test_thumbnail_preview_matches_embedded_cover(serve):
+    img = Image.new("RGB", (1280, 720), "black")
+    img.paste(Image.new("RGB", (720, 720), (10, 200, 10)), (280, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    serve(buf.getvalue())
+    preview = Image.open(io.BytesIO(covers.thumbnail_preview("https://i.ytimg.com/vi/x/hq.jpg")))
+    assert preview.size == (300, 300) and preview.format == "JPEG"
+    assert preview.getpixel((3, 150))[1] > 150  # schwarze Balken entfernt
