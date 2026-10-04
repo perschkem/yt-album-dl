@@ -87,3 +87,10 @@ textarea { font: inherit; color: var(--text); background: var(--input); border: 
   border-radius: 7px; padding: 7px 9px; width: 100%; margin-top: 6px; }
 .chip { font: inherit; font-size: .8rem; padding: 2px 8px; margin: 0 4px; border-radius: 99px;
   background: var(--track); color: var(--text); }
+
+.detail { font-size: .78rem; color: var(--muted); margin-top: 3px; }
+.task-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.job-actions { margin: 0 0 8px; }
+button.small-btn { padding: 4px 10px; font-size: .8rem; }
+.task .status.neuer-Versuch { color: var(--accent); }
+.task.neuer-Versuch .bar > div { background: var(--muted); }

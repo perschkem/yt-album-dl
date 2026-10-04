@@ -13,8 +13,10 @@ from pydantic import BaseModel
 from . import albumvideo
 from .config import load_config
 from .downloader import ffmpeg_available, probe
+from .explorer import is_allowed, open_in_file_manager
 from .jobs import JobManager
 from .metadata import MUSIK, PODCAST, Item
+from .paths import to_windows_path
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -77,8 +79,10 @@ def _check_mode(mode: str) -> None:
 @app.get("/api/config")
 def get_config() -> dict:
     return {
-        "musik_dir": str(cfg.musik_dir),
-        "podcast_dir": str(cfg.podcast_dir),
+        "musik_dir": to_windows_path(cfg.musik_dir),
+        "podcast_dir": to_windows_path(cfg.podcast_dir),
+        "audio_format": cfg.audio_format,
+        "parallel_downloads": cfg.parallel_downloads,
         "bitrate": cfg.bitrate,
         "ffmpeg": ffmpeg_available(cfg),
     }
@@ -107,6 +111,21 @@ def post_job(req: JobRequest) -> dict:
 @app.get("/api/jobs")
 def get_jobs() -> list[dict]:
     return manager.snapshot()
+
+
+class OpenRequest(BaseModel):
+    path: str
+
+
+@app.post("/api/open")
+def open_path(req: OpenRequest) -> dict:
+    path = Path(req.path)
+    if not is_allowed(path, [cfg.musik_dir, cfg.podcast_dir]):
+        raise HTTPException(403, "Nur Dateien in den Musik-/Podcast-Ordnern können geöffnet werden")
+    try:
+        return {"opened": open_in_file_manager(path)}
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 class RetryRequest(BaseModel):

@@ -40,7 +40,9 @@ async function api(path, body) {
 
 async function loadConfig() {
   const cfg = await api("/api/config");
-  $("#dirs").textContent = `Musik: ${cfg.musik_dir} · Podcasts: ${cfg.podcast_dir} · MP3 ${cfg.bitrate} kbit/s`;
+  const fmtLabel = cfg.audio_format === "mp3" ? `MP3 ${cfg.bitrate} kbit/s` : "M4A";
+  $("#dirs").textContent = `Musik: ${cfg.musik_dir} · Podcasts: ${cfg.podcast_dir} · ${fmtLabel} · ` +
+    `${cfg.parallel_downloads} Downloads gleichzeitig`;
   $("#ffmpeg-warning").hidden = cfg.ffmpeg;
 }
 
@@ -148,18 +150,59 @@ $("#download-btn").addEventListener("click", async () => {
   }
 });
 
+function button(label, onClick, opts = {}) {
+  const b = el("button", { type: "button", class: opts.cls || "secondary small-btn", title: opts.title || "" }, label);
+  b.addEventListener("click", async () => {
+    b.disabled = true;
+    try { await onClick(); } catch (err) { alert(err.message); } finally { b.disabled = false; }
+  });
+  return b;
+}
+
+const openPath = (path) => api("/api/open", { path });
+const copyText = (text) => navigator.clipboard.writeText(text);
+const retry = async (jobId, taskId = null) => {
+  await api(`/api/jobs/${jobId}/retry`, { task_id: taskId });
+  startPolling();
+};
+
+function taskStatus(t) {
+  if (t.status === "neuer Versuch") return `neuer Versuch in ${t.retry_in} s`;
+  return t.status;
+}
+
+function renderTask(job, t) {
+  const actions = [];
+  if (t.status === "fertig" && t.path) {
+    actions.push(button("📂 Im Ordner öffnen", () => openPath(t.path), { title: "Im Explorer anzeigen" }));
+    actions.push(button("Pfad kopieren", () => copyText(t.win_path)));
+  }
+  if (t.status === "fehler") actions.push(button("↻ Erneut versuchen", () => retry(job.id, t.id), { cls: "small-btn" }));
+  return el("div", { class: `task ${t.status.replace(" ", "-")}` },
+    el("div", { class: "task-head" }, el("span", {}, t.label),
+      el("span", { class: `status ${t.status.replace(" ", "-")}` }, taskStatus(t))),
+    el("div", { class: "bar" }, el("div", { style: `width:${t.progress}%` })),
+    t.detail ? el("div", { class: "detail" }, t.detail) : null,
+    t.win_path ? el("div", { class: "path" }, t.win_path) : null,
+    t.error ? el("div", { class: "err" }, t.error) : null,
+    actions.length ? el("div", { class: "task-actions" }, ...actions) : null,
+  );
+}
+
 function renderJobs(jobs) {
   if (!jobs.length) return;
-  $("#jobs").replaceChildren(...jobs.map((job) => el("div", { class: "job" },
-    el("h3", {}, el("span", {}, `${job.mode === "musik" ? "🎵" : "🎙️"} ${job.title}`),
-      el("span", { class: "muted" }, `${job.done}/${job.total}`)),
-    ...job.tasks.map((t) => el("div", { class: `task ${t.status}` },
-      el("div", { class: "task-head" }, el("span", {}, t.label), el("span", { class: `status ${t.status}` }, t.status)),
-      el("div", { class: "bar" }, el("div", { style: `width:${t.progress}%` })),
-      t.path ? el("div", { class: "path" }, t.path) : null,
-      t.error ? el("div", { class: "err" }, t.error) : null,
-    )),
-  )));
+  $("#jobs").replaceChildren(...jobs.map((job) => {
+    const head = [];
+    if (job.folder) head.push(button("📂 Ordner öffnen", () => openPath(job.folder)));
+    if (job.failed) head.push(button(`↻ ${job.failed} fehlgeschlagene wiederholen`, () => retry(job.id), { cls: "small-btn" }));
+    const counter = `${job.done}/${job.total}` + (job.failed ? ` · ${job.failed} Fehler` : "");
+    return el("div", { class: "job" },
+      el("h3", {}, el("span", {}, `${job.mode === "musik" ? "🎵" : "🎙️"} ${job.title}`),
+        el("span", { class: "muted" }, counter)),
+      head.length ? el("div", { class: "task-actions job-actions" }, ...head) : null,
+      ...job.tasks.map((t) => renderTask(job, t)),
+    );
+  }));
 }
 
 async function refreshJobs() {
