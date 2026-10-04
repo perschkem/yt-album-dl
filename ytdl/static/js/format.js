@@ -25,8 +25,6 @@ export function formatSize(bytes) {
 /** Status → CSS-Klasse (Leerzeichen werden zu Bindestrichen). */
 export const cssName = (status) => String(status).replaceAll(" ", "-");
 
-export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-
 // ---------- Titel einer Download-Liste ----------
 
 export const FINISHED_STATES = ["done", "failed", "skipped"];

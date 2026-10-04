@@ -116,3 +116,51 @@ def test_api_serves_the_configured_catalog(client):
     data = client.get("/api/i18n").json()
     assert data["language"] == "de" and data["languages"] == {"de": "Deutsch", "en": "English"}
     assert data["messages"]["status.done"] == "fertig"
+
+
+# ---------- Keine festen Texte mehr in der Oberfläche ----------
+
+GERMAN = re.compile(r"[äöüÄÖÜß]|\b(?:und|oder|nicht|bitte|Titel|Fehler|alle|laden|keine?|Ordner)\b")
+
+
+def test_no_german_literals_in_scripts():
+    """Texte für die Oberfläche kommen aus dem Wörterbuch – deutsche Literale im JS wären unübersetzt."""
+    for script in (CODE / "static").rglob("*.js"):
+        code = re.sub(r"/\*[\s\S]*?\*/|//[^\n]*", "", script.read_text(encoding="utf-8"))
+        for literal in re.findall(r'"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`', code):
+            assert not GERMAN.search(literal), f"{script.name}: {literal}"
+
+
+def test_html_texts_have_keys():
+    from html.parser import HTMLParser
+
+    allowed = {"yt-album-dl", "MP3", "M4A", "cookies.txt", "↺", "▶"}
+
+    class Check(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.stack, self.problems = [], []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            for attr in ("title", "placeholder", "aria-label", "alt"):
+                value = attrs.get(attr)
+                if value and re.search(r"[A-Za-zÄÖÜäöü]{3}", value) and not value.startswith("https://") \
+                        and f"data-i18n-{attr}" not in attrs:
+                    self.problems.append(f"{tag} {attr}={value!r}")
+            if tag not in ("meta", "link", "img", "input", "br"):
+                self.stack.append("data-i18n" in attrs or "data-i18n-html" in attrs)
+
+        def handle_endtag(self, tag):
+            if tag not in ("meta", "link", "img", "input", "br") and self.stack:
+                self.stack.pop()
+
+        def handle_data(self, data):
+            text = data.strip()
+            if re.search(r"[A-Za-zÄÖÜäöü]{2}", text) and text not in allowed and not any(self.stack):
+                self.problems.append(text)
+
+    for page in ("index.html", "historie.html"):
+        check = Check()
+        check.feed((CODE / "static" / page).read_text(encoding="utf-8"))
+        assert check.problems == [], page

@@ -3,6 +3,7 @@
 import { api, subscribe } from "./api.js";
 import { $, button, el, emptyState } from "./dom.js";
 import { avgProgress, cssName } from "./format.js";
+import { locale, t } from "./i18n.js";
 import { progressBar } from "./progress.js";
 import { openSettings } from "./settings.js";
 import { jobCounter, summarize, taskStatus } from "./summary.js";
@@ -12,7 +13,7 @@ const retry = (jobId, taskId = null) => api(`/api/jobs/${jobId}/retry`, { task_i
 
 function renderTask(job, task) {
   const actions = [];
-  if (task.status === "failed") actions.push(button("↻ Erneut versuchen", () => retry(job.id, task.id), { cls: "small-btn" }));
+  if (task.status === "failed") actions.push(button(t("jobs.retry_one"), () => retry(job.id, task.id), { cls: "small-btn" }));
   return el("div", { class: `task ${cssName(task.status)}` },
     el("div", { class: "task-head" }, el("span", {}, task.label),
       el("span", { class: `status ${cssName(task.status)}` }, taskStatus(task))),
@@ -34,8 +35,8 @@ function renderSummary(jobs) {
   box.replaceChildren(el("span", { class: "summary-icon" }, summary.icon), el("span", {}, summary.text));
   if (summary.state === "paused") {
     // Nach dem Hinterlegen von Cookies sofort weitermachen
-    box.append(button("Jetzt fortsetzen", () => api("/api/jobs/resume", {}), { cls: "small-btn" }),
-      el("button", { type: "button", class: "small-btn", onclick: openSettings }, "⚙ YouTube-Anmeldung einrichten"));
+    box.append(button(t("jobs.resume"), () => api("/api/jobs/resume", {}), { cls: "small-btn" }),
+      el("button", { type: "button", class: "small-btn", onclick: openSettings }, t("auth.setup")));
   } else if (summary.state === "running") {
     box.append(progressBar(summary.progress));
   }
@@ -72,9 +73,9 @@ function renderJobs(jobs) {
   renderSummary(jobs);
   $("#clear-jobs").hidden = !jobs.some((j) => j.done === j.total);
   $("#toggle-jobs").hidden = jobs.length < 2;
-  $("#toggle-jobs").textContent = jobs.length && jobs.every((j) => collapsedJobs.has(j.id)) ? "Alle ausklappen" : "Alle einklappen";
+  $("#toggle-jobs").textContent = jobs.length && jobs.every((j) => collapsedJobs.has(j.id)) ? t("jobs.expand_all") : t("jobs.collapse_all");
   if (!jobs.length) {
-    $("#jobs").replaceChildren(emptyState("Noch keine Downloads."));
+    $("#jobs").replaceChildren(emptyState(t("jobs.empty")));
     return;
   }
   $("#jobs").replaceChildren(...jobs.map((job) => {
@@ -83,11 +84,11 @@ function renderJobs(jobs) {
     const finished = job.tasks.filter((task) => task.path);
     if (job.folder) {
       const target = finished.length === 1 ? finished[0].path : job.folder;
-      head.push(button("📂 Ordner öffnen", () => openPath(target), { title: "Im Explorer anzeigen" }));
+      head.push(button(t("jobs.open_folder"), () => openPath(target), { title: t("jobs.open_folder_hint") }));
     }
-    if (job.failed) head.push(button(`↻ ${job.failed} fehlgeschlagene wiederholen`, () => retry(job.id), { cls: "small-btn" }));
+    if (job.failed) head.push(button(t("jobs.retry_failed", { count: job.failed }), () => retry(job.id), { cls: "small-btn" }));
     const collapsed = collapsedJobs.has(job.id);
-    const title = el("h3", { title: collapsed ? "Ausklappen" : "Einklappen" },
+    const title = el("h3", { title: t(collapsed ? "jobs.expand" : "jobs.collapse") },
       el("span", { class: "job-title" }, `${job.mode === "musik" ? "🎵" : "🎙️"} ${job.title}`),
       el("span", { class: "muted" }, jobCounter(job)));
     title.addEventListener("click", () => toggleJob(job.id));
@@ -104,7 +105,7 @@ function renderJobs(jobs) {
   }));
 }
 
-const clockTime = (ts) => new Date(ts * 1000).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+const clockTime = (ts) => new Date(ts * 1000).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 
 /** Hinweis oben, wenn YouTube eine Bot-Prüfung verlangt hat – damit man merkt, dass gerade mit
  *  Anmeldung geladen wird bzw. warum Downloads pausieren. */
@@ -113,19 +114,9 @@ function renderAuthNotice(auth) {
   const show = auth && (auth.cookies_active || auth.recent_bot_check);
   box.hidden = !show;
   if (!show) return;
-  const when = auth.last_bot_check ? clockTime(auth.last_bot_check) : "";
-  let text;
-  if (auth.cookies_active) {
-    text = `🔑 YouTube hat${when ? ` um ${when}` : ""} eine Bot-Prüfung verlangt. Downloads laufen deshalb bis ` +
-      `${clockTime(auth.cookies_until)} mit deiner YouTube-Anmeldung (Cookies), danach wieder ohne.`;
-  } else if (auth.cookies_configured) {
-    text = `⚠ YouTube hat${when ? ` um ${when}` : ""} eine Bot-Prüfung verlangt – auch mit Anmeldung. ` +
-      "Downloads pausieren; später erneut versuchen oder die Cookies neu exportieren.";
-  } else {
-    text = `⚠ YouTube hat${when ? ` um ${when}` : ""} eine Bot-Prüfung verlangt. Ohne hinterlegte ` +
-      "YouTube-Anmeldung pausieren Downloads, bis die Sperre vorbei ist (meist einige Stunden).";
-  }
-  $("#auth-notice-text").textContent = text;
+  const when = auth.last_bot_check ? t("auth.when", { time: clockTime(auth.last_bot_check) }) : "";
+  const key = auth.cookies_active ? "auth.active" : auth.cookies_configured ? "auth.failed_with_cookies" : "auth.no_cookies";
+  $("#auth-notice-text").textContent = t(key, { when, until: auth.cookies_until ? clockTime(auth.cookies_until) : "" });
   $("#auth-notice-open").hidden = auth.cookies_active;
 }
 

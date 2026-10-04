@@ -6,8 +6,8 @@ import { t } from "./i18n.js";
 /** Statustext eines Titels, bei Wartezeiten mit Countdown. */
 export function taskStatus(task) {
   const label = t(`status.${task.status}`);
-  if (task.status === "retrying") return `${label} in ${task.retry_in} s`;
-  if (task.status === "paused") return `${label} · noch ${Math.ceil(task.retry_in / 60)} min`;
+  if (task.status === "retrying") return t("summary.retry_in", { label, seconds: task.retry_in });
+  if (task.status === "paused") return t("summary.paused_for", { label, minutes: Math.ceil(task.retry_in / 60) });
   return label;
 }
 
@@ -23,27 +23,32 @@ export function summarize(jobs) {
   const failed = countStatus(tasks, "failed");
   const skipped = countStatus(tasks, "skipped");
   const running = tasks.length - done;
-  const extras = [failed && `${failed} Fehler`, skipped && `${skipped} übersprungen`].filter(Boolean);
+  const extras = counts(failed, skipped);
 
   const paused = tasks.filter((task) => task.status === "paused");
   if (paused.length) {
     // YouTube-Bot-Prüfung: Downloads ruhen, bis die Pause vorbei ist oder fortgesetzt wird
     const minutes = Math.ceil(Math.max(...paused.map((task) => task.retry_in)) / 60);
-    return { state: "paused", icon: "⏸", text: `YouTube verlangt eine Bot-Bestätigung – Downloads pausieren noch ` +
-      `ca. ${minutes} min (${done} von ${tasks.length} fertig)` };
+    return { state: "paused", icon: "⏸", text: t("summary.paused", { minutes, done, total: tasks.length }) };
   }
   if (active.length) {
     const prefix = active.length === 1 ? `${active[0].title}: ` : "";
-    const text = [`${prefix}${done} von ${tasks.length} fertig`, `${running} ${running === 1 ? "läuft" : "laufen"}`,
+    const text = [prefix + t("summary.done_of", { done, total: tasks.length }), t("summary.running", { count: running }),
       ...extras].join(" · ");
     return { state: "running", icon: "⏳", text, progress: avgProgress(tasks) };
   }
-  if (failed) return { state: "failed", icon: "⚠", text: ["Alle Downloads abgeschlossen", ...extras].join(" · ") };
-  return { state: "done", icon: "✓", text: ["Alle Downloads fertig", ...extras].join(" · ") };
+  if (failed) return { state: "failed", icon: "⚠", text: [t("summary.all_finished"), ...extras].join(" · ") };
+  return { state: "done", icon: "✓", text: [t("summary.all_done"), ...extras].join(" · ") };
 }
 
 /** Zähler im Kopf eines Downloads: „3/5 · 1 Fehler · MP3“. */
 export function jobCounter(job) {
-  return [`${job.done}/${job.total}`, job.failed && `${job.failed} Fehler`, job.skipped && `${job.skipped} übersprungen`,
-    (job.audio_format || "").toUpperCase()].filter(Boolean).join(" · ");
+  return [`${job.done}/${job.total}`, ...counts(job.failed, job.skipped), (job.audio_format || "").toUpperCase()]
+    .filter(Boolean).join(" · ");
+}
+
+/** „1 Fehler“, „2 übersprungen“ – nur, was vorkommt. */
+function counts(failed, skipped) {
+  return [failed && t("summary.failed_count", { count: failed }), skipped && t("summary.skipped_count", { count: skipped })]
+    .filter(Boolean);
 }

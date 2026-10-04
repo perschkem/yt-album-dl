@@ -3,21 +3,22 @@
 import { api } from "./api.js";
 import { $, el } from "./dom.js";
 import { formatSize } from "./format.js";
+import { locale, t } from "./i18n.js";
 
-const CONFLICT_CHOICES = [["keep_both", "Beide behalten (… (2))"], ["overwrite", "Überschreiben"], ["skip", "Überspringen"]];
+const CONFLICT_CHOICES = [["keep_both", "conflict.keep_both"], ["overwrite", "conflict.overwrite"], ["skip", "conflict.skip"]];
 
 /** Zeigt den Dialog für bereits vorhandene Dateien; liefert {id: Entscheidung} oder null bei Abbruch. */
 export function resolveConflicts(conflicts) {
   if (!conflicts.length) return Promise.resolve({});
   const dialog = $("#conflict-dialog");
   const selects = conflicts.map((c) => {
-    const select = el("select", { "aria-label": `Entscheidung für ${c.label}` },
-      ...CONFLICT_CHOICES.map(([value, label]) => el("option", { value }, label)));
+    const select = el("select", { "aria-label": t("conflict.decision_for", { label: c.label }) },
+      ...CONFLICT_CHOICES.map(([value, key]) => el("option", { value }, t(key))));
     return [c, select];
   });
   $("#conflict-list").replaceChildren(...selects.map(([c, select]) => el("div", { class: "conflict" },
     el("strong", {}, c.label), select,
-    el("div", { class: "path" }, `${c.win_path} · ${formatSize(c.size)} · ${new Date(c.modified * 1000).toLocaleString("de-DE")}`))));
+    el("div", { class: "path" }, `${c.win_path} · ${formatSize(c.size)} · ${new Date(c.modified * 1000).toLocaleString(locale())}`))));
   dialog.querySelectorAll("[data-all]").forEach((b) => {
     b.onclick = () => selects.forEach(([, select]) => (select.value = b.dataset.all));
   });

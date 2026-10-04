@@ -13,6 +13,9 @@ export function setMessages(language, catalog) {
 
 export const language = () => lang;
 
+/** Sprache für Intl/toLocaleString (Datum, Uhrzeit). */
+export const locale = () => (lang === "de" ? "de-DE" : "en-GB");
+
 /** Gibt es einen Text zu `key`? (z.B. für gespeicherte Codes, die früher Klartext waren) */
 export const has = (key) => key in messages;
 
@@ -25,11 +28,12 @@ export function t(key, params = {}) {
 }
 
 /** Feste Texte im HTML übersetzen: data-i18n (Text), data-i18n-html (Text mit eigenem Markup aus dem Wörterbuch),
- *  data-i18n-title / -placeholder / -aria-label (Attribute). */
+ *  data-i18n-title / -placeholder / -aria-label / -alt (Attribute). */
 export function translatePage(root = document) {
   for (const node of root.querySelectorAll("[data-i18n]")) node.textContent = t(node.dataset.i18n);
   for (const node of root.querySelectorAll("[data-i18n-html]")) node.innerHTML = t(node.dataset.i18nHtml);
-  for (const [attr, data] of [["title", "i18nTitle"], ["placeholder", "i18nPlaceholder"], ["aria-label", "i18nAriaLabel"]]) {
+  for (const [attr, data] of [["title", "i18nTitle"], ["placeholder", "i18nPlaceholder"], ["aria-label", "i18nAriaLabel"],
+    ["alt", "i18nAlt"]]) {
     for (const node of root.querySelectorAll(`[data-i18n-${attr}]`)) node.setAttribute(attr, t(node.dataset[data]));
   }
 }

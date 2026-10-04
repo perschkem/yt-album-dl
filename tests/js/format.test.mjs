@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  avgProgress, countDone, countStatus, cssName, formatSize, formatTime, isChanged, parseTime, plural, primaryArtist,
+  avgProgress, countDone, countStatus, cssName, formatSize, formatTime, isChanged, parseTime, primaryArtist,
   sameValue, snapshot,
 } from "../../ytdl/static/js/format.js";
 
@@ -35,11 +35,9 @@ test("formatSize", () => {
   assert.equal(formatSize(5 * 1_048_576), "5.0 MB");
 });
 
-test("cssName and plural", () => {
+test("cssName", () => {
   assert.equal(cssName("a b c"), "a-b-c");
   assert.equal(cssName("waiting_for_convert"), "waiting_for_convert");
-  assert.equal(plural(1, "Download", "Downloads"), "1 Download");
-  assert.equal(plural(0, "Download", "Downloads"), "0 Downloads");
 });
 
 test("task counts and average progress", () => {

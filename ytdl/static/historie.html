@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Historie · yt-album-dl</title>
+  <title data-i18n="hist.page_title">Historie · yt-album-dl</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,38 +12,38 @@
   <header class="masthead">
     <img src="img/logo.webp" alt="" class="logo" width="140" height="140">
     <div class="masthead-text">
-      <h1>Historie</h1>
+      <h1 data-i18n="hist.heading">Historie</h1>
       <p id="hist-count" class="muted small"></p>
     </div>
     <nav class="masthead-nav">
-      <a href="/" class="nav-link">← Zurück zu den Downloads</a>
+      <a href="/" class="nav-link" data-i18n="hist.back">← Zurück zu den Downloads</a>
     </nav>
   </header>
 
   <form id="hist-filter" class="panel hist-filter">
-    <label class="grow">Suche <input id="hist-q" type="search" placeholder="Interpret, Titel, Album, URL, Pfad …"></label>
-    <label>Modus
-      <select id="hist-mode"><option value="">alle</option><option value="musik">Musik</option><option value="podcast">Podcast / Audio</option></select>
+    <label class="grow"><span data-i18n="hist.search">Suche</span> <input id="hist-q" type="search" placeholder="Interpret, Titel, Album, URL, Pfad …" data-i18n-placeholder="hist.search_placeholder"></label>
+    <label><span data-i18n="hist.mode">Modus</span>
+      <select id="hist-mode"><option value="" data-i18n="hist.all">alle</option><option value="musik" data-i18n="hist.mode_music">Musik</option><option value="podcast" data-i18n="hist.mode_podcast">Podcast / Audio</option></select>
     </label>
-    <label>Ergebnis
+    <label><span data-i18n="hist.result">Ergebnis</span>
       <select id="hist-result">
-        <option value="">alle</option><option value="done">fertig</option><option value="overwritten">überschrieben</option>
-        <option value="skipped">übersprungen</option><option value="failed">nur Fehler</option>
+        <option value="" data-i18n="hist.all">alle</option><option value="done" data-i18n="status.done">fertig</option><option value="overwritten" data-i18n="status.overwritten">überschrieben</option>
+        <option value="skipped" data-i18n="status.skipped">übersprungen</option><option value="failed" data-i18n="hist.only_failed">nur Fehler</option>
       </select>
     </label>
-    <label>Zeitraum
-      <select id="hist-days"><option value="">gesamt</option><option value="1">heute</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="365">1 Jahr</option></select>
+    <label><span data-i18n="hist.period">Zeitraum</span>
+      <select id="hist-days"><option value="" data-i18n="hist.period_all">gesamt</option><option value="1" data-i18n="hist.period_today">heute</option><option value="7" data-i18n="hist.period_7">7 Tage</option><option value="30" data-i18n="hist.period_30">30 Tage</option><option value="365" data-i18n="hist.period_365">1 Jahr</option></select>
     </label>
     <div class="row hist-actions">
-      <a id="hist-csv" class="nav-link" href="/api/history.csv" download>CSV exportieren</a>
-      <button type="button" id="hist-clear" class="ghost">Historie leeren</button>
+      <a id="hist-csv" class="nav-link" href="/api/history.csv" download data-i18n="hist.csv">CSV exportieren</a>
+      <button type="button" id="hist-clear" class="ghost" data-i18n="hist.clear">Historie leeren</button>
     </div>
   </form>
 
   <section class="downloads">
     <div id="hist-list"></div>
     <div class="row hist-more">
-      <button type="button" id="hist-more" hidden>Mehr laden</button>
+      <button type="button" id="hist-more" hidden data-i18n="hist.more">Mehr laden</button>
     </div>
   </section>
 </main>

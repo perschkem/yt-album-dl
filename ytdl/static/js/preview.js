@@ -6,20 +6,22 @@ import { submitWithConflicts } from "./conflicts.js";
 import { coverField } from "./cover.js";
 import { $, el, hideError, showError } from "./dom.js";
 import { editableCell, resetButton, vaToggle } from "./editing.js";
-import { isChanged, numberSelected, plural, primaryArtist, snapshot } from "./format.js";
+import { isChanged, numberSelected, primaryArtist, snapshot } from "./format.js";
+import { t } from "./i18n.js";
 
+// Spalten der Vorschau je Modus; label ist der Schlüssel der Überschrift
 const COLUMNS = {
   musik: [
-    { key: "track_no", label: "Nr.", cls: "num", type: "number" },
-    { key: "artist", label: "Interpret" },
-    { key: "title", label: "Titel" },
-    { key: "album", label: "Album" },
-    { key: "year", label: "Jahr", cls: "num" },
+    { key: "track_no", label: "tags.track_no", cls: "num", type: "number" },
+    { key: "artist", label: "tags.artist" },
+    { key: "title", label: "tags.title" },
+    { key: "album", label: "tags.album" },
+    { key: "year", label: "tags.year", cls: "num" },
   ],
   podcast: [
-    { key: "artist", label: "Kanal" },
-    { key: "date", label: "Datum", cls: "date" },
-    { key: "title", label: "Titel" },
+    { key: "artist", label: "tags.channel" },
+    { key: "date", label: "tags.date", cls: "date" },
+    { key: "title", label: "tags.title" },
   ],
 };
 
@@ -37,10 +39,10 @@ $("#probe-form").addEventListener("submit", async (event) => {
   const btn = $("#probe-btn");
   const mode = selectedMode();
   btn.disabled = true;
-  btn.textContent = "Prüfe …";
+  btn.textContent = t("probe.checking");
   hideError($("#probe-error"));
   $("#preview").hidden = true;
-  showBusy($("#probe-busy"), "Lade Infos …");
+  showBusy($("#probe-busy"), t("probe.loading"));
   try {
     const data = await runActivity("/api/probe", { url: $("#url").value, mode }, $("#probe-steps"));
     $("#probe-steps").hidden = true;
@@ -52,15 +54,14 @@ $("#probe-form").addEventListener("submit", async (event) => {
     renderPreview(data.is_playlist);
     const first = preview.items[0];
     previewCover.setThumbnail(first?.thumbnail, preview.items.length > 1
-      ? "Jeder Titel bekommt sein eigenes YouTube-Vorschaubild (schwarze Ränder werden entfernt) – Vorschau: erster Titel."
-      : "");
+      ? t("preview.thumbnail_each") : "");
     setPreviewMode(mode);
   } catch (err) {
     showError($("#probe-error"), err);
   } finally {
     showBusy($("#probe-busy"), "");
     btn.disabled = false;
-    btn.textContent = "Prüfen";
+    btn.textContent = t("probe.check");
   }
 });
 
@@ -86,7 +87,7 @@ function fillBulk() {
 }
 
 $("#preview-reset").addEventListener("click", () => {
-  if (!preview.items.some(tagsChanged) || !confirm("Alle Tags auf die erkannten Werte zurücksetzen?")) return;
+  if (!preview.items.some(tagsChanged) || !confirm(t("preview.reset_confirm"))) return;
   preview.items.forEach((i) => Object.assign(i, i.orig));
   if (!$("#bulk").hidden) fillBulk();
   previewCover.clear();
@@ -96,14 +97,14 @@ $("#preview-reset").addEventListener("click", () => {
 function renderPreview(isPlaylist) {
   const cols = COLUMNS[preview.mode];
   $("#preview").hidden = false;
-  $("#preview-title").textContent = isPlaylist ? preview.title : (preview.mode === "musik" ? "Titel" : "Video");
-  $("#preview-count").textContent = plural(preview.items.length, "Eintrag", "Einträge");
+  $("#preview-title").textContent = isPlaylist ? preview.title : t(`preview.single_${preview.mode}`);
+  $("#preview-count").textContent = t("preview.count", { count: preview.items.length });
 
   const bulk = preview.mode === "musik" && preview.items.length > 1;
   $("#bulk").hidden = !bulk;
   if (bulk) fillBulk();
 
-  const allBox = el("input", { type: "checkbox", title: "Alle auswählen",
+  const allBox = el("input", { type: "checkbox", title: t("preview.select_all"),
     checked: preview.items.every((i) => i.selected) });
   allBox.addEventListener("change", () => {
     preview.items.forEach((i) => (i.selected = allBox.checked));
@@ -111,7 +112,7 @@ function renderPreview(isPlaylist) {
     renderRows();
   });
   $("#preview-head").replaceChildren(
-    el("th", {}, allBox), ...cols.map((c) => el("th", {}, c.label)), el("th", {}, "Original"), el("th", {}));
+    el("th", {}, allBox), ...cols.map((c) => el("th", {}, t(c.label))), el("th", {}, t("preview.original")), el("th", {}));
   renderRows();
 }
 
@@ -126,7 +127,7 @@ function renderRows() {
     const reset = resetButton(item, TAG_KEYS, renderRows, "small-btn");
     const cells = cols.map((c) => editableCell(item, c.key, { type: c.type, cls: c.cls, onInput: reset.refresh }));
     const orig = el("td", { class: "orig" }, item.source_title,
-      item.already ? el("div", {}, el("span", { class: "badge" }, "bereits geladen")) : null);
+      item.already ? el("div", {}, el("span", { class: "badge" }, t("preview.already"))) : null);
     return el("tr", { class: item.already ? "already" : "" }, el("td", {}, box), ...cells, orig,
       el("td", { class: "actions" }, reset));
   }));

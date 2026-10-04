@@ -6,6 +6,7 @@ import { coverField } from "./cover.js";
 import { $, el, hideError, showError } from "./dom.js";
 import { editableCell, resetButton, vaToggle } from "./editing.js";
 import { formatTime, parseTime, sameValue, snapshot } from "./format.js";
+import { t } from "./i18n.js";
 import { previewUrl } from "./preview.js";
 import { renderSteps, runActivity, showBusy } from "./progress.js";
 
@@ -14,7 +15,7 @@ const audio = $("#album-audio");
 const albumCover = coverField($("#album-cover"));
 const wave = $("#wave");
 
-function albumBusy(busy, text = "Analysiere …") {
+function albumBusy(busy, text = t("album.analyzing")) {
   document.querySelectorAll("#album button").forEach((b) => (b.disabled = busy));
   showBusy($("#album-busy"), busy ? text : "");
   if (busy) hideError($("#album-error"));
@@ -39,7 +40,7 @@ function setTracks(result, steps) {
   album.original.tracks = result.tracks.map(trackCopy);
   album.tracks = result.tracks.map((track) => ({ ...trackCopy(track), orig: trackCopy(track) }));
   album.source = result.source; // Code – die Historie zeigt ihn übersetzt an
-  $("#album-source").textContent = `Grenzen aus: ${result.source_label} · bitte kontrollieren`;
+  $("#album-source").textContent = t("album.source", { source: result.source_label });
   if (steps) renderSteps($("#album-log-steps"), steps);
   renderAlbum();
 }
@@ -81,7 +82,7 @@ function resetAlbumFields() {
 }
 
 $("#album-reset").addEventListener("click", () => {
-  if (!confirm("Album-Felder, Titel und Grenzen auf das Ergebnis der Erkennung zurücksetzen?")) return;
+  if (!confirm(t("album.reset_confirm"))) return;
   resetAlbumFields();
   album.tracks = album.original.tracks.map((track) => ({ ...trackCopy(track), orig: trackCopy(track) }));
   renderAlbum();
@@ -90,7 +91,7 @@ $("#album-reset").addEventListener("click", () => {
 function renderHints(hints) {
   const box = $("#album-hints");
   box.hidden = !hints.length;
-  box.replaceChildren("Weiterer Text im Bild (klicken = als Albuminterpret):",
+  box.replaceChildren(t("album.hints"),
     ...hints.map((h) => {
       return el("button", { type: "button", class: "chip", onclick: () => {
         if ($("#album-va").checked) return;
@@ -137,7 +138,7 @@ function updateArtistColumn() {
   $("#album-table").classList.toggle("hide-artist", hide);
   const toggle = $("#album-artist-col");
   toggle.hidden = va || !uniform;
-  toggle.textContent = showArtistCol ? "Interpret-Spalte ausblenden" : "Interpret pro Titel bearbeiten";
+  toggle.textContent = t(showArtistCol ? "album.hide_artist_column" : "album.edit_artist_per_track");
 }
 
 function renderAlbum() {
@@ -160,10 +161,10 @@ function renderAlbum() {
       el("td", { class: "dur" }, formatTime(trackEnd(i) - track.start)),
       editableCell(track, "artist", { onInput: reset.refresh }), editableCell(track, "title", { onInput: reset.refresh }),
       el("td", { class: "actions" },
-        action("▶", "Ab Start abspielen", () => { audio.currentTime = track.start; audio.play(); }),
-        action("⇤ hier", "Start = aktuelle Abspielposition", () => { track.start = audio.currentTime; renderAlbum(); }),
+        action("▶", t("album.play_hint"), () => { audio.currentTime = track.start; audio.play(); }),
+        action(t("album.here"), t("album.here_hint"), () => { track.start = audio.currentTime; renderAlbum(); }),
         reset,
-        action("✕", "Grenze entfernen (mit vorherigem Titel zusammenfassen)", () => {
+        action("✕", t("album.remove_hint"), () => {
           album.tracks.splice(i, 1);
           renderAlbum();
         })));
@@ -288,7 +289,7 @@ $("#det-text-run").addEventListener("click", () => albumAction("text", { text: $
 $("#det-scan").addEventListener("click", () => albumAction("scan", {}));
 
 $("#album-cut").addEventListener("click", async () => {
-  albumBusy(true, "Prüfe, ob schon etwas da ist …");
+  albumBusy(true, t("album.checking_existing"));
   try {
     sortTracks();
     const body = {

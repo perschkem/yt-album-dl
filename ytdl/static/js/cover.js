@@ -1,6 +1,7 @@
 // Cover-Feld: YouTube-Vorschaubild oder eigene URL mit Prüfung.
 
 import { api } from "./api.js";
+import { t } from "./i18n.js";
 
 /** Cover-Feld: „Vorschaubild“ (Standard, schwarze Ränder werden entfernt) oder „Eigene URL“ mit Prüfung.
  *  Liefert {value(), clear(), setThumbnail(src, note)}. Bei eigener URL wird immer der Feldinhalt gesendet –
@@ -20,22 +21,22 @@ export function coverField(root) {
   function showThumbnail() {
     img.hidden = !thumbSrc;
     if (thumbSrc) img.src = `/api/cover/thumbnail?src=${encodeURIComponent(thumbSrc)}`;
-    note.textContent = thumbNote || "YouTube-Vorschaubild, schwarze Ränder werden entfernt.";
+    note.textContent = thumbNote || t("cover_field.thumbnail_note");
   }
 
   async function checkUrl() {
     const url = input.value.trim();
     img.hidden = true;
     if (!url) return show("");
-    show("Prüfe Cover …");
+    show(t("cover_field.checking"));
     try {
       const info = await api("/api/cover/check", { url });
       if (input.value.trim() !== url || mode() !== "url") return; // inzwischen geändert
       img.src = url;
       img.hidden = false;
-      show(`${info.width}×${info.height} px` + (info.square ? "" : " · nicht quadratisch"));
+      show([t("cover_field.size", info), info.square ? "" : t("cover_field.not_square")].filter(Boolean).join(" · "));
     } catch (err) {
-      show(`${err.message} – es bleibt das YouTube-Vorschaubild`, true);
+      show(t("cover_field.keeps_thumbnail", { error: err.message }), true);
     }
   }
 

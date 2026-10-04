@@ -2,6 +2,7 @@
 
 import { el } from "./dom.js";
 import { isChanged, sameValue } from "./format.js";
+import { t } from "./i18n.js";
 
 export const VA = "Various Artists";
 
@@ -23,7 +24,7 @@ export function editableCell(obj, key, { type = "text", cls = "", onInput } = {}
 /** ↺-Button: stellt obj.orig wieder her; refresh() sperrt ihn, solange nichts geändert ist. */
 export function resetButton(obj, keys, onReset, cls) {
   const b = el("button", { type: "button", class: cls,
-    title: obj.orig ? "Erkannte Werte wiederherstellen" : "Von Hand hinzugefügt" }, "↺");
+    title: t(obj.orig ? "editing.restore" : "editing.manual") }, "↺");
   b.addEventListener("click", () => { Object.assign(obj, obj.orig); onReset(); });
   b.refresh = () => (b.disabled = !isChanged(obj, obj.orig, keys));
   b.refresh();

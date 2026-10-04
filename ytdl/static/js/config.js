@@ -2,14 +2,15 @@
 
 import { api } from "./api.js";
 import { $ } from "./dom.js";
+import { t } from "./i18n.js";
 
 export async function loadConfig() {
   const cfg = await api("/api/config");
   folders = { musik: cfg.musik_dir, podcast: cfg.podcast_dir };
   document.querySelector(`input[name=fmt][value=${cfg.audio_format}]`).checked = true;
-  const show = (dir) => dir || "nicht eingestellt";
-  $("#dirs").textContent = `Musik: ${show(cfg.musik_dir)} · Podcasts: ${show(cfg.podcast_dir)} · ` +
-    `${cfg.parallel_downloads} Downloads gleichzeitig`;
+  const show = (dir) => dir || t("dirs.not_set");
+  $("#dirs").textContent = t("dirs.summary", { music: show(cfg.musik_dir), podcasts: show(cfg.podcast_dir),
+    count: cfg.parallel_downloads });
   updateFolderState();
   $("#ffmpeg-warning").hidden = cfg.ffmpeg;
 }
@@ -25,17 +26,17 @@ export function setPreviewMode(mode) {
 
 /** Hinweis + gesperrte Buttons, solange für den gewählten Modus kein Zielordner eingestellt ist. */
 function updateFolderState() {
-  const missing = [!folders.musik && "Musik", !folders.podcast && "Podcasts"].filter(Boolean);
+  const missing = ["musik", "podcast"].filter((m) => !folders[m]).map((m) => t(`folders.name_${m}`));
   $("#folder-warning").hidden = !missing.length;
   $("#folder-warning-text").textContent = missing.length
-    ? `Kein Zielordner für ${missing.join(" und ")} eingestellt – Herunterladen ist bis dahin gesperrt.` : "";
+    ? t("folders.missing", { names: missing.join(t("folders.and")) }) : "";
   const mode = previewMode || selectedMode();
   const download = $("#download-btn");
   download.disabled = !folders[mode];
-  download.title = folders[mode] ? "" : "Erst unter ⚙ Einstellungen einen Ordner festlegen";
+  download.title = folders[mode] ? "" : t("folders.set_first");
   const cut = $("#album-cut");
   cut.disabled = !folders.musik;
-  cut.title = folders.musik ? "" : "Erst unter ⚙ Einstellungen einen Ordner für Musik festlegen";
+  cut.title = folders.musik ? "" : t("folders.set_music_first");
 }
 
 document.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", updateFolderState));

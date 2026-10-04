@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- Texte: data-i18n* verweist auf ytdl/locales/<sprache>.json; der deutsche Inhalt steht nur bis zum Übersetzen da. -->
 <main>
   <header class="masthead">
     <img src="img/logo.webp" alt="" class="logo" width="140" height="140">
@@ -16,35 +17,36 @@
       <p id="dirs" class="muted small"></p>
     </div>
     <nav class="masthead-nav">
-      <a href="/historie" class="nav-link">📜 Historie</a>
-      <button type="button" id="open-settings">⚙ Einstellungen</button>
+      <a href="/historie" class="nav-link" data-i18n="nav.history">📜 Historie</a>
+      <button type="button" id="open-settings" data-i18n="nav.settings">⚙ Einstellungen</button>
     </nav>
   </header>
   <p id="auth-notice" class="warning" hidden>
     <span id="auth-notice-text"></span>
-    <button type="button" class="small-btn" id="auth-notice-open" hidden>⚙ YouTube-Anmeldung einrichten</button>
+    <button type="button" class="small-btn" id="auth-notice-open" hidden data-i18n="auth.setup">⚙ YouTube-Anmeldung einrichten</button>
   </p>
   <p id="folder-warning" class="warning" hidden>
     <span id="folder-warning-text"></span>
-    <button type="button" class="small-btn" id="folder-warning-open">Einstellungen öffnen</button>
+    <button type="button" class="small-btn" id="folder-warning-open" data-i18n="folders.open_settings">Einstellungen öffnen</button>
   </p>
-  <p id="ffmpeg-warning" class="warning" hidden>
+  <p id="ffmpeg-warning" class="warning" hidden data-i18n-html="probe.ffmpeg_missing">
     ffmpeg wurde nicht gefunden. Bitte in WSL installieren: <code>sudo apt install ffmpeg</code>
   </p>
 
   <form id="probe-form" class="panel">
-    <label for="url" class="label">Video- oder Playlist-URL</label>
-    <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=… oder …/playlist?list=…" required autofocus>
+    <label for="url" class="label" data-i18n="probe.url">Video- oder Playlist-URL</label>
+    <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=… oder …/playlist?list=…"
+           data-i18n-placeholder="probe.url_placeholder" required autofocus>
     <div class="row">
-      <div class="segmented" role="radiogroup" aria-label="Modus">
-        <label><input type="radio" name="mode" value="musik" checked> 🎵 Musik</label>
-        <label><input type="radio" name="mode" value="podcast"> 🎙️ Podcast / Audio</label>
+      <div class="segmented" role="radiogroup" aria-label="Modus" data-i18n-aria-label="probe.mode">
+        <label><input type="radio" name="mode" value="musik" checked> <span data-i18n="probe.mode_music">🎵 Musik</span></label>
+        <label><input type="radio" name="mode" value="podcast"> <span data-i18n="probe.mode_podcast">🎙️ Podcast / Audio</span></label>
       </div>
-      <div class="segmented" role="radiogroup" aria-label="Format">
-        <label title="läuft überall"><input type="radio" name="fmt" value="mp3"> MP3</label>
-        <label title="ohne Umkodieren – schneller, Originalqualität"><input type="radio" name="fmt" value="m4a"> M4A</label>
+      <div class="segmented" role="radiogroup" aria-label="Format" data-i18n-aria-label="probe.format">
+        <label title="läuft überall" data-i18n-title="probe.mp3_hint"><input type="radio" name="fmt" value="mp3"> MP3</label>
+        <label title="ohne Umkodieren – schneller, Originalqualität" data-i18n-title="probe.m4a_hint"><input type="radio" name="fmt" value="m4a"> M4A</label>
       </div>
-      <button type="submit" id="probe-btn" class="primary">Prüfen</button>
+      <button type="submit" id="probe-btn" class="primary" data-i18n="probe.check">Prüfen</button>
     </div>
     <div id="probe-busy" class="busy-turtle" hidden></div>
     <div id="probe-steps" class="steps" hidden></div>
@@ -59,36 +61,36 @@
 
     <div id="bulk" class="bulk" hidden>
       <div class="checks bulk-top">
-        <label class="check strong"><input type="checkbox" id="bulk-autonum"> Automatisch nummerieren</label>
+        <label class="check strong"><input type="checkbox" id="bulk-autonum"> <span data-i18n="bulk.autonum">Automatisch nummerieren</span></label>
       </div>
-      <label>Album für alle <input id="bulk-album" placeholder="leer = Singles"></label>
-      <label>Albuminterpret <input id="bulk-album-artist"></label>
-      <label class="narrow">Jahr <input id="bulk-year" inputmode="numeric" size="4"></label>
-      <button type="button" id="bulk-apply">Für alle übernehmen</button>
+      <label><span data-i18n="bulk.album">Album für alle</span> <input id="bulk-album" placeholder="leer = Singles" data-i18n-placeholder="bulk.album_placeholder"></label>
+      <label><span data-i18n="tags.album_artist">Albuminterpret</span> <input id="bulk-album-artist"></label>
+      <label class="narrow"><span data-i18n="tags.year">Jahr</span> <input id="bulk-year" inputmode="numeric" size="4"></label>
+      <button type="button" id="bulk-apply" data-i18n="bulk.apply">Für alle übernehmen</button>
       <div class="checks">
-        <label class="check"><input type="checkbox" id="bulk-va"> Verschiedene Interpreten (Sampler)</label>
-        <label class="check"><input type="checkbox" id="bulk-same-artist"> Interpret aller Titel = Albuminterpret</label>
+        <label class="check"><input type="checkbox" id="bulk-va"> <span data-i18n="tags.various_artists">Verschiedene Interpreten (Sampler)</span></label>
+        <label class="check"><input type="checkbox" id="bulk-same-artist"> <span data-i18n="bulk.same_artist">Interpret aller Titel = Albuminterpret</span></label>
       </div>
     </div>
 
     <div id="album-hint" class="hint" hidden>
-      <span>Dieses Video enthält vermutlich ein ganzes Album.</span>
-      <button type="button" id="album-open" class="primary">Als Album aufteilen</button>
+      <span data-i18n="preview.album_hint">Dieses Video enthält vermutlich ein ganzes Album.</span>
+      <button type="button" id="album-open" class="primary" data-i18n="preview.split_album">Als Album aufteilen</button>
     </div>
 
     <div class="cover-field" id="preview-cover">
-      <img class="cover-preview" alt="Cover-Vorschau" width="72" height="72" hidden>
+      <img class="cover-preview" alt="Cover-Vorschau" data-i18n-alt="cover_field.preview" width="72" height="72" hidden>
       <div class="cover-inputs">
-        <span class="label">Cover (für alle Titel)</span>
-          <div class="segmented cover-mode" role="radiogroup" aria-label="Cover-Quelle">
-            <label><input type="radio" name="preview-cover-mode" value="thumb" checked> Vorschaubild</label>
-            <label><input type="radio" name="preview-cover-mode" value="url"> Eigene URL</label>
+        <span class="label" data-i18n="cover_field.label_all">Cover (für alle Titel)</span>
+          <div class="segmented cover-mode" role="radiogroup" aria-label="Cover-Quelle" data-i18n-aria-label="cover_field.source">
+            <label><input type="radio" name="preview-cover-mode" value="thumb" checked> <span data-i18n="cover_field.thumbnail">Vorschaubild</span></label>
+            <label><input type="radio" name="preview-cover-mode" value="url"> <span data-i18n="cover_field.custom">Eigene URL</span></label>
           </div>
-          <p class="cover-thumb-note muted small">YouTube-Vorschaubild, schwarze Ränder werden entfernt.</p>
+          <p class="cover-thumb-note muted small" data-i18n="cover_field.thumbnail_note">YouTube-Vorschaubild, schwarze Ränder werden entfernt.</p>
           <div class="cover-url-part" hidden>
             <input id="preview-cover-url" type="url" placeholder="https://…/cover.jpg">
             <div class="row">
-          <label class="check"><input type="checkbox" class="cover-crop"> quadratisch zuschneiden</label>
+          <label class="check"><input type="checkbox" class="cover-crop"> <span data-i18n="cover_field.crop">quadratisch zuschneiden</span></label>
           <span class="cover-msg muted small"></span>
         </div>
           </div>
@@ -103,17 +105,18 @@
     </div>
 
     <div class="row spread">
-      <span class="muted small">Bereits geladene Titel sind abgewählt – Haken setzen, um sie erneut zu laden.</span>
+      <span class="muted small" data-i18n="preview.already_note">Bereits geladene Titel sind abgewählt – Haken setzen, um sie erneut zu laden.</span>
       <div class="row">
-        <button type="button" id="preview-reset" class="ghost" title="Alle Tags auf die erkannten Werte zurücksetzen">↺ Alle zurücksetzen</button>
-        <button type="button" id="download-btn" class="primary">Herunterladen</button>
+        <button type="button" id="preview-reset" class="ghost" title="Alle Tags auf die erkannten Werte zurücksetzen"
+                data-i18n-title="preview.reset_all_hint" data-i18n="common.reset_all">↺ Alle zurücksetzen</button>
+        <button type="button" id="download-btn" class="primary" data-i18n="preview.download">Herunterladen</button>
       </div>
     </div>
   </section>
 
   <section id="album" class="panel" hidden>
     <div class="row spread">
-      <h2>Album aufteilen</h2>
+      <h2 data-i18n="album.heading">Album aufteilen</h2>
       <span id="album-source" class="muted small"></span>
     </div>
     <div id="album-busy" class="busy-turtle" hidden></div>
@@ -122,29 +125,30 @@
 
     <div id="album-body" hidden>
       <div class="bulk">
-        <label>Album <input id="album-name"></label>
-        <label>Albuminterpret <input id="album-artist"></label>
-        <label class="narrow">Jahr <input id="album-year" inputmode="numeric" size="4"></label>
-        <label>Genre <input id="album-genre"></label>
-        <button type="button" id="album-apply" title="Albuminterpret als Interpret aller Titel setzen">Interpret für alle übernehmen</button>
+        <label><span data-i18n="tags.album">Album</span> <input id="album-name"></label>
+        <label><span data-i18n="tags.album_artist">Albuminterpret</span> <input id="album-artist"></label>
+        <label class="narrow"><span data-i18n="tags.year">Jahr</span> <input id="album-year" inputmode="numeric" size="4"></label>
+        <label><span data-i18n="tags.genre">Genre</span> <input id="album-genre"></label>
+        <button type="button" id="album-apply" title="Albuminterpret als Interpret aller Titel setzen"
+                data-i18n-title="album.apply_artist_hint" data-i18n="album.apply_artist">Interpret für alle übernehmen</button>
         <div class="checks">
-          <label class="check"><input type="checkbox" id="album-va"> Verschiedene Interpreten (Sampler)</label>
-          <button type="button" class="link" id="album-artist-col">Interpret pro Titel bearbeiten</button>
+          <label class="check"><input type="checkbox" id="album-va"> <span data-i18n="tags.various_artists">Verschiedene Interpreten (Sampler)</span></label>
+          <button type="button" class="link" id="album-artist-col" data-i18n="album.edit_artist_per_track">Interpret pro Titel bearbeiten</button>
         </div>
       </div>
       <div class="cover-field" id="album-cover">
-        <img class="cover-preview" alt="Cover-Vorschau" width="72" height="72" hidden>
+        <img class="cover-preview" alt="Cover-Vorschau" data-i18n-alt="cover_field.preview" width="72" height="72" hidden>
         <div class="cover-inputs">
-          <span class="label">Cover</span>
-          <div class="segmented cover-mode" role="radiogroup" aria-label="Cover-Quelle">
-            <label><input type="radio" name="album-cover-mode" value="thumb" checked> Vorschaubild</label>
-            <label><input type="radio" name="album-cover-mode" value="url"> Eigene URL</label>
+          <span class="label" data-i18n="cover_field.label">Cover</span>
+          <div class="segmented cover-mode" role="radiogroup" aria-label="Cover-Quelle" data-i18n-aria-label="cover_field.source">
+            <label><input type="radio" name="album-cover-mode" value="thumb" checked> <span data-i18n="cover_field.thumbnail">Vorschaubild</span></label>
+            <label><input type="radio" name="album-cover-mode" value="url"> <span data-i18n="cover_field.custom">Eigene URL</span></label>
           </div>
-          <p class="cover-thumb-note muted small">YouTube-Vorschaubild, schwarze Ränder werden entfernt.</p>
+          <p class="cover-thumb-note muted small" data-i18n="cover_field.thumbnail_note">YouTube-Vorschaubild, schwarze Ränder werden entfernt.</p>
           <div class="cover-url-part" hidden>
             <input id="album-cover-url" type="url" placeholder="https://…/cover.jpg">
             <div class="row">
-            <label class="check"><input type="checkbox" class="cover-crop"> quadratisch zuschneiden</label>
+            <label class="check"><input type="checkbox" class="cover-crop"> <span data-i18n="cover_field.crop">quadratisch zuschneiden</span></label>
             <span class="cover-msg muted small"></span>
           </div>
           </div>
@@ -152,45 +156,48 @@
       </div>
       <p id="album-hints" class="muted small" hidden></p>
       <details class="album-log">
-        <summary>Wie wurden die Grenzen gefunden?</summary>
+        <summary data-i18n="album.how_found">Wie wurden die Grenzen gefunden?</summary>
         <div id="album-log-steps" class="steps"></div>
       </details>
 
       <audio id="album-audio" controls preload="metadata"></audio>
-      <canvas id="wave" height="110" title="Klicken: dorthin springen · Markierung ziehen: Grenze verschieben"></canvas>
-      <p class="muted small">Klick in die Wellenform springt dorthin, Markierungen lassen sich mit der Maus verschieben.</p>
+      <canvas id="wave" height="110" title="Klicken: dorthin springen · Markierung ziehen: Grenze verschieben"
+              data-i18n-title="album.wave_hint"></canvas>
+      <p class="muted small" data-i18n="album.wave_note">Klick in die Wellenform springt dorthin, Markierungen lassen sich mit der Maus verschieben.</p>
 
       <div class="table-wrap">
         <table id="album-table">
-          <thead><tr><th>Nr.</th><th>Start</th><th>Dauer</th><th>Interpret</th><th>Titel</th><th></th></tr></thead>
+          <thead><tr><th data-i18n="tags.track_no">Nr.</th><th data-i18n="album.start">Start</th><th data-i18n="album.duration">Dauer</th>
+            <th data-i18n="tags.artist">Interpret</th><th data-i18n="tags.title">Titel</th><th></th></tr></thead>
           <tbody id="album-tracks"></tbody>
         </table>
       </div>
       <div class="row tools">
-        <button type="button" id="album-add">+ Titel an aktueller Position</button>
+        <button type="button" id="album-add" data-i18n="album.add">+ Titel an aktueller Position</button>
       </div>
 
       <details class="redetect">
-        <summary>Grenzen neu suchen</summary>
+        <summary data-i18n="album.redetect">Grenzen neu suchen</summary>
         <div class="bulk">
-          <label>Anzahl Titel <input id="det-count" type="number" min="2" placeholder="automatisch"></label>
-          <label>Mindestpause (s) <input id="det-pause" type="number" step="0.1" value="1.0"></label>
-          <label>Empfindlichkeit (dB) <input id="det-sens" type="number" step="1" value="25"></label>
-          <button type="button" id="det-run">Pausen erkennen</button>
+          <label><span data-i18n="album.count">Anzahl Titel</span> <input id="det-count" type="number" min="2" placeholder="automatisch" data-i18n-placeholder="album.count_auto"></label>
+          <label><span data-i18n="album.min_pause">Mindestpause (s)</span> <input id="det-pause" type="number" step="0.1" value="1.0"></label>
+          <label><span data-i18n="album.sensitivity">Empfindlichkeit (dB)</span> <input id="det-sens" type="number" step="1" value="25"></label>
+          <button type="button" id="det-run" data-i18n="album.detect">Pausen erkennen</button>
         </div>
-        <label for="det-text" class="label">Trackliste einfügen – mit Zeitstempeln oder nur Titel (eine Zeile pro Titel)</label>
-        <textarea id="det-text" rows="6" placeholder="0:00 Erster Titel&#10;4:12 Zweiter Titel&#10;…"></textarea>
+        <label for="det-text" class="label" data-i18n="album.tracklist">Trackliste einfügen – mit Zeitstempeln oder nur Titel (eine Zeile pro Titel)</label>
+        <textarea id="det-text" rows="6" placeholder="0:00 Erster Titel&#10;4:12 Zweiter Titel&#10;…" data-i18n-placeholder="album.tracklist_placeholder"></textarea>
         <div class="row tools">
-          <button type="button" id="det-text-run">Trackliste übernehmen</button>
-          <button type="button" id="det-scan">Titeleinblendungen im Video scannen (dauert einige Minuten)</button>
+          <button type="button" id="det-text-run" data-i18n="album.apply_tracklist">Trackliste übernehmen</button>
+          <button type="button" id="det-scan" data-i18n="album.scan">Titeleinblendungen im Video scannen (dauert einige Minuten)</button>
         </div>
       </details>
 
       <div class="row spread">
-        <span class="muted small">Bitte Grenzen kurz anhören – ▶ spielt ab dem Start des Titels.</span>
+        <span class="muted small" data-i18n="album.listen_note">Bitte Grenzen kurz anhören – ▶ spielt ab dem Start des Titels.</span>
         <div class="row">
-          <button type="button" id="album-reset" class="ghost" title="Album-Felder, Titel und Grenzen auf das Ergebnis der Erkennung zurücksetzen">↺ Alle zurücksetzen</button>
-          <button type="button" id="album-cut" class="primary">Schneiden &amp; speichern</button>
+          <button type="button" id="album-reset" class="ghost" title="Album-Felder, Titel und Grenzen auf das Ergebnis der Erkennung zurücksetzen"
+                  data-i18n-title="album.reset_hint" data-i18n="common.reset_all">↺ Alle zurücksetzen</button>
+          <button type="button" id="album-cut" class="primary" data-i18n="album.cut">Schneiden &amp; speichern</button>
         </div>
       </div>
     </div>
@@ -198,10 +205,11 @@
 
   <section class="downloads">
     <div class="row spread">
-      <h2>Downloads</h2>
+      <h2 data-i18n="jobs.heading">Downloads</h2>
       <div class="row">
-        <button type="button" id="toggle-jobs" class="ghost" hidden>Alle einklappen</button>
-        <button type="button" id="clear-jobs" class="ghost" hidden title="Abgeschlossene Jobs ausblenden – Dateien bleiben erhalten">🧹 Liste leeren</button>
+        <button type="button" id="toggle-jobs" class="ghost" hidden></button>
+        <button type="button" id="clear-jobs" class="ghost" hidden title="Abgeschlossene Jobs ausblenden – Dateien bleiben erhalten"
+                data-i18n-title="jobs.clear_hint" data-i18n="jobs.clear">🧹 Liste leeren</button>
       </div>
     </div>
     <div id="jobs-summary" class="jobs-summary" hidden></div>
@@ -214,68 +222,68 @@
     <div class="dialog-head">
       <span data-turtle="pruefen" class="dialog-turtle"></span>
       <div>
-        <h2>Schon vorhanden</h2>
-        <p class="muted small">Diese Titel liegen bereits im Zielordner. Was soll passieren?</p>
+        <h2 data-i18n="conflict.heading">Schon vorhanden</h2>
+        <p class="muted small" data-i18n="conflict.intro">Diese Titel liegen bereits im Zielordner. Was soll passieren?</p>
       </div>
     </div>
     <div class="row conflict-all">
-      <span class="muted small">Für alle:</span>
-      <button type="button" data-all="overwrite">Überschreiben</button>
-      <button type="button" data-all="skip">Überspringen</button>
-      <button type="button" data-all="keep_both">Beide behalten</button>
+      <span class="muted small" data-i18n="conflict.for_all">Für alle:</span>
+      <button type="button" data-all="overwrite" data-i18n="conflict.overwrite">Überschreiben</button>
+      <button type="button" data-all="skip" data-i18n="conflict.skip">Überspringen</button>
+      <button type="button" data-all="keep_both" data-i18n="conflict.keep_both_short">Beide behalten</button>
     </div>
     <div id="conflict-list" class="conflict-list"></div>
     <div class="row spread">
-      <button value="cancel" class="ghost">Abbrechen</button>
-      <button value="ok" class="primary" id="conflict-ok">Weiter</button>
+      <button value="cancel" class="ghost" data-i18n="common.cancel">Abbrechen</button>
+      <button value="ok" class="primary" id="conflict-ok" data-i18n="conflict.continue">Weiter</button>
     </div>
   </form>
 </dialog>
 
 <dialog id="settings-dialog">
   <form id="settings-form" class="dialog-body">
-    <h2>Einstellungen</h2>
-    <p class="muted small">Wird in <code>.env</code> im Projektordner gespeichert und gilt sofort. Laufende Downloads behalten ihren Zielordner.</p>
+    <h2 data-i18n="settings.heading">Einstellungen</h2>
+    <p class="muted small" data-i18n-html="settings.intro">Wird in <code>.env</code> im Projektordner gespeichert und gilt sofort. Laufende Downloads behalten ihren Zielordner.</p>
     <div class="settings-grid">
-      <label class="label" for="set-musik">Ordner für Musik</label>
-      <div><input id="set-musik" name="musik_dir" placeholder="z.B. D:\Musik oder /home/ich/Musik"><p class="field-error" data-for="musik_dir"></p></div>
-      <label class="label" for="set-podcast">Ordner für Podcasts / Audio</label>
-      <div><input id="set-podcast" name="podcast_dir" placeholder="z.B. D:\Podcasts"><p class="field-error" data-for="podcast_dir"></p></div>
-      <label class="label" for="set-format">Standardformat</label>
-      <div><select id="set-format" name="audio_format"><option value="mp3">MP3</option><option value="m4a">M4A (ohne Umkodieren)</option></select></div>
-      <label class="label" for="set-bitrate">MP3-Bitrate</label>
+      <label class="label" for="set-musik" data-i18n="settings.music_dir">Ordner für Musik</label>
+      <div><input id="set-musik" name="musik_dir" placeholder="z.B. D:\Musik oder /home/ich/Musik" data-i18n-placeholder="settings.music_dir_placeholder"><p class="field-error" data-for="musik_dir"></p></div>
+      <label class="label" for="set-podcast" data-i18n="settings.podcast_dir">Ordner für Podcasts / Audio</label>
+      <div><input id="set-podcast" name="podcast_dir" placeholder="z.B. D:\Podcasts" data-i18n-placeholder="settings.podcast_dir_placeholder"><p class="field-error" data-for="podcast_dir"></p></div>
+      <label class="label" for="set-format" data-i18n="settings.format">Standardformat</label>
+      <div><select id="set-format" name="audio_format"><option value="mp3">MP3</option><option value="m4a" data-i18n="settings.m4a">M4A (ohne Umkodieren)</option></select></div>
+      <label class="label" for="set-bitrate" data-i18n="settings.bitrate">MP3-Bitrate</label>
       <div><select id="set-bitrate" name="bitrate" data-number></select><p class="field-error" data-for="bitrate"></p></div>
-      <label class="label" for="set-downloads">Gleichzeitige Downloads</label>
+      <label class="label" for="set-downloads" data-i18n="settings.parallel_downloads">Gleichzeitige Downloads</label>
       <div><input id="set-downloads" name="parallel_downloads" type="number"><p class="field-error" data-for="parallel_downloads"></p></div>
-      <label class="label" for="set-cuts">Gleichzeitige Umwandlungen/Schnitte</label>
+      <label class="label" for="set-cuts" data-i18n="settings.parallel_cuts">Gleichzeitige Umwandlungen/Schnitte</label>
       <div><input id="set-cuts" name="parallel_cuts" type="number"><p class="field-error" data-for="parallel_cuts"></p></div>
-      <label class="label" for="set-retries">Neue Versuche bei Fehlern</label>
+      <label class="label" for="set-retries" data-i18n="settings.retries">Neue Versuche bei Fehlern</label>
       <div><input id="set-retries" name="max_retries" type="number"><p class="field-error" data-for="max_retries"></p></div>
-      <label class="label" for="set-sleep">Pause vor jedem Download (s)</label>
+      <label class="label" for="set-sleep" data-i18n="settings.sleep">Pause vor jedem Download (s)</label>
       <div><input id="set-sleep" name="sleep_seconds" type="number">
-        <p class="muted small">0 = keine Pause. Hilft gegen die YouTube-Bot-Prüfung (zufällig zwischen n und 2n Sekunden).</p>
+        <p class="muted small" data-i18n="settings.sleep_note">0 = keine Pause. Hilft gegen die YouTube-Bot-Prüfung (zufällig zwischen n und 2n Sekunden).</p>
         <p class="field-error" data-for="sleep_seconds"></p></div>
     </div>
-    <h3 class="settings-section">YouTube-Anmeldung (gegen „Sign in to confirm you’re not a bot“)</h3>
-    <p class="muted small">Optional. Wird <strong>nur verwendet, wenn YouTube eine Bot-Prüfung verlangt</strong> – dann
+    <h3 class="settings-section" data-i18n="settings.auth_heading">YouTube-Anmeldung (gegen „Sign in to confirm you’re not a bot“)</h3>
+    <p class="muted small" data-i18n-html="settings.auth_intro">Optional. Wird <strong>nur verwendet, wenn YouTube eine Bot-Prüfung verlangt</strong> – dann
       wiederholt yt-album-dl den Aufruf mit diesen Cookies und lädt eine Stunde lang mit Anmeldung, danach wieder ohne.
       Empfehlung: ein Zweitkonto verwenden – YouTube kann Downloads sonst dem eigenen Konto zuordnen.
       <a href="https://github.com/maxperschke/yt-album-dl/blob/main/docs/COOKIES.md" target="_blank" rel="noopener">Anleitung: Cookies exportieren</a></p>
     <div class="settings-grid">
       <label class="label" for="set-cookie-file">cookies.txt</label>
-      <div><input id="set-cookie-file" name="cookies_file" placeholder="z.B. D:\Downloads\youtube-cookies.txt">
-        <p class="muted small">Mit einer Browser-Erweiterung wie „Get cookies.txt LOCALLY“ auf youtube.com exportieren. Unter WSL der zuverlässigste Weg.</p>
+      <div><input id="set-cookie-file" name="cookies_file" placeholder="z.B. D:\Downloads\youtube-cookies.txt" data-i18n-placeholder="settings.cookie_file_placeholder">
+        <p class="muted small" data-i18n="settings.cookie_file_note">Mit einer Browser-Erweiterung wie „Get cookies.txt LOCALLY“ auf youtube.com exportieren. Unter WSL der zuverlässigste Weg.</p>
         <p class="field-error" data-for="cookies_file"></p></div>
-      <label class="label" for="set-cookie-browser">… oder aus Browser</label>
-      <div><input id="set-cookie-browser" name="cookies_from_browser" list="browser-list" placeholder="z.B. firefox oder firefox:C:\Users\…\Profiles\abc.default">
+      <label class="label" for="set-cookie-browser" data-i18n="settings.cookie_browser">… oder aus Browser</label>
+      <div><input id="set-cookie-browser" name="cookies_from_browser" list="browser-list" placeholder="z.B. firefox oder firefox:C:\Users\…\Profiles\abc.default" data-i18n-placeholder="settings.cookie_browser_placeholder">
         <datalist id="browser-list"></datalist>
-        <p class="muted small">Browser, in dem du bei YouTube angemeldet bist. Unter WSL nur Firefox mit Pfad zum Windows-Profil; Chrome/Edge verschlüsseln ihre Cookies.</p>
+        <p class="muted small" data-i18n="settings.cookie_browser_note">Browser, in dem du bei YouTube angemeldet bist. Unter WSL nur Firefox mit Pfad zum Windows-Profil; Chrome/Edge verschlüsseln ihre Cookies.</p>
         <p class="field-error" data-for="cookies_from_browser"></p></div>
     </div>
     <p id="settings-error" class="error" hidden></p>
     <div class="row spread">
-      <button type="button" class="ghost" id="settings-cancel">Abbrechen</button>
-      <button type="submit" class="primary" id="settings-save">Speichern</button>
+      <button type="button" class="ghost" id="settings-cancel" data-i18n="common.cancel">Abbrechen</button>
+      <button type="submit" class="primary" id="settings-save" data-i18n="common.save">Speichern</button>
     </div>
   </form>
 </dialog>
