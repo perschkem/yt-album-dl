@@ -1,6 +1,12 @@
-# youtube-album-dl
+<p align="center">
+  <img src="docs/logo.webp" alt="youtube-album-dl Logo" width="320">
+</p>
 
-**YouTube → MP3 mit sauberer Sortierung, vollständigen Tags und automatischem Aufteilen von Album-Videos.**
+<h1 align="center">youtube-album-dl</h1>
+
+<p align="center">
+  <strong>YouTube → MP3 mit sauberer Sortierung, vollständigen Tags und automatischem Aufteilen von Album-Videos.</strong>
+</p>
 
 Ein lokales Tool mit Weboberfläche: URL einfügen, erkannte Metadaten kontrollieren, herunterladen.
 Musik landet getaggt und nach Interpret/Album sortiert in der Musiksammlung, Podcasts und andere Videos
