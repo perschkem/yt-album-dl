@@ -36,3 +36,17 @@ def test_error_names_the_failing_step():
     assert act.status == FAILED
     assert act.error == "Fehler bei „Lautstärkeverlauf berechnen“: ffmpeg konnte das Audio nicht lesen"
     assert act.steps[-1].state == FAILED
+
+
+def test_steps_report_elapsed_seconds(monkeypatch):
+    from ytdl import activity as mod
+
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(mod.time, "time", lambda: clock["now"])
+    act = mod.Activity(id="x", kind="test")
+    step = act.step("Video-Infos laden")
+    clock["now"] += 4.6
+    assert step.to_dict()["elapsed"] == 4 and step.to_dict()["progress"] is None  # unbestimmt
+    step.done()
+    clock["now"] += 10
+    assert step.to_dict()["elapsed"] == 4  # nach dem Ende bleibt die Dauer stehen

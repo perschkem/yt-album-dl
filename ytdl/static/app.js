@@ -69,15 +69,29 @@ function showBusy(box, text) {
 
 const STEP_ICONS = { "läuft": "", "fertig": "✓", "nichts gefunden": "✗", "übersprungen": "–", "fehler": "⚠" };
 
+/** Unbestimmter Balken für Schritte ohne messbaren Fortschritt: die Schildkröte läuft hin und her.
+ *  Die Schritte werden jede Sekunde neu gezeichnet (Sekundenzähler) – damit die Animation dabei nicht
+ *  von vorn beginnt, richtet sich ihre Phase nach der Uhr (negativer animation-delay). */
+const PATROL_SECONDS = 5, STRIPE_SECONDS = 0.8, WALK_SECONDS = 0.5;
+function indeterminateBar() {
+  const now = Date.now() / 1000;
+  const phase = (period) => `-${(now % period).toFixed(3)}s`;
+  return el("div", { class: "bar indeterminate" },
+    el("div", { class: "fill", style: `animation-delay:${phase(STRIPE_SECONDS)}` }),
+    el("div", { class: "runner", style: `animation-delay:${phase(PATROL_SECONDS)},${phase(WALK_SECONDS)}` }));
+}
+
 function renderSteps(box, steps) {
   box.hidden = !steps.length;
-  box.replaceChildren(...steps.map((s) => el("div", { class: `step ${s.state.replace(" ", "-")}` },
-    el("span", { class: "step-icon" }, STEP_ICONS[s.state] ?? ""),
-    el("span", { class: "step-label" }, s.label),
-    s.detail ? el("span", { class: "step-detail" }, s.detail) : null,
-    s.state === "läuft" && s.progress != null
-      ? el("div", { class: "bar step-bar" }, el("div", { style: `width:${s.progress}%` })) : null,
-  )));
+  box.replaceChildren(...steps.map((s) => {
+    const running = s.state === "läuft";
+    const detail = [s.detail, running && s.elapsed >= 1 ? `${s.elapsed} s` : ""].filter(Boolean).join(" · ");
+    return el("div", { class: `step ${s.state.replace(" ", "-")}` },
+      el("span", { class: "step-icon" }, STEP_ICONS[s.state] ?? ""),
+      el("span", { class: "step-label" }, s.label),
+      detail ? el("span", { class: "step-detail" }, detail) : null,
+      running ? (s.progress != null ? progressBar(s.progress) : indeterminateBar()) : null);
+  }));
 }
 
 /** Startet einen Hintergrund-Vorgang und zeigt dessen Schritte live in `box` (Server-Sent Events,

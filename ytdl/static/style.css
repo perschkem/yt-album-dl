@@ -199,7 +199,16 @@ td.changed input { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--wa
 .busy-turtle { display: flex; align-items: center; gap: 12px; margin-top: 14px; color: var(--muted); }
 .busy-turtle .turtle { width: 120px; height: 120px; }
 .walking { animation: walk .6s steps(2) infinite; }
-@keyframes walk { 50% { transform: translateY(-2px); } }
+/* „translate“ statt „transform“, damit sich das Wippen mit der Zentrierung (translateX) der Läufer-Schildkröte verträgt */
+@keyframes walk { 50% { translate: 0 -2px; } }
+/* hin und her laufen, an den Enden umdrehen (Sprite schaut nach rechts) */
+@keyframes patrol {
+  0% { left: 3%; scale: 1 1; }
+  49.9% { left: 97%; scale: 1 1; }
+  50% { left: 97%; scale: -1 1; }
+  100% { left: 3%; scale: -1 1; }
+}
+@keyframes stripes { to { background-position: 20px 0; } }
 
 /* Schrittprotokoll */
 .steps { margin-top: 12px; display: grid; gap: 4px; font-size: .88rem; }
@@ -226,6 +235,11 @@ td.changed input { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--wa
   background: url("img/turtles/platzhalter.svg") center / contain no-repeat; transition: left .4s steps(8); }
 .task.lädt .runner, .task.konvertiert .runner, .task.schneidet .runner, .task.taggt .runner { animation: walk .5s steps(2) infinite; }
 .task.fertig .bar > .fill { background: var(--ok); }
+.bar.indeterminate > .fill { width: 100%; opacity: .35; animation: stripes .8s linear infinite;
+  background: repeating-linear-gradient(90deg, var(--primary) 0 10px, transparent 10px 20px); }
+.bar.indeterminate > .runner { animation: patrol 5s linear infinite, walk .5s steps(2) infinite; }
+.step .bar > .runner { animation: walk .5s steps(2) infinite; }
+.step .bar.indeterminate > .runner { animation: patrol 5s linear infinite, walk .5s steps(2) infinite; }
 .task.fehler .bar > .fill, .task.übersprungen .bar > .fill { background: var(--muted); }
 .task.neuer-Versuch .bar > .fill, .task.wartet-auf-Konvertierung .bar > .fill { background: var(--frame-soft); }
 

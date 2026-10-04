@@ -23,6 +23,8 @@ class Step:
     state: str = RUNNING
     detail: str = ""
     progress: float | None = None  # 0..100, None = unbestimmt
+    started: float = field(default_factory=lambda: time.time())  # zur Laufzeit nachschlagen (testbar)
+    ended: float | None = None
 
     def update(self, detail: str | None = None, progress: float | None = None) -> None:
         if detail is not None:
@@ -31,14 +33,17 @@ class Step:
             self.progress = max(0.0, min(100.0, progress))
 
     def done(self, detail: str = "") -> None:
-        self.state, self.detail, self.progress = DONE, detail or self.detail, None
+        self.state, self.detail, self.progress, self.ended = DONE, detail or self.detail, None, time.time()
 
     def nothing(self, detail: str = "") -> None:
-        self.state, self.detail, self.progress = NOTHING, detail or self.detail, None
+        self.state, self.detail, self.progress, self.ended = NOTHING, detail or self.detail, None, time.time()
 
     def to_dict(self) -> dict:
+        # Laufzeit in ganzen Sekunden – ändert sich jede Sekunde, damit die Oberfläche „· 4 s“ hochzählen kann
+        elapsed = (self.ended or time.time()) - self.started
         return {"label": self.label, "state": self.state, "detail": self.detail,
-                "progress": None if self.progress is None else round(self.progress, 1)}
+                "progress": None if self.progress is None else round(self.progress, 1),
+                "elapsed": int(elapsed)}
 
 
 @dataclass
@@ -61,7 +66,8 @@ class Activity:
         return step
 
     def skip(self, label: str, detail: str = "") -> None:
-        self.steps.append(Step(label, state=SKIPPED, detail=detail))
+        now = time.time()
+        self.steps.append(Step(label, state=SKIPPED, detail=detail, started=now, ended=now))
 
     def log(self) -> list[dict]:
         return [s.to_dict() for s in list(self.steps)]
@@ -108,7 +114,7 @@ class ActivityManager:
             message = str(exc).removeprefix("ERROR: ").strip()
             running = next((s for s in reversed(activity.steps) if s.state == RUNNING), None)
             if running:
-                running.state, running.detail, running.progress = FAILED, message, None
+                running.state, running.detail, running.progress, running.ended = FAILED, message, None, time.time()
                 activity.error = f"Fehler bei „{running.label}“: {message}"
             else:
                 activity.error = message
