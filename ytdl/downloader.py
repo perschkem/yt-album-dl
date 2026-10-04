@@ -16,7 +16,7 @@ from .metadata import MUSIK, PODCAST, Item, apply_playlist, music_item, podcast_
 from .paths import target_path
 from .tagger import write_tags
 
-ProgressCallback = Callable[[str, float], None]  # (Status, Prozent 0..100)
+ProgressCallback = Callable[..., None]  # (Status, Prozent 0..100, Detailtext="")
 ALBUM_VIDEO_MIN_DURATION = 20 * 60  # Sekunden
 
 
@@ -101,17 +101,38 @@ def _unique(path: Path) -> Path:
     return candidate
 
 
+_PLACE_LOCK = threading.Lock()
+
+
+def place(src: Path, item: Item, cfg: Config, suffix: str = ".mp3") -> Path:
+    """Verschiebt die fertige Datei an ihren Zielort. Gesperrt, damit parallele Titel mit gleichem
+    Namen nicht beide denselben freien Dateinamen wählen."""
+    target = target_path(item, cfg.musik_dir, cfg.podcast_dir).with_suffix(suffix)
+    with _PLACE_LOCK:
+        target = _unique(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), target)
+    return target
+
+
+def _mb(value: float | None) -> str:
+    return f"{(value or 0) / 1_048_576:.1f}"
+
+
 def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) -> Path:
     """Lädt einen Titel herunter, konvertiert zu MP3, schreibt Tags und verschiebt ihn in den Zielordner."""
-    report = progress or (lambda status, pct: None)
+    report = progress or (lambda status, pct, detail="": None)
 
     def on_download(d: dict) -> None:
         if d["status"] == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate")
-            if total:
-                report("lädt", min(90.0, d.get("downloaded_bytes", 0) / total * 90))
+            done = d.get("downloaded_bytes", 0)
+            detail = f"{_mb(done)} von {_mb(total)} MB" if total else f"{_mb(done)} MB"
+            if d.get("speed"):
+                detail += f" · {_mb(d['speed'])} MB/s"
+            report("lädt", min(90.0, done / total * 90) if total else 0.0, detail)
         elif d["status"] == "finished":
-            report("konvertiert", 90.0)
+            report("konvertiert", 90.0, f"zu {cfg.audio_format.upper()}")
 
     with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
         tmp_dir = Path(tmp)
@@ -141,9 +162,7 @@ def download(item: Item, cfg: Config, progress: ProgressCallback | None = None) 
         report("taggt", 95.0)
         write_tags(mp3s[0], item, thumbs[0] if thumbs else None)
 
-        target = _unique(target_path(item, cfg.musik_dir, cfg.podcast_dir))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(mp3s[0]), target)
+        target = place(mp3s[0], item, cfg)
 
     Archive(cfg.data_dir, item.mode).add(item.id)
     report("fertig", 100.0)

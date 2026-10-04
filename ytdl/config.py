@@ -40,6 +40,10 @@ class Config:
     host: str
     port: int
     ffmpeg_location: str | None
+    parallel_downloads: int = 3
+    parallel_cuts: int = 4
+    max_retries: int = 5
+    audio_format: str = "mp3"  # mp3 | m4a
 
 
 def load_config() -> Config:
@@ -53,4 +57,15 @@ def load_config() -> Config:
         host=os.getenv("HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "8000")),
         ffmpeg_location=str(to_local_path(ffmpeg)) if ffmpeg else None,
+        parallel_downloads=max(1, int(os.getenv("PARALLEL_DOWNLOADS", "3"))),
+        parallel_cuts=max(1, int(os.getenv("PARALLEL_CUTS", str(os.cpu_count() or 2)))),
+        max_retries=max(0, int(os.getenv("MAX_RETRIES", "5"))),
+        audio_format=_audio_format(os.getenv("AUDIO_FORMAT", "mp3")),
     )
+
+
+def _audio_format(value: str) -> str:
+    value = value.strip().lower()
+    if value not in ("mp3", "m4a"):
+        raise ValueError(f"AUDIO_FORMAT muss mp3 oder m4a sein, nicht {value!r}")
+    return value

@@ -109,6 +109,18 @@ def get_jobs() -> list[dict]:
     return manager.snapshot()
 
 
+class RetryRequest(BaseModel):
+    task_id: str | None = None
+
+
+@app.post("/api/jobs/{job_id}/retry")
+def retry_job(job_id: str, req: RetryRequest) -> dict:
+    try:
+        return manager.retry(job_id, req.task_id)
+    except KeyError as exc:
+        raise HTTPException(404, "Job nicht gefunden") from exc
+
+
 @app.post("/api/album/analyze")
 def album_analyze(req: AlbumAnalyzeRequest) -> dict:
     return _album_call(albumvideo.analyze, req.url.strip(), cfg)

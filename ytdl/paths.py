@@ -63,3 +63,15 @@ def target_path(item: Item, musik_root: Path, podcast_root: Path) -> Path:
     if item.mode == MUSIK:
         return music_path(item, musik_root)
     return podcast_path(item, podcast_root)
+
+
+_WSL_MOUNT = re.compile(r"^/mnt/([a-z])(?:/(.*))?$")
+
+
+def to_windows_path(path: Path) -> str:
+    """/mnt/d/Musik/x.mp3 → D:\\Musik\\x.mp3 (WSL-Laufwerk); andere Pfade bleiben unverändert."""
+    match = _WSL_MOUNT.match(path.as_posix())
+    if not match:
+        return str(path)
+    drive, rest = match.groups()
+    return f"{drive.upper()}:\\" + (rest or "").replace("/", "\\")

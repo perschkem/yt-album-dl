@@ -13,10 +13,9 @@ import numpy as np
 from yt_dlp import YoutubeDL
 
 from .config import Config
-from .downloader import Archive, ProgressCallback, _base_opts, _unique
+from .downloader import Archive, ProgressCallback, _base_opts, place
 from .metadata import MUSIK, Item, clean_title, music_item, normalize_feat, split_artist_title
 from .ocr import overlay_titles, tracklist_from_frames
-from .paths import target_path
 from .split import (
     FPS,
     Segment,
@@ -308,9 +307,7 @@ def cut_track(item: Item, cfg: Config, progress: ProgressCallback) -> Path:
         cut(audio, item.start or 0.0, item.end, mp3, cfg.bitrate)
         progress("taggt", 90.0)
         write_tags(mp3, item, thumb)
-        target = _unique(target_path(item, cfg.musik_dir, cfg.podcast_dir))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(mp3), target)
+        target = place(mp3, item, cfg)
     Archive(cfg.data_dir, MUSIK).add(item.source_id)
     progress("fertig", 100.0)
     return target
