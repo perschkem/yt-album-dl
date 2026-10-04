@@ -212,3 +212,39 @@ def test_album_endpoints_validate_id_and_start_activities(client, monkeypatch):
 def test_album_job_without_analysis(client):
     res = client.post("/api/album/neu/jobs", json={"album": "A", "album_artist": "B", "tracks": [{"start": 0, "title": "x"}]})
     assert res.status_code == 400 and "nicht analysiert" in res.json()["detail"]
+
+
+def analyzed(client, video_id="vid123", duration=300):
+    folder = client.cfg.data_dir / "cache" / video_id
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "meta.json").write_text(json.dumps({"id": video_id, "url": f"https://youtu.be/{video_id}",
+                                                  "duration": duration}))
+
+
+def test_album_job_applies_decisions_by_id(client):
+    analyzed(client)
+    tracks = [{"start": 120, "artist": "A", "title": "Zwei"}, {"start": 0, "artist": "A", "title": "Eins"}]
+    body = {"album": "Al", "album_artist": "A", "tracks": tracks}
+    # IDs werden in Start-Reihenfolge vergeben – das Frontend muss sie nicht nachbauen
+    res = client.post("/api/album/vid123/jobs", json={**body, "decisions": {"vid123-01": "skip"}})
+    assert [t["label"] for t in res.json()["tasks"]] == ["A - Zwei"]
+    only_skip = client.post("/api/album/vid123/jobs", json={**body, "decisions": {"vid123-01": "skip",
+                                                                                  "vid123-02": "skip"}})
+    assert only_skip.status_code == 400 and only_skip.json()["detail"] == "Alle Titel übersprungen"
+
+
+def test_job_decisions_are_validated_and_applied(client):
+    body = {"mode": "musik", "items": [item(1), item(2)]}
+    bad = client.post("/api/jobs", json={**body, "decisions": {"v1": "löschen"}})
+    assert bad.status_code == 400 and "löschen" in bad.json()["detail"]
+    res = client.post("/api/jobs", json={**body, "decisions": {"v2": "skip", "v1": "overwrite"}})
+    assert [t["id"] for t in res.json()["tasks"]] == ["v1"]
+    assert web.manager.jobs[0].tasks[0].item.on_conflict == "overwrite"
+
+
+def test_album_job_needs_ffmpeg(client, monkeypatch):
+    analyzed(client)
+    monkeypatch.setattr(web, "ffmpeg_available", lambda cfg: False)
+    res = client.post("/api/album/vid123/jobs", json={"album": "Al", "album_artist": "A",
+                                                      "tracks": [{"start": 0, "title": "Eins"}]})
+    assert res.status_code == 400 and "ffmpeg" in res.json()["detail"]

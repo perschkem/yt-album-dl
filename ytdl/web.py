@@ -25,7 +25,7 @@ from .explorer import is_allowed, open_in_file_manager
 from .ffmpeg import ffmpeg_available
 from .history import History
 from .jobs import JobManager
-from .library import SKIP, conflicts
+from .library import CONFLICT_CHOICES, SKIP, conflicts
 from .metadata import MUSIK, PODCAST, Item
 from .paths import win_path
 from .schemas import (AlbumAnalyzeRequest, AlbumDetectRequest, AlbumJobRequest, AlbumScanRequest, AlbumTextRequest,
@@ -80,9 +80,20 @@ def _items(req: JobRequest) -> list[Item]:
     return [Item.from_dict({**data, "mode": req.mode, "audio_format": req.audio_format}) for data in req.items]
 
 
-def _submit(title: str, mode: str, items: list[Item], empty_message: str) -> dict:
+def _apply_decisions(items: list[Item], decisions: dict[str, str]) -> list[Item]:
+    """Entscheidungen aus dem Konflikt-Dialog übernehmen (per Titel-ID, wie /conflicts sie geliefert hat)."""
+    if bad := sorted(set(decisions.values()) - set(CONFLICT_CHOICES)):
+        raise HTTPException(400, f"Unbekannte Entscheidung: {', '.join(bad)}")
+    for item in items:
+        item.on_conflict = decisions.get(item.id, item.on_conflict)
+    return items
+
+
+def _submit(title: str, mode: str, items: list[Item], decisions: dict[str, str], empty_message: str) -> dict:
     """Job anlegen – ohne die Titel, die wegen einer vorhandenen Datei übersprungen werden sollen."""
-    items = [i for i in items if i.on_conflict != SKIP]
+    if not ffmpeg_available(cfg):
+        raise HTTPException(400, "ffmpeg fehlt – bitte installieren: sudo apt install ffmpeg")
+    items = [i for i in _apply_decisions(items, decisions) if i.on_conflict != SKIP]
     if not items:
         raise HTTPException(400, empty_message)
     return manager.submit(title, mode, items).to_dict()
@@ -197,9 +208,7 @@ def post_probe(req: ProbeRequest) -> dict:
 def post_job(req: JobRequest) -> dict:
     _check_mode(req.mode)
     _check_format(req.audio_format)
-    if not ffmpeg_available(cfg):
-        raise HTTPException(400, "ffmpeg fehlt – bitte installieren: sudo apt install ffmpeg")
-    return _submit(req.title, req.mode, _items(req), "Keine Titel ausgewählt")
+    return _submit(req.title, req.mode, _items(req), req.decisions, "Keine Titel ausgewählt")
 
 
 @app.post("/api/conflicts")
@@ -308,7 +317,8 @@ def album_conflicts(req: AlbumJobRequest, cache: AlbumCache = Depends(album_cach
 
 @app.post("/api/album/{video_id}/jobs")
 def album_job(req: AlbumJobRequest, cache: AlbumCache = Depends(album_cache)) -> dict:
-    return _submit(req.album or cache.video_id, MUSIK, _album_items(cache, req), "Alle Titel übersprungen")
+    return _submit(req.album or cache.video_id, MUSIK, _album_items(cache, req), req.decisions,
+                   "Alle Titel übersprungen")
 
 
 # ---------- Historie ----------

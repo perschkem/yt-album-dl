@@ -17,6 +17,8 @@ class JobRequest(BaseModel):
     mode: str = MUSIK
     audio_format: str = ""  # leer = AUDIO_FORMAT aus .env
     items: list[dict]
+    # Antworten aus dem Konflikt-Dialog: Titel-ID → keep_both | overwrite | skip
+    decisions: dict[str, str] = {}
 
 
 class AlbumAnalyzeRequest(BaseModel):
@@ -49,6 +51,7 @@ class AlbumJobRequest(BaseModel):
     cover_crop: bool = False
     boundary_source: str = ""
     tracks: list[dict]
+    decisions: dict[str, str] = {}  # wie bei JobRequest; die Titel-IDs vergibt der Server (Konflikt-Antwort)
 
 
 class SettingsRequest(BaseModel):
