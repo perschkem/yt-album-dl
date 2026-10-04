@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from . import ffmpeg
 from .split import Segment, parse_tracklist
 
 _TIMESTAMP = re.compile(r"\d{1,2}:\d{2}")
@@ -44,7 +45,7 @@ def read_lines(image: Image.Image) -> list[str]:
 
 def grab_frame(source: str, seconds: float, headers: dict | None = None, height: int = 720) -> Image.Image | None:
     """Holt ein einzelnes Standbild per ffmpeg (aus lokaler Datei oder Stream-URL)."""
-    cmd = ["ffmpeg", "-v", "error", "-ss", f"{seconds:.2f}"]
+    cmd = [ffmpeg.executable(), "-v", "error", "-ss", f"{seconds:.2f}"]
     if headers and source.startswith("http"):
         cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in headers.items())]
     cmd += ["-i", source, "-frames:v", "1", "-vf", f"scale=-2:'min({height},ih)'", "-f", "image2pipe", "-vcodec", "png", "-"]

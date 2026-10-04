@@ -7,6 +7,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from . import ffmpeg
 from .activity import Activity, NullActivity
 from .auth import is_bot_check, youtube
 from .config import Config, load_config
@@ -19,12 +20,6 @@ from .ytdlp import download as ytdlp_download, extract_info
 
 ALBUM_VIDEO_MIN_DURATION = 20 * 60  # Sekunden
 PROBE_WORKERS = 4  # Playlist-Einträge gleichzeitig abfragen
-
-
-def ffmpeg_available(cfg: Config) -> bool:
-    if cfg.ffmpeg_location:
-        return (Path(cfg.ffmpeg_location) / "ffmpeg").exists() or Path(cfg.ffmpeg_location).is_file()
-    return shutil.which("ffmpeg") is not None
 
 
 def is_album_video(info: dict) -> bool:
@@ -161,6 +156,8 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config()
+    ffmpeg.configure(cfg.ffmpeg_location)
+    youtube.configure(cfg)
     result = probe(args.url, args.mode, cfg)
     for data in result["items"]:
         item = Item.from_dict(data)

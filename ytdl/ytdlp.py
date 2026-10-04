@@ -8,6 +8,7 @@ from pathlib import Path
 
 from yt_dlp import YoutubeDL
 
+from . import ffmpeg
 from .auth import youtube
 
 ProgressText = Callable[[str, float | None], None]  # (Detailtext, Prozent 0..100 oder None = unbekannt)
@@ -51,6 +52,8 @@ def base_opts() -> dict:
     # yt-dlp braucht für YouTube eine JavaScript-Umgebung; standardmäßig sucht es nur deno
     if shutil.which("deno") is None and (node := shutil.which("node")):
         opts["js_runtimes"] = {"node": {"path": node}}
+    if ffmpeg.location():
+        opts["ffmpeg_location"] = ffmpeg.location()
     opts.update(youtube.cookie_opts())
     return opts
 

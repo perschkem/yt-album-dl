@@ -15,12 +15,13 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import albumvideo
+from . import albumvideo, ffmpeg
 from .activity import ActivityManager
 from .config import AUDIO_FORMATS, MissingFolder, load_config, to_local_path, update_env_file
 from .covers import CoverError, check_cover, thumbnail_preview
 from .auth import BROWSERS, friendly_error, parse_browser_spec, youtube
-from .downloader import ffmpeg_available, probe
+from .downloader import probe
+from .ffmpeg import ffmpeg_available
 from .explorer import is_allowed, open_in_file_manager
 from .history import History
 from .jobs import JobManager
@@ -37,6 +38,7 @@ history = History(cfg.data_dir)
 manager = JobManager(cfg, history=history)
 activities = ActivityManager(format_error=friendly_error)
 youtube.configure(cfg)
+ffmpeg.configure(cfg.ffmpeg_location)
 app = FastAPI(title="yt-album-dl")
 
 

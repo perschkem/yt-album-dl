@@ -10,6 +10,8 @@ from pathlib import Path
 
 import numpy as np
 
+from . import ffmpeg
+
 FPS = 10  # Lautstärke-Hüllkurve: 10 Werte pro Sekunde
 SAMPLE_RATE = 8000
 MIN_TRACK = 30.0  # Sekunden
@@ -99,7 +101,7 @@ def envelope(audio: Path, on_progress: Callable[[float], None] | None = None) ->
     """Lautstärke in dBFS, FPS Werte pro Sekunde (über ffmpeg dekodiert). on_progress bekommt die
     bisher verarbeiteten Sekunden."""
     proc = subprocess.Popen(
-        ["ffmpeg", "-v", "error", "-i", str(audio), "-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "s16le", "-"],
+        [ffmpeg.executable(), "-v", "error", "-i", str(audio), "-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "s16le", "-"],
         stdout=subprocess.PIPE,
     )
     frame = SAMPLE_RATE // FPS
@@ -209,7 +211,7 @@ def cut(source: Path, start: float, end: float | None, target: Path, bitrate: in
     """Schneidet einen Abschnitt heraus (ohne Metadaten der Quelle).
 
     Ziel .mp3 → MP3 mit `bitrate`; Ziel .m4a → aus M4A-Quelle ohne Neukodierung, sonst AAC 256 kbit/s."""
-    cmd = ["ffmpeg", "-v", "error", "-y"]
+    cmd = [ffmpeg.executable(), "-v", "error", "-y"]
     if start:
         cmd += ["-ss", f"{start:.2f}"]
     if end:
