@@ -17,3 +17,7 @@ dist/
 *.part
 *.ytdl
 data/
+
+# YouTube-Anmeldung – enthält Login-Daten, nie einchecken
+cookies*.txt
+*cookies*.txt
