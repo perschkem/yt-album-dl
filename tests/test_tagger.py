@@ -11,8 +11,8 @@ from ytdl.tagger import VARIOUS_ARTISTS, tag_values, write_tags
 
 
 def album_song(**kw):
-    fields = dict(id="1", url="https://youtu.be/1", mode=MUSIK, title="Song", artist="B feat. C", album="Platte",
-                  album_artist="B", track_no=3, track_total=12, year="2001", genre="Rock")
+    fields = {"id": "1", "url": "https://youtu.be/1", "mode": MUSIK, "title": "Song", "artist": "B feat. C",
+              "album": "Platte", "album_artist": "B", "track_no": 3, "track_total": 12, "year": "2001", "genre": "Rock"}
     return Item(**{**fields, **kw})
 
 

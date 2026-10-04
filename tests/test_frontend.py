@@ -20,7 +20,7 @@ def node():
 
 def test_js_unit_tests(node):
     tests = sorted(str(p) for p in (ROOT / "tests" / "js").glob("*.test.mjs"))
-    proc = subprocess.run([node, "--test", *tests], capture_output=True, text=True, cwd=ROOT)
+    proc = subprocess.run([node, "--test", *tests], capture_output=True, text=True, cwd=ROOT, check=False)
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
@@ -28,7 +28,8 @@ def test_js_unit_tests(node):
 def test_scripts_are_valid_modules(node, script):
     """Syntax prüfen (als ES-Modul, wie im Browser geladen)."""
     source = (STATIC / script).read_text(encoding="utf-8")
-    proc = subprocess.run([node, "--input-type=module", "--check"], input=source, capture_output=True, text=True)
+    proc = subprocess.run([node, "--input-type=module", "--check"], input=source, capture_output=True, text=True,
+                          check=False)
     assert proc.returncode == 0, proc.stderr
 
 

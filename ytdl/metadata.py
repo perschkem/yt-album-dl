@@ -6,7 +6,8 @@ import re
 from collections import Counter
 from dataclasses import asdict, dataclass, fields
 
-from .config import MUSIK, PODCAST  # noqa: F401  (hier re-exportiert, viele Module importieren sie von hier)
+# MUSIK/PODCAST stehen in config; viele Module importieren sie weiterhin von hier
+from .config import MUSIK, PODCAST
 
 # Schlagwörter, an denen man "Müll" in Klammern erkennt: (Official Video), [HD], (Lyrics) ...
 _JUNK_WORDS = (
@@ -83,7 +84,7 @@ class Item:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Item":
+    def from_dict(cls, data: dict) -> Item:
         names = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in names})
 

@@ -6,6 +6,7 @@ import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -80,7 +81,7 @@ def snap(segments: list[Segment], env: np.ndarray, window: float = 3.0) -> list[
     """Verschiebt jede Grenze auf die leiseste Stelle in ±window Sekunden (Zeitstempel sind oft gerundet)."""
     smooth = _smooth(env, 0.3)
     w = int(window * FPS)
-    for prev, seg in zip(segments, segments[1:]):
+    for prev, seg in pairwise(segments):
         i = int(seg.start * FPS)
         lo, hi = max(1, i - w), min(len(smooth) - 1, i + w + 1)
         if lo >= hi:
@@ -221,7 +222,7 @@ def cut(source: Path, start: float, end: float | None, target: Path, bitrate: in
     else:
         codec = ["-c:a", "libmp3lame", "-b:a", f"{bitrate}k"]
     cmd += ["-i", str(source), "-vn", "-map_metadata", "-1", *codec, str(target)]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg: {proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else 'unbekannter Fehler'}")
 

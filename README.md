@@ -399,6 +399,7 @@ tests/            pytest; tests/js/ mit node --test (läuft über pytest mit, fa
 
 ```bash
 uv run pytest                                                 # Tests
+uvx ruff check ytdl tests                                     # Lint (Einstellungen in pyproject.toml)
 uv run python -m ytdl.downloader <url> --mode musik --probe   # Erkennung ohne Download testen
 ```
 

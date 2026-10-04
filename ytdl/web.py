@@ -7,6 +7,7 @@ import json
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Annotated
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -28,8 +29,19 @@ from .jobs import JobManager
 from .library import CONFLICT_CHOICES, SKIP, conflicts
 from .metadata import MUSIK, PODCAST, Item
 from .paths import win_path
-from .schemas import (AlbumAnalyzeRequest, AlbumDetectRequest, AlbumJobRequest, AlbumScanRequest, AlbumTextRequest,
-                      CoverRequest, JobRequest, OpenRequest, ProbeRequest, RetryRequest, SettingsRequest)
+from .schemas import (
+    AlbumAnalyzeRequest,
+    AlbumDetectRequest,
+    AlbumJobRequest,
+    AlbumScanRequest,
+    AlbumTextRequest,
+    CoverRequest,
+    JobRequest,
+    OpenRequest,
+    ProbeRequest,
+    RetryRequest,
+    SettingsRequest,
+)
 from .status import Status
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -117,6 +129,9 @@ def album_cache(video_id: str) -> AlbumCache:
         return AlbumCache(cfg, video_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+CachedAlbum = Annotated[AlbumCache, Depends(album_cache)]
 
 
 async def _event_stream(request: Request, snapshot: Callable[[], dict], done=lambda data: False,
@@ -280,23 +295,23 @@ def album_analyze(req: AlbumAnalyzeRequest) -> dict:
 
 
 @app.post("/api/album/{video_id}/detect")
-def album_detect(req: AlbumDetectRequest, cache: AlbumCache = Depends(album_cache)) -> dict:
+def album_detect(req: AlbumDetectRequest, cache: CachedAlbum) -> dict:
     return _start("album-pausen", albumvideo.redetect, cfg, cache.video_id, req.count, req.min_pause,
                   req.sensitivity, req.artist)
 
 
 @app.post("/api/album/{video_id}/text")
-def album_text(req: AlbumTextRequest, cache: AlbumCache = Depends(album_cache)) -> dict:
+def album_text(req: AlbumTextRequest, cache: CachedAlbum) -> dict:
     return _start("album-trackliste", albumvideo.from_text, cfg, cache.video_id, req.text, req.artist)
 
 
 @app.post("/api/album/{video_id}/scan")
-def album_scan(req: AlbumScanRequest, cache: AlbumCache = Depends(album_cache)) -> dict:
+def album_scan(req: AlbumScanRequest, cache: CachedAlbum) -> dict:
     return _start("album-scan", albumvideo.scan_overlays, cfg, cache.video_id, req.artist)
 
 
 @app.get("/api/album/{video_id}/audio")
-def album_audio(cache: AlbumCache = Depends(album_cache)) -> FileResponse:
+def album_audio(cache: CachedAlbum) -> FileResponse:
     if not (path := cache.audio):
         raise HTTPException(404, "Audio nicht im Zwischenspeicher")
     return FileResponse(path)
@@ -311,12 +326,12 @@ def _album_items(cache: AlbumCache, req: AlbumJobRequest) -> list[Item]:
 
 
 @app.post("/api/album/{video_id}/conflicts")
-def album_conflicts(req: AlbumJobRequest, cache: AlbumCache = Depends(album_cache)) -> list[dict]:
+def album_conflicts(req: AlbumJobRequest, cache: CachedAlbum) -> list[dict]:
     return conflicts(_album_items(cache, req), cfg)
 
 
 @app.post("/api/album/{video_id}/jobs")
-def album_job(req: AlbumJobRequest, cache: AlbumCache = Depends(album_cache)) -> dict:
+def album_job(req: AlbumJobRequest, cache: CachedAlbum) -> dict:
     return _submit(req.album or cache.video_id, MUSIK, _album_items(cache, req), req.decisions,
                    "Alle Titel übersprungen")
 

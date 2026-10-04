@@ -1,19 +1,18 @@
 import threading
 import time
-from pathlib import Path
 
 import pytest
 
 from ytdl import jobs
 from ytdl.config import Config
-from ytdl.library import Skipped
 from ytdl.jobs import CONVERT, CPU, CUT, FETCH, NET, JobManager, backoff_delay, is_permanent, is_throttled
+from ytdl.library import Skipped
 from ytdl.metadata import MUSIK, Item
 
 
 def make_cfg(tmp_path, **kw):
-    base = dict(musik_dir=tmp_path, podcast_dir=tmp_path, data_dir=tmp_path, bitrate=320, host="", port=0,
-                ffmpeg_location=None, parallel_downloads=3, parallel_cuts=2, max_retries=3)
+    base = {"musik_dir": tmp_path, "podcast_dir": tmp_path, "data_dir": tmp_path, "bitrate": 320, "host": "", "port": 0,
+            "ffmpeg_location": None, "parallel_downloads": 3, "parallel_cuts": 2, "max_retries": 3}
     return Config(**{**base, **kw})
 
 
@@ -50,7 +49,7 @@ def fast_backoff(monkeypatch):
 
 
 def test_backoff_doubles_and_caps():
-    no_jitter = lambda: 0.5  # noqa: E731  → Faktor 1.0
+    no_jitter = lambda: 0.5  # → Faktor 1.0
     assert [backoff_delay(a, no_jitter) for a in (1, 2, 3, 4)] == [0.01, 0.02, 0.04, 0.05]
 
 

@@ -18,7 +18,7 @@ def is_allowed(path: Path, roots: list[Path]) -> bool:
 
 def _windows_path(path: Path) -> str:
     if shutil.which("wslpath"):
-        result = subprocess.run(["wslpath", "-w", str(path)], capture_output=True, text=True)
+        result = subprocess.run(["wslpath", "-w", str(path)], capture_output=True, text=True, check=False)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
     return to_windows_path(path)

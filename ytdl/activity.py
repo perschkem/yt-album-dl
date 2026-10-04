@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from .errors import clean_error
 from .status import Status
 
-
 MAX_KEPT = 30
 
 
@@ -109,7 +108,7 @@ class ActivityManager:
                 if step.state == Status.RUNNING:
                     step.done()
             activity.result, activity.status = result, Status.DONE
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 – jeder Fehler wird zum Status „fehler“ des Vorgangs
             message = format_error(clean_error(exc))
             running = next((s for s in reversed(activity.steps) if s.state == Status.RUNNING), None)
             if running:

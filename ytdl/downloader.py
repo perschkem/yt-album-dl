@@ -11,8 +11,7 @@ from . import ffmpeg
 from .activity import Activity, NullActivity
 from .auth import is_bot_check, youtube
 from .config import Config, load_config
-from .library import (Archive, ProgressCallback, Skipped, audio_format, downloaded_file, finish_track,
-                      no_progress)
+from .library import Archive, ProgressCallback, Skipped, audio_format, downloaded_file, finish_track, no_progress
 from .metadata import MUSIK, PODCAST, Item, apply_playlist, music_item, podcast_item
 from .split import encode
 from .status import Status
@@ -57,7 +56,7 @@ def probe(url: str, mode: str, cfg: Config, activity: Activity | None = None) ->
         def load(index: int) -> None:
             try:
                 entries[index] = extract_info(_entry_url(flat[index]))
-            except Exception as exc:  # einzelner Titel nicht verfügbar → überspringen; Bot-Prüfung → abbrechen
+            except Exception as exc:  # noqa: BLE001 – einzelner Titel nicht verfügbar → überspringen; Bot-Prüfung → abbrechen
                 if is_bot_check(str(exc)):
                     bot_errors.append(str(exc))
 

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .metadata import Item
 from .paths import common_folder, win_path
+
 _TAG_KEYS = ("artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date", "genre")
 
 

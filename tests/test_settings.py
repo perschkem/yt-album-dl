@@ -73,6 +73,7 @@ def test_submit_without_folder_is_rejected(settings_client, monkeypatch):
 
 def test_running_job_keeps_its_folder(settings_client, tmp_path):
     job = settings_client.post("/api/jobs", json={"mode": "musik", "items": [{"id": "v1", "url": "", "title": "T", "artist": "A"}]})
+    assert job.status_code == 200, job.json()
     old_root = web.cfg.musik_dir
     settings_client.put("/api/settings", json={"musik_dir": str(tmp_path / "anderer")})
     task = next(t for j in web.manager.jobs for t in j.tasks)

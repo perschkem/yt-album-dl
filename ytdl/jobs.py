@@ -12,12 +12,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .albumvideo import cut_track
-from .config import Config
 from .auth import BOT_CHECK_HINT, is_bot_check, youtube
+from .config import Config
 from .downloader import convert, fetch
+from .errors import clean_error
 from .history import History
 from .library import Skipped, audio_format
-from .errors import clean_error
 from .metadata import Item
 from .paths import common_folder, win_path
 from .status import FINISHED, Status
@@ -305,7 +305,7 @@ class JobManager:
             except Skipped as exc:
                 task.skip(str(exc))
                 self._record(task, Status.SKIPPED)
-            except Exception as exc:  # ein Fehler soll die Warteschlange nie stoppen
+            except Exception as exc:  # noqa: BLE001 – ein Fehler soll die Warteschlange nie stoppen
                 self._failed(task, clean_error(exc))
                 if task.status == Status.FAILED:
                     self._record(task, Status.FAILED)

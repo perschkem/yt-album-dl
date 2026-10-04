@@ -1,4 +1,5 @@
 import time
+from typing import ClassVar
 
 import pytest
 
@@ -18,8 +19,8 @@ def test_progress_text():
 
 class FakeYDL:
     """Ersetzt YoutubeDL: merkt sich Optionen und Aufrufe, meldet Fortschritt, wirft auf Wunsch Fehler."""
-    calls: list = []
-    errors: list = []
+    calls: ClassVar[list] = []
+    errors: ClassVar[list] = []
 
     def __init__(self, opts):
         self.opts = opts

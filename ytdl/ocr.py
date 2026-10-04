@@ -8,6 +8,7 @@ import subprocess
 from collections import Counter
 from collections.abc import Callable
 from functools import lru_cache
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -49,7 +50,7 @@ def grab_frame(source: str, seconds: float, headers: dict | None = None, height:
     if headers and source.startswith("http"):
         cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in headers.items())]
     cmd += ["-i", source, "-frames:v", "1", "-vf", f"scale=-2:'min({height},ih)'", "-f", "image2pipe", "-vcodec", "png", "-"]
-    proc = subprocess.run(cmd, capture_output=True, timeout=90)
+    proc = subprocess.run(cmd, capture_output=True, timeout=90, check=False)
     if proc.returncode != 0 or not proc.stdout:
         return None
     return Image.open(io.BytesIO(proc.stdout))
@@ -128,7 +129,7 @@ def overlay_titles(video: Path, duration: float, step: float = 10.0,
         segments.append(Segment(t, t + step, text))
 
     # Lücken schließen: jeder Titel läuft bis zum nächsten
-    for current, following in zip(segments, segments[1:]):
+    for current, following in pairwise(segments):
         current.end = following.start
     if segments:
         segments[0].start = 0.0
@@ -138,7 +139,7 @@ def overlay_titles(video: Path, duration: float, step: float = 10.0,
 
 def _similar(a: str, b: str) -> bool:
     """Grober Vergleich, der kleine OCR-Abweichungen toleriert."""
-    norm = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())  # noqa: E731
+    norm = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())
     x, y = norm(a), norm(b)
     if not x or not y:
         return False
