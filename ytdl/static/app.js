@@ -543,9 +543,38 @@ function renderSummary(jobs) {
   if (running) box.append(progressBar(avg));
 }
 
+// Eingeklappte Downloads merken – die Liste wird bei jedem Live-Update neu gezeichnet, und der Zustand
+// soll auch ein Neuladen der Seite überstehen (nur im eigenen Browser).
+const collapsedJobs = new Set((() => {
+  try { return JSON.parse(localStorage.getItem("ytdl-collapsed") || "[]"); } catch { return []; }
+})());
+let lastJobs = [];
+
+function saveCollapsed() {
+  try { localStorage.setItem("ytdl-collapsed", JSON.stringify([...collapsedJobs])); } catch { /* egal */ }
+}
+
+function toggleJob(id) {
+  if (collapsedJobs.has(id)) collapsedJobs.delete(id); else collapsedJobs.add(id);
+  saveCollapsed();
+  renderJobs(lastJobs);
+}
+
+$("#toggle-jobs").addEventListener("click", () => {
+  const allCollapsed = lastJobs.every((j) => collapsedJobs.has(j.id));
+  lastJobs.forEach((j) => (allCollapsed ? collapsedJobs.delete(j.id) : collapsedJobs.add(j.id)));
+  saveCollapsed();
+  renderJobs(lastJobs);
+});
+
 function renderJobs(jobs) {
+  lastJobs = jobs;
+  // Zustand nur für vorhandene Jobs behalten (z.B. nach „Liste leeren“)
+  for (const id of collapsedJobs) if (!jobs.some((j) => j.id === id)) collapsedJobs.delete(id);
   renderSummary(jobs);
   $("#clear-jobs").hidden = !jobs.some((j) => j.done === j.total);
+  $("#toggle-jobs").hidden = jobs.length < 2;
+  $("#toggle-jobs").textContent = jobs.length && jobs.every((j) => collapsedJobs.has(j.id)) ? "Alle ausklappen" : "Alle einklappen";
   if (!jobs.length) {
     $("#jobs").replaceChildren(el("div", { class: "empty" }, turtle("leer", { size: 72 }),
       el("span", {}, "Noch keine Downloads.")));
@@ -562,12 +591,23 @@ function renderJobs(jobs) {
     if (job.failed) head.push(button(`↻ ${job.failed} fehlgeschlagene wiederholen`, () => retry(job.id), { cls: "small-btn" }));
     const counter = `${job.done}/${job.total}` + (job.failed ? ` · ${job.failed} Fehler` : "") +
       (job.skipped ? ` · ${job.skipped} übersprungen` : "") + ` · ${(job.audio_format || "").toUpperCase()}`;
-    return el("div", { class: "job" },
-      el("h3", {}, el("span", {}, `${job.mode === "musik" ? "🎵" : "🎙️"} ${job.title}`),
-        el("span", { class: "muted" }, counter)),
-      head.length ? el("div", { class: "task-actions job-actions" }, ...head) : null,
-      ...job.tasks.map((t) => renderTask(job, t)),
-    );
+    const collapsed = collapsedJobs.has(job.id);
+    const title = el("h3", { title: collapsed ? "Ausklappen" : "Einklappen" },
+      el("span", { class: "job-title" }, `${job.mode === "musik" ? "🎵" : "🎙️"} ${job.title}`),
+      el("span", { class: "muted" }, counter));
+    title.addEventListener("click", () => toggleJob(job.id));
+    const running = job.done < job.total;
+    const avg = job.tasks.reduce((sum, t) => sum + (["fehler", "übersprungen"].includes(t.status) ? 100 : t.progress), 0)
+      / Math.max(1, job.tasks.length);
+    const card = el("div", { class: `job${collapsed ? " collapsed" : ""}` }, title);
+    if (collapsed) {
+      // eingeklappt: nur Kopf, bei laufendem Download mit Gesamtbalken
+      if (running) card.append(Object.assign(progressBar(avg), { className: "bar job-bar" }));
+      return card;
+    }
+    if (head.length) card.append(el("div", { class: "task-actions job-actions" }, ...head));
+    card.append(...job.tasks.map((t) => renderTask(job, t)));
+    return card;
   }));
 }
 

@@ -195,7 +195,10 @@
   <section class="downloads">
     <div class="row spread">
       <h2>Downloads</h2>
-      <button type="button" id="clear-jobs" class="ghost" hidden title="Abgeschlossene Jobs ausblenden – Dateien bleiben erhalten">🧹 Liste leeren</button>
+      <div class="row">
+        <button type="button" id="toggle-jobs" class="ghost" hidden>Alle einklappen</button>
+        <button type="button" id="clear-jobs" class="ghost" hidden title="Abgeschlossene Jobs ausblenden – Dateien bleiben erhalten">🧹 Liste leeren</button>
+      </div>
     </div>
     <div id="jobs-summary" class="jobs-summary" hidden></div>
     <div id="jobs"></div>
