@@ -242,6 +242,8 @@ geladen wird; in der Historie ist es pro Titel vermerkt.
 - **Pause vor jedem Download** (z.B. 5–10 s) und weniger gleichzeitige Downloads senken das Risiko.
 
 Am besten ein **Zweitkonto** verwenden – YouTube kann Downloads sonst dem eigenen Konto zuordnen.
+
+📖 **Schritt-für-Schritt-Anleitung mit empfohlener Browser-Erweiterung: [docs/COOKIES.md](docs/COOKIES.md)**
 Siehe auch die [yt-dlp-FAQ zu Cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp).
 
 ### Probleme?
