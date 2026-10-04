@@ -100,7 +100,7 @@ code { background: var(--panel-2); padding: 1px 5px; }
 .panel { padding: 20px; margin: 26px var(--pixel) 0; }
 
 .masthead { display: flex; gap: 18px; align-items: center; margin: 4px var(--pixel) 8px; }
-.masthead .logo { width: 88px; height: 88px; flex: none; border-radius: 50%; }
+.masthead .logo { width: 140px; height: 140px; flex: none; border-radius: 50%; }
 .masthead-text { flex: 1; min-width: 0; }
 .masthead-nav { display: flex; gap: 8px; flex-wrap: wrap; align-self: flex-start; }
 .warning { padding: 10px 14px; margin: 18px var(--pixel) 0; color: var(--warn); display: flex; gap: 12px;
@@ -194,7 +194,7 @@ td.changed input { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--wa
 .turtle { display: inline-block; image-rendering: pixelated; flex: none; }
 .turtle.round { border-radius: 50%; }
 .busy-turtle { display: flex; align-items: center; gap: 12px; margin-top: 14px; color: var(--muted); }
-.busy-turtle .turtle { width: 64px; height: 64px; }
+.busy-turtle .turtle { width: 120px; height: 120px; }
 .walking { animation: walk .6s steps(2) infinite; }
 @keyframes walk { 50% { transform: translateY(-2px); } }
 
@@ -292,7 +292,7 @@ dialog { color: var(--text); border: 0; padding: 0; max-width: min(720px, calc(1
 dialog::backdrop { background: rgba(5, 8, 15, .7); }
 .dialog-body { padding: 20px; }
 .dialog-head { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
-.dialog-turtle .turtle { width: 72px; height: 72px; }
+.dialog-turtle .turtle { width: 120px; height: 120px; }
 .conflict-all { margin-bottom: 10px; }
 .conflict-list { max-height: 50vh; overflow-y: auto; display: grid; gap: 8px; margin-bottom: 16px; }
 .conflict { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 8px 10px; background: var(--panel-2); }
@@ -302,7 +302,7 @@ dialog::backdrop { background: rgba(5, 8, 15, .7); }
 
 @media (max-width: 560px) {
   h1 { font-size: 1.6rem; }
-  .masthead .logo { width: 64px; height: 64px; }
+  .masthead .logo { width: 96px; height: 96px; }
   .step { grid-template-columns: 22px 1fr; }
   .step-detail { grid-column: 2; }
   .conflict { grid-template-columns: 1fr; }

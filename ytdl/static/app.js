@@ -60,11 +60,11 @@ function turtle(situation, { size = 64, walking = false, alt = "" } = {}) {
   return img;
 }
 
-document.querySelectorAll("[data-turtle]").forEach((slot) => slot.append(turtle(slot.dataset.turtle, { size: 72 })));
+document.querySelectorAll("[data-turtle]").forEach((slot) => slot.append(turtle(slot.dataset.turtle, { size: 120 })));
 
 function showBusy(box, text) {
   box.hidden = !text;
-  if (text) box.replaceChildren(turtle("pruefen", { size: 64, walking: true }), el("span", {}, text));
+  if (text) box.replaceChildren(turtle("pruefen", { size: 120, walking: true }), el("span", {}, text));
 }
 
 const STEP_ICONS = { "läuft": "", "fertig": "✓", "nichts gefunden": "✗", "übersprungen": "–", "fehler": "⚠" };
