@@ -22,22 +22,22 @@ export function formatSize(bytes) {
   return bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-/** Status-Text → CSS-Klasse („neuer Versuch“ → „neuer-Versuch“). */
+/** Status → CSS-Klasse (Leerzeichen werden zu Bindestrichen). */
 export const cssName = (status) => String(status).replaceAll(" ", "-");
 
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 // ---------- Titel einer Download-Liste ----------
 
-export const FINISHED_STATES = ["fertig", "fehler", "übersprungen"];
+export const FINISHED_STATES = ["done", "failed", "skipped"];
 export const isFinished = (task) => FINISHED_STATES.includes(task.status);
 export const countDone = (tasks) => tasks.filter(isFinished).length;
-export const countStatus = (tasks, status) => tasks.filter((t) => t.status === status).length;
+export const countStatus = (tasks, status) => tasks.filter((task) => task.status === status).length;
 
 /** Durchschnittlicher Fortschritt; Fehler und Übersprungenes zählen als abgeschlossen (100 %). */
 export function avgProgress(tasks) {
   if (!tasks.length) return 0;
-  const sum = tasks.reduce((acc, t) => acc + (t.status === "fehler" || t.status === "übersprungen" ? 100 : t.progress), 0);
+  const sum = tasks.reduce((acc, task) => acc + (task.status === "failed" || task.status === "skipped" ? 100 : task.progress), 0);
   return sum / tasks.length;
 }
 

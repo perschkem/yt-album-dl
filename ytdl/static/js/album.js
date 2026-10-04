@@ -32,12 +32,12 @@ function trackEnd(i) {
 }
 
 const TRACK_KEYS = ["start", "artist", "title"];
-const trackCopy = (t) => snapshot(t, TRACK_KEYS);
+const trackCopy = (track) => snapshot(track, TRACK_KEYS);
 
 function setTracks(result, steps) {
   // Jede neue Erkennung (Analyse, Pausen, Trackliste, Scan) ist der neue Ausgangszustand für „Zurücksetzen“
   album.original.tracks = result.tracks.map(trackCopy);
-  album.tracks = result.tracks.map((t) => ({ ...trackCopy(t), orig: trackCopy(t) }));
+  album.tracks = result.tracks.map((track) => ({ ...trackCopy(track), orig: trackCopy(track) }));
   album.source = result.source_label;
   $("#album-source").textContent = `Grenzen aus: ${result.source_label} · bitte kontrollieren`;
   if (steps) renderSteps($("#album-log-steps"), steps);
@@ -83,7 +83,7 @@ function resetAlbumFields() {
 $("#album-reset").addEventListener("click", () => {
   if (!confirm("Album-Felder, Titel und Grenzen auf das Ergebnis der Erkennung zurücksetzen?")) return;
   resetAlbumFields();
-  album.tracks = album.original.tracks.map((t) => ({ ...trackCopy(t), orig: trackCopy(t) }));
+  album.tracks = album.original.tracks.map((track) => ({ ...trackCopy(track), orig: trackCopy(track) }));
   renderAlbum();
 });
 
@@ -105,7 +105,7 @@ let showArtistCol = false;
 /** Neuer Albuminterpret: Titel, die noch den alten Interpreten hatten, ziehen mit; abweichende bleiben. */
 function setAlbumArtist(next) {
   const old = album.albumArtist;
-  album.tracks.forEach((t) => { if (!t.artist || t.artist === old) t.artist = next; });
+  album.tracks.forEach((track) => { if (!track.artist || track.artist === old) track.artist = next; });
   album.albumArtist = next;
   renderAlbum();
 }
@@ -114,7 +114,7 @@ $("#album-artist").addEventListener("change", () => setAlbumArtist($("#album-art
 
 $("#album-apply").addEventListener("click", () => {
   const artist = $("#album-artist").value.trim();
-  album.tracks.forEach((t) => (t.artist = artist));
+  album.tracks.forEach((track) => (track.artist = artist));
   album.albumArtist = artist;
   renderAlbum();
 });
@@ -132,7 +132,7 @@ $("#album-artist-col").addEventListener("click", () => {
 
 function updateArtistColumn() {
   const va = $("#album-va").checked;
-  const uniform = album.tracks.every((t) => t.artist === album.albumArtist);
+  const uniform = album.tracks.every((track) => track.artist === album.albumArtist);
   const hide = !va && !showArtistCol && uniform;
   $("#album-table").classList.toggle("hide-artist", hide);
   const toggle = $("#album-artist-col");
@@ -144,24 +144,24 @@ function renderAlbum() {
   sortTracks();
   updateArtistColumn();
   const playing = currentTrackIndex();
-  $("#album-tracks").replaceChildren(...album.tracks.map((t, i) => {
-    const start = el("input", { value: formatTime(t.start, { tenths: true }), onchange: () => {
+  $("#album-tracks").replaceChildren(...album.tracks.map((track, i) => {
+    const start = el("input", { value: formatTime(track.start, { tenths: true }), onchange: () => {
       const v = parseTime(start.value);
-      if (v != null && v >= 0 && v < album.duration) t.start = v;
+      if (v != null && v >= 0 && v < album.duration) track.start = v;
       renderAlbum();
     } });
     const startCell = el("td", { class: "time" }, start);
-    startCell.classList.toggle("changed", !!t.orig && !sameValue(t.start, t.orig.start));
-    const reset = resetButton(t, TRACK_KEYS, renderAlbum, "secondary");
+    startCell.classList.toggle("changed", !!track.orig && !sameValue(track.start, track.orig.start));
+    const reset = resetButton(track, TRACK_KEYS, renderAlbum, "secondary");
     const action = (label, title, onclick) => el("button", { type: "button", class: "secondary", title, onclick }, label);
     return el("tr", { class: i === playing ? "playing" : "" },
       el("td", { class: "dur" }, String(i + 1)),
       startCell,
-      el("td", { class: "dur" }, formatTime(trackEnd(i) - t.start)),
-      editableCell(t, "artist", { onInput: reset.refresh }), editableCell(t, "title", { onInput: reset.refresh }),
+      el("td", { class: "dur" }, formatTime(trackEnd(i) - track.start)),
+      editableCell(track, "artist", { onInput: reset.refresh }), editableCell(track, "title", { onInput: reset.refresh }),
       el("td", { class: "actions" },
-        action("▶", "Ab Start abspielen", () => { audio.currentTime = t.start; audio.play(); }),
-        action("⇤ hier", "Start = aktuelle Abspielposition", () => { t.start = audio.currentTime; renderAlbum(); }),
+        action("▶", "Ab Start abspielen", () => { audio.currentTime = track.start; audio.play(); }),
+        action("⇤ hier", "Start = aktuelle Abspielposition", () => { track.start = audio.currentTime; renderAlbum(); }),
         reset,
         action("✕", "Grenze entfernen (mit vorherigem Titel zusammenfassen)", () => {
           album.tracks.splice(i, 1);
@@ -174,7 +174,7 @@ function renderAlbum() {
 function currentTrackIndex() {
   if (!album) return -1;
   let idx = -1;
-  album.tracks.forEach((t, i) => { if (audio.currentTime >= t.start) idx = i; });
+  album.tracks.forEach((track, i) => { if (audio.currentTime >= track.start) idx = i; });
   return idx;
 }
 
@@ -195,8 +195,8 @@ function drawWave() {
     ctx.fillRect(x, (h + 14 - bar) / 2, 1, bar);
   }
   ctx.font = "11px system-ui, sans-serif";
-  album.tracks.forEach((t, i) => {
-    const x = (t.start / album.duration) * w;
+  album.tracks.forEach((track, i) => {
+    const x = (track.start / album.duration) * w;
     ctx.fillStyle = accent;
     ctx.fillRect(x - 1, 0, 2, h);
     ctx.fillText(String(i + 1), x + 3, 11);
@@ -227,7 +227,7 @@ wave.addEventListener("pointerdown", (event) => {
   if (!album) return;
   const rect = wave.getBoundingClientRect();
   const x = event.clientX - rect.left;
-  const hit = album.tracks.findIndex((t, i) => i > 0 && Math.abs((t.start / album.duration) * rect.width - x) < 6);
+  const hit = album.tracks.findIndex((track, i) => i > 0 && Math.abs((track.start / album.duration) * rect.width - x) < 6);
   if (hit > 0) {
     dragging = album.tracks[hit];
     wave.setPointerCapture(event.pointerId);
@@ -295,7 +295,7 @@ $("#album-cut").addEventListener("click", async () => {
       album: $("#album-name").value, album_artist: $("#album-artist").value,
       year: $("#album-year").value, genre: $("#album-genre").value,
       audio_format: selectedFormat(), ...albumCover.value(), boundary_source: album.source || "",
-      tracks: album.tracks.map(({ orig, ...t }) => t),
+      tracks: album.tracks.map(({ orig, ...track }) => track),
     };
     const base = `/api/album/${album.id}`;
     if (!(await submitWithConflicts(`${base}/conflicts`, `${base}/jobs`, body, album.tracks.length))) return;

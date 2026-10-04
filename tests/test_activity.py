@@ -8,7 +8,7 @@ DONE, FAILED, NOTHING, SKIPPED = Status.DONE, Status.FAILED, Status.NOTHING, Sta
 
 def wait(act, timeout=3.0):
     end = time.time() + timeout
-    while act.status == "läuft" and time.time() < end:
+    while act.status == "running" and time.time() < end:
         time.sleep(0.01)
 
 

@@ -7,7 +7,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from . import ffmpeg
+from . import ffmpeg, i18n
 from .activity import Activity, NullActivity
 from .auth import is_bot_check, youtube
 from .config import Config, load_config
@@ -156,6 +156,7 @@ def main() -> None:
 
     cfg = load_config()
     ffmpeg.configure(cfg.ffmpeg_location)
+    i18n.configure(cfg.language)
     youtube.configure(cfg)
     result = probe(args.url, args.mode, cfg)
     for data in result["items"]:

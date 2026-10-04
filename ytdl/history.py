@@ -10,8 +10,10 @@ import time
 from collections import Counter
 from pathlib import Path
 
+from . import i18n
 from .metadata import Item
 from .paths import common_folder, win_path
+from .status import LEGACY_RESULTS
 
 _TAG_KEYS = ("artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date", "genre")
 
@@ -77,9 +79,11 @@ class History:
         entries = []
         for line in text.splitlines():
             try:
-                entries.append(json.loads(line))
+                entry = json.loads(line)
             except json.JSONDecodeError:
                 continue  # kaputte Zeile (z.B. nach Absturz beim Schreiben) überspringen
+            entry["result"] = LEGACY_RESULTS.get(entry.get("result"), entry.get("result"))
+            entries.append(entry)
         entries.reverse()  # neueste zuerst
         return entries
 
@@ -167,7 +171,7 @@ def _tag(key: str):
 # (Spaltenkopf, Wert aus Eintrag und Tags) – Kopf und Wert stehen zusammen, damit nichts verrutscht
 CSV_COLUMNS = [
     ("Zeit", lambda e, t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(e.get("ts", 0)))),
-    ("Ergebnis", lambda e, t: e.get("result")),
+    ("Ergebnis", lambda e, t: i18n.t(f"status.{e.get('result')}")),
     ("Modus", lambda e, t: e.get("mode")),
     ("Format", lambda e, t: e.get("format")),
     ("Interpret", _tag("artist")),

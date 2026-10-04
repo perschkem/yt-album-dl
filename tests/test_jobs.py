@@ -23,7 +23,7 @@ def as_download(fn, tmp_path):
         return tmp_path
 
     def convert(it, cfg, report, workdir):
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / f"{it.id}.mp3"
 
     return {FETCH: fetch, CONVERT: convert, CUT: lambda it, cfg, report, workdir: fn(it, cfg, report)}
@@ -79,14 +79,14 @@ def test_runs_downloads_in_parallel(tmp_path):
         time.sleep(0.1)
         with lock:
             running -= 1
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / f"{it.id}.mp3"
 
     mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
     job = mgr.submit("x", MUSIK, [item(n) for n in range(6)])
     assert wait_until(lambda: mgr.snapshot()[0]["done"] == 6)
     assert peak == 3  # PARALLEL_DOWNLOADS
-    assert all(t["status"] == "fertig" for t in mgr.snapshot()[0]["tasks"])
+    assert all(t["status"] == "done" for t in mgr.snapshot()[0]["tasks"])
     assert job.folder() == str(tmp_path)
 
 
@@ -101,7 +101,7 @@ def test_cuts_use_their_own_limit(tmp_path):
         time.sleep(0.1)
         with lock:
             running -= 1
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / "x.mp3"
 
     mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
@@ -117,12 +117,12 @@ def test_transient_error_is_retried_with_backoff(tmp_path):
         calls.append(time.time())
         if len(calls) < 3:
             raise RuntimeError("HTTP Error 503: Service Unavailable")
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / "ok.mp3"
 
     mgr = JobManager(make_cfg(tmp_path), runners=as_download(flaky, tmp_path))
     mgr.submit("x", MUSIK, [item(1)])
-    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fertig")
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "done")
     assert len(calls) == 3
 
 
@@ -134,18 +134,18 @@ def test_gives_up_after_max_attempts_then_manual_retry(tmp_path):
         calls.append(1)
         if fail["on"]:
             raise RuntimeError("Verbindung abgebrochen")
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / "ok.mp3"
 
     mgr = JobManager(make_cfg(tmp_path, max_retries=2), runners=as_download(runner, tmp_path))
     job = mgr.submit("x", MUSIK, [item(1)])
-    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fehler")
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "failed")
     task = mgr.snapshot()[0]["tasks"][0]
     assert len(calls) == 3 and "nach 3 Versuchen" in task["error"]
 
     fail["on"] = False
     mgr.retry(job.id)
-    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fertig")
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "done")
 
 
 def test_permanent_error_is_not_retried(tmp_path):
@@ -157,7 +157,7 @@ def test_permanent_error_is_not_retried(tmp_path):
 
     mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
     mgr.submit("x", MUSIK, [item(1)])
-    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fehler")
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "failed")
     time.sleep(0.1)
     assert len(calls) == 1
 
@@ -169,7 +169,7 @@ def test_waiting_task_does_not_block_others(tmp_path):
         order.append(it.id)
         if it.id == "v0" and order.count("v0") == 1:
             raise RuntimeError("HTTP Error 503")
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / f"{it.id}.mp3"
 
     mgr = JobManager(make_cfg(tmp_path, parallel_downloads=1), runners=as_download(runner, tmp_path))
@@ -202,7 +202,7 @@ def test_pipeline_downloads_continue_while_converting(tmp_path):
         time.sleep(0.15)
         with lock:
             converting -= 1
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / f"{it.id}.mp3"
 
     mgr = JobManager(make_cfg(tmp_path, parallel_downloads=1, parallel_cuts=2),
@@ -222,7 +222,7 @@ def test_skipped_counts_as_done(tmp_path):
     job = None
     assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
     job = mgr.snapshot()[0]
-    assert job["skipped"] == 1 and job["failed"] == 0 and job["tasks"][0]["status"] == "übersprungen"
+    assert job["skipped"] == 1 and job["failed"] == 0 and job["tasks"][0]["status"] == "skipped"
 
 
 def test_clear_finished_keeps_running_jobs(tmp_path):
@@ -234,12 +234,12 @@ def test_clear_finished_keeps_running_jobs(tmp_path):
 
     mgr = JobManager(make_cfg(tmp_path), runners=as_download(slow, tmp_path))
     gate.set()
-    mgr.submit("fertig", MUSIK, [item(1)])
+    mgr.submit("done", MUSIK, [item(1)])
     assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
     gate.clear()
-    mgr.submit("läuft", MUSIK, [item(2)])
+    mgr.submit("running", MUSIK, [item(2)])
     assert mgr.clear_finished() == 1
-    assert [j["title"] for j in mgr.snapshot()] == ["läuft"]
+    assert [j["title"] for j in mgr.snapshot()] == ["running"]
     gate.set()
 
 
@@ -256,12 +256,12 @@ def test_progress_never_jumps_back_between_stages(tmp_path):
 
     def fetch(it, cfg, report, workdir):
         for pct in (0, 50, 100):
-            report("lädt", pct)
+            report("downloading", pct)
             seen.append(mgr.snapshot()[0]["tasks"][0]["progress"])
         return tmp_path
 
     def convert(it, cfg, report, folder):
-        for status, pct in (("konvertiert", 0), ("taggt", 80), ("fertig", 100)):
+        for status, pct in (("converting", 0), ("tagging", 80), ("done", 100)):
             report(status, pct)
             seen.append(mgr.snapshot()[0]["tasks"][0]["progress"])
         return tmp_path / "x.mp3"
@@ -278,28 +278,28 @@ def test_history_errors_are_logged_not_raised(tmp_path, caplog):
             raise OSError("Platte voll")
 
     def runner(it, cfg, report):
-        report("fertig", 100.0)
+        report("done", 100.0)
 
     mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path), history=BrokenHistory())
     with caplog.at_level("ERROR", logger="ytdl.jobs"):
         mgr.submit("x", MUSIK, [item(1)])
         assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
         assert wait_until(lambda: "Historie" in caplog.text)
-    assert mgr.snapshot()[0]["tasks"][0]["status"] == "fertig"  # Download bleibt erfolgreich
+    assert mgr.snapshot()[0]["tasks"][0]["status"] == "done"  # Download bleibt erfolgreich
 
 
 # ---------- Task: Zustandsübergänge ----------
 
 def test_task_report_maps_stage_progress():
     task = jobs.Task(item=item(1), stage=CONVERT)
-    task.report("taggt", 50.0, "Cover")
-    assert (task.status, task.progress, task.detail) == ("taggt", 85.0, "Cover")
+    task.report("tagging", 50.0, "Cover")
+    assert (task.status, task.progress, task.detail) == ("tagging", 85.0, "Cover")
 
 
 def test_task_advance_and_restart_stage(tmp_path):
     task = jobs.Task(item=item(1), stage=FETCH, attempt=3)
     task.advance(str(tmp_path))
-    assert (task.stage, task.attempt, task.status, task.progress) == (CONVERT, 1, "wartet auf Konvertierung", 70.0)
+    assert (task.stage, task.attempt, task.status, task.progress) == (CONVERT, 1, "waiting_for_convert", 70.0)
     task.restart_stage()
     assert task.stage == CONVERT  # Download noch da → nur neu konvertieren
     task.workdir = str(tmp_path / "weg")
@@ -310,18 +310,18 @@ def test_task_advance_and_restart_stage(tmp_path):
 def test_task_reset_for_retry(tmp_path):
     task = jobs.Task(item=item(1), stage=CONVERT, workdir=str(tmp_path / "weg"), attempt=4, next_try=99.0)
     task.fail("kaputt")
-    assert (task.status, task.error) == ("fehler", "kaputt")
+    assert (task.status, task.error) == ("failed", "kaputt")
     task.reset_for_retry()
     assert (task.status, task.error, task.attempt, task.next_try, task.stage, task.progress) == (
-        "wartet", "", 1, 0.0, FETCH, 0.0)
+        "waiting", "", 1, 0.0, FETCH, 0.0)
 
 
 def test_task_skip_and_finish():
-    task = jobs.Task(item=item(1), stage=CUT, detail="schneidet")
+    task = jobs.Task(item=item(1), stage=CUT, detail="cutting")
     task.finish("/m/x.mp3")
     assert (task.path, task.detail) == ("/m/x.mp3", "")
     task.skip("übersprungen – existiert bereits")
-    assert (task.status, task.progress) == ("übersprungen", 100.0)
+    assert (task.status, task.progress) == ("skipped", 100.0)
 
 
 def test_failed_convert_retries_without_new_download(tmp_path):
@@ -337,7 +337,7 @@ def test_failed_convert_retries_without_new_download(tmp_path):
         assert workdir == tmp_path
         if calls.count("convert") == 1:
             raise RuntimeError("ffmpeg: kurz kaputt")
-        report("fertig", 100.0)
+        report("done", 100.0)
         return tmp_path / "x.mp3"
 
     mgr = JobManager(make_cfg(tmp_path), runners={FETCH: fetch, CONVERT: convert, CUT: convert})

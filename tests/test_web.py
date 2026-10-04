@@ -24,7 +24,7 @@ def client(tmp_path, monkeypatch):
         target = cfg.musik_dir / f"{item.id}.mp3"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(b"x")
-        report("fertig", 100.0)
+        report("done", 100.0)
         return target
 
     monkeypatch.setattr(web, "cfg", cfg)
@@ -64,7 +64,7 @@ def test_submit_and_list_jobs(client):
     assert res.status_code == 200 and res.json()["total"] == 2 and res.json()["tasks"][0]["max_attempts"] == 2
     job = wait_jobs(client, lambda j: j["done"] == 2)
     assert job["failed"] == 0 and job["folder"] == str(client.cfg.musik_dir)
-    assert all(t["status"] == "fertig" and t["path"] for t in job["tasks"])
+    assert all(t["status"] == "done" and t["path"] for t in job["tasks"])
 
 
 def test_retry_endpoint(client):
@@ -74,7 +74,7 @@ def test_retry_endpoint(client):
     client.calls["fail"].clear()
     res = client.post(f"/api/jobs/{job_id}/retry", json={"task_id": "v1"})
     assert res.status_code == 200
-    wait_jobs(client, lambda j: j["tasks"][0]["status"] == "fertig")
+    wait_jobs(client, lambda j: j["tasks"][0]["status"] == "done")
     assert client.post("/api/jobs/gibtsnicht/retry", json={}).status_code == 404
 
 
@@ -131,7 +131,7 @@ def test_event_stream_sends_changes_and_stops():
     """SSE-Generator direkt testen (der TestClient beendet unendliche Streams nicht sauber)."""
     import asyncio
 
-    states = iter([{"n": 1}, {"n": 1}, {"n": 2}, {"n": 3, "fertig": True}])
+    states = iter([{"n": 1}, {"n": 1}, {"n": 2}, {"n": 3, "done": True}])
     current = {"n": 0}
 
     def snapshot():
@@ -143,7 +143,7 @@ def test_event_stream_sends_changes_and_stops():
             return False
 
     async def collect():
-        return [m async for m in web._event_stream(FakeRequest(), snapshot, done=lambda d: d.get("fertig"),
+        return [m async for m in web._event_stream(FakeRequest(), snapshot, done=lambda d: d.get("done"),
                                                     interval=0)]
 
     messages = asyncio.run(collect())

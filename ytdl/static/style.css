@@ -111,8 +111,8 @@ code { background: var(--panel-2); padding: 1px 5px; }
 .field-error { color: var(--err); font-size: .82rem; margin: 4px 0 0; }
 .settings-section { margin: 18px 0 4px; font-size: 1rem; color: var(--frame); }
 .settings-grid .muted.small { margin-top: 4px; }
-.status.pausiert { color: var(--warn); }
-.task.pausiert .bar > .fill { background: var(--frame-soft); }
+.status.paused { color: var(--warn); }
+.task.paused .bar > .fill { background: var(--frame-soft); }
 .jobs-summary.paused { color: var(--warn); }
 .field-error:empty { display: none; }
 
@@ -222,11 +222,11 @@ td.changed input { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--wa
 .step-label { font-weight: 600; }
 .step-detail { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .step .bar { grid-column: 2 / -1; margin-top: 16px; }
-.step.läuft .step-icon::before { content: ""; display: inline-block; width: 16px; height: 9px; vertical-align: -1px;
+.step.running .step-icon::before { content: ""; display: inline-block; width: 16px; height: 9px; vertical-align: -1px;
   background: url("img/turtles/platzhalter.svg") center / contain no-repeat; animation: walk .6s steps(2) infinite; }
-.step.fertig .step-icon { color: var(--ok); }
-.step.nichts-gefunden .step-icon, .step.übersprungen { color: var(--muted); }
-.step.fehler .step-icon, .step.fehler .step-detail { color: var(--err); }
+.step.done .step-icon { color: var(--ok); }
+.step.nothing .step-icon, .step.skipped { color: var(--muted); }
+.step.failed .step-icon, .step.failed .step-detail { color: var(--err); }
 .album-log { margin: 4px 0 12px; font-size: .88rem; }
 .album-log summary, .redetect summary { cursor: pointer; color: var(--muted); }
 .redetect { margin-top: 18px; border-top: 2px dashed var(--panel-hi); padding-top: 12px; }
@@ -238,15 +238,15 @@ td.changed input { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--wa
   background: repeating-linear-gradient(90deg, var(--primary) 0 8px, var(--primary-dark) 8px 10px); }
 .bar > .runner { position: absolute; top: -13px; width: 28px; height: 16px; transform: translateX(-50%);
   background: url("img/turtles/platzhalter.svg") center / contain no-repeat; transition: left .4s steps(8); }
-.task.lädt .runner, .task.konvertiert .runner, .task.schneidet .runner, .task.taggt .runner { animation: walk .5s steps(2) infinite; }
-.task.fertig .bar > .fill { background: var(--ok); }
+.task.downloading .runner, .task.converting .runner, .task.cutting .runner, .task.tagging .runner { animation: walk .5s steps(2) infinite; }
+.task.done .bar > .fill { background: var(--ok); }
 .bar.indeterminate > .fill { width: 100%; opacity: .35; animation: stripes .8s linear infinite;
   background: repeating-linear-gradient(90deg, var(--primary) 0 10px, transparent 10px 20px); }
 .bar.indeterminate > .runner { animation: patrol 5s linear infinite, walk .5s steps(2) infinite; }
 .step .bar > .runner { animation: walk .5s steps(2) infinite; }
 .step .bar.indeterminate > .runner { animation: patrol 5s linear infinite, walk .5s steps(2) infinite; }
-.task.fehler .bar > .fill, .task.übersprungen .bar > .fill { background: var(--muted); }
-.task.neuer-Versuch .bar > .fill, .task.wartet-auf-Konvertierung .bar > .fill { background: var(--frame-soft); }
+.task.failed .bar > .fill, .task.skipped .bar > .fill { background: var(--muted); }
+.task.retrying .bar > .fill, .task.waiting_for_convert .bar > .fill { background: var(--frame-soft); }
 
 /* Downloads */
 .jobs-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; font-weight: 600; }
@@ -266,9 +266,9 @@ td.changed input { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--wa
 .task { padding: 10px 0 8px; border-top: 1px solid var(--panel-hi); }
 .task-head { display: flex; justify-content: space-between; gap: 12px; font-size: .92rem; }
 .status { font-size: .85rem; font-weight: 600; white-space: nowrap; }
-.status.fertig { color: var(--ok); }
-.status.fehler { color: var(--err); }
-.status.neuer-Versuch, .status.wartet-auf-Konvertierung { color: var(--warn); }
+.status.done { color: var(--ok); }
+.status.failed { color: var(--err); }
+.status.retrying, .status.waiting_for_convert { color: var(--warn); }
 .detail, .path { font-size: .78rem; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }
 .task .err { font-size: .82rem; color: var(--err); margin-top: 3px; }
 .task-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
@@ -314,8 +314,8 @@ tr.playing td { background: color-mix(in srgb, var(--primary) 16%, transparent);
 .hist-title[open] summary { margin-bottom: 6px; }
 .hist-title > :not(summary) { margin-left: 52px; }
 .hist-label { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.status.überschrieben { color: var(--warn); }
-.status.übersprungen { color: var(--muted); }
+.status.overwritten { color: var(--warn); }
+.status.skipped { color: var(--muted); }
 .hist-tags { width: auto; margin-top: 8px; font-size: .88rem; }
 .hist-tags th { border: 0; padding: 2px 16px 2px 0; color: var(--muted); font-weight: 600; }
 .hist-tags td { border: 0; padding: 2px 0; }

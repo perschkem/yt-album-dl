@@ -33,7 +33,7 @@ def test_fetch_loads_into_work_dir(cfg, monkeypatch):
     assert folder == downloader.work_dir(cfg, song()) and (folder / "source.webm").exists()
     (url, fmt, extra), = calls
     assert url == "https://youtu.be/v1" and fmt.startswith("bestaudio[ext=m4a]") and extra["writethumbnail"]
-    assert reports == [("lädt", 0.0), ("lädt", 50.0, "1.0 von 2.0 MB")]
+    assert reports == [("downloading", 0.0), ("downloading", 50.0, "1.0 von 2.0 MB")]
 
 
 def test_fetch_removes_work_dir_on_error(cfg, monkeypatch):
@@ -70,7 +70,7 @@ def test_convert_places_file_and_cleans_up(cfg, workdir, no_ffmpeg):
     target = downloader.convert(song(), cfg, lambda *a: reports.append(a[:2]), workdir)
     assert target.read_bytes() == b"audio" and target.suffix == ".mp3"
     assert no_ffmpeg == ["source.jpg"]  # Vorschaubild als Cover
-    assert [r[0] for r in reports] == ["konvertiert", "taggt", "fertig"]
+    assert [r[0] for r in reports] == ["converting", "tagging", "done"]
     assert not workdir.exists() and Archive(cfg.data_dir, MUSIK).ids() == {"v1"}
 
 

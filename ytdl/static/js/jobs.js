@@ -10,16 +10,16 @@ import { jobCounter, summarize, taskStatus } from "./summary.js";
 const openPath = (path) => api("/api/open", { path });
 const retry = (jobId, taskId = null) => api(`/api/jobs/${jobId}/retry`, { task_id: taskId });
 
-function renderTask(job, t) {
+function renderTask(job, task) {
   const actions = [];
-  if (t.status === "fehler") actions.push(button("↻ Erneut versuchen", () => retry(job.id, t.id), { cls: "small-btn" }));
-  return el("div", { class: `task ${cssName(t.status)}` },
-    el("div", { class: "task-head" }, el("span", {}, t.label),
-      el("span", { class: `status ${cssName(t.status)}` }, taskStatus(t))),
-    progressBar(t.progress),
-    t.detail ? el("div", { class: "detail" }, t.detail) : null,
-    t.win_path ? el("div", { class: "path" }, t.win_path) : null,
-    t.error ? el("div", { class: "err" }, t.error) : null,
+  if (task.status === "failed") actions.push(button("↻ Erneut versuchen", () => retry(job.id, task.id), { cls: "small-btn" }));
+  return el("div", { class: `task ${cssName(task.status)}` },
+    el("div", { class: "task-head" }, el("span", {}, task.label),
+      el("span", { class: `status ${cssName(task.status)}` }, taskStatus(task))),
+    progressBar(task.progress),
+    task.detail ? el("div", { class: "detail" }, task.detail) : null,
+    task.win_path ? el("div", { class: "path" }, task.win_path) : null,
+    task.error ? el("div", { class: "err" }, task.error) : null,
     actions.length ? el("div", { class: "task-actions" }, ...actions) : null,
   );
 }
@@ -80,7 +80,7 @@ function renderJobs(jobs) {
   $("#jobs").replaceChildren(...jobs.map((job) => {
     const head = [];
     // „Ordner öffnen“ nur einmal pro Job; bei einem einzelnen Titel wird die Datei im Explorer markiert
-    const finished = job.tasks.filter((t) => t.path);
+    const finished = job.tasks.filter((task) => task.path);
     if (job.folder) {
       const target = finished.length === 1 ? finished[0].path : job.folder;
       head.push(button("📂 Ordner öffnen", () => openPath(target), { title: "Im Explorer anzeigen" }));
@@ -99,7 +99,7 @@ function renderJobs(jobs) {
       return card;
     }
     if (head.length) card.append(el("div", { class: "task-actions job-actions" }, ...head));
-    card.append(...job.tasks.map((t) => renderTask(job, t)));
+    card.append(...job.tasks.map((task) => renderTask(job, task)));
     return card;
   }));
 }

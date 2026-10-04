@@ -9,7 +9,7 @@ export function showBusy(box, text) {
   if (text) box.replaceChildren(turtle("pruefen", { size: 120, walking: true }), el("span", {}, text));
 }
 
-const STEP_ICONS = { "läuft": "", "fertig": "✓", "nichts gefunden": "✗", "übersprungen": "–", "fehler": "⚠" };
+const STEP_ICONS = { running: "", done: "✓", nothing: "✗", skipped: "–", failed: "⚠" };
 
 /** Unbestimmter Balken für Schritte ohne messbaren Fortschritt: die Schildkröte läuft hin und her.
  *  Die Schritte werden jede Sekunde neu gezeichnet (Sekundenzähler) – damit die Animation dabei nicht
@@ -26,7 +26,7 @@ function indeterminateBar() {
 export function renderSteps(box, steps) {
   box.hidden = !steps.length;
   box.replaceChildren(...steps.map((s) => {
-    const running = s.state === "läuft";
+    const running = s.state === "running";
     const detail = [s.detail, running && s.elapsed >= 1 ? `${s.elapsed} s` : ""].filter(Boolean).join(" · ");
     return el("div", { class: `step ${cssName(s.state)}` },
       el("span", { class: "step-icon" }, STEP_ICONS[s.state] ?? ""),
@@ -42,8 +42,8 @@ export async function runActivity(path, body, box) {
   const { activity_id } = await api(path, body);
   const finish = (act) => {
     renderSteps(box, act.steps);
-    if (act.status === "fertig") return { done: true, value: { ...act.result, steps: act.result.steps || act.steps } };
-    if (act.status === "fehler") return { done: true, error: new Error(act.error) };
+    if (act.status === "done") return { done: true, value: { ...act.result, steps: act.result.steps || act.steps } };
+    if (act.status === "failed") return { done: true, error: new Error(act.error) };
     return { done: false };
   };
   return new Promise((resolve, reject) => {

@@ -36,19 +36,19 @@ test("formatSize", () => {
 });
 
 test("cssName and plural", () => {
-  assert.equal(cssName("wartet auf Konvertierung"), "wartet-auf-Konvertierung");
-  assert.equal(cssName("fertig"), "fertig");
+  assert.equal(cssName("a b c"), "a-b-c");
+  assert.equal(cssName("waiting_for_convert"), "waiting_for_convert");
   assert.equal(plural(1, "Download", "Downloads"), "1 Download");
   assert.equal(plural(0, "Download", "Downloads"), "0 Downloads");
 });
 
 test("task counts and average progress", () => {
   const tasks = [
-    { status: "fertig", progress: 100 }, { status: "fehler", progress: 10 },
-    { status: "übersprungen", progress: 0 }, { status: "lädt", progress: 50 },
+    { status: "done", progress: 100 }, { status: "failed", progress: 10 },
+    { status: "skipped", progress: 0 }, { status: "downloading", progress: 50 },
   ];
   assert.equal(countDone(tasks), 3);
-  assert.equal(countStatus(tasks, "fehler"), 1);
+  assert.equal(countStatus(tasks, "failed"), 1);
   assert.equal(avgProgress(tasks), 87.5); // Fehler/übersprungen zählen als 100 %
   assert.equal(avgProgress([]), 0);
 });

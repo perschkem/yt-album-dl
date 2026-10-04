@@ -1,6 +1,7 @@
 import { api } from "./js/api.js";
 import { $, button, el, emptyState } from "./js/dom.js";
 import { cssName, formatSize, formatTime, plural } from "./js/format.js";
+import { t } from "./js/i18n.js";
 
 const PAGE = 20; // Downloads pro Seite
 let offset = 0;
@@ -24,9 +25,9 @@ function videoLink(entry) {
 }
 
 function tagRows(e) {
-  const t = e.tags || {};
-  const rows = Object.entries(TAG_LABELS).filter(([k]) => t[k] != null && t[k] !== "")
-    .map(([k, name]) => el("tr", {}, el("th", {}, name), el("td", {}, String(t[k]))));
+  const tags = e.tags || {};
+  const rows = Object.entries(TAG_LABELS).filter(([k]) => tags[k] != null && tags[k] !== "")
+    .map(([k, name]) => el("tr", {}, el("th", {}, name), el("td", {}, String(tags[k]))));
   rows.push(el("tr", {}, el("th", {}, "Cover"), el("td", {}, e.cover + (e.cover_url ? ` (${e.cover_url})` : ""))));
   rows.push(el("tr", {}, el("th", {}, "Format"), el("td", {}, `${(e.format || "").toUpperCase()}${e.bitrate ? ` · ${e.bitrate} kbit/s` : ""}`)));
   if (e.start != null) rows.push(el("tr", {}, el("th", {}, "Ausschnitt"), el("td", {}, `${formatTime(e.start)} – ${formatTime(e.end)}`)));
@@ -40,15 +41,15 @@ function tagRows(e) {
 
 /** Ein Titel innerhalb eines Downloads – aufklappbar für Tags und Details. */
 function renderTitle(e) {
-  const t = e.tags || {};
-  const label = [t.artist, t.title].filter(Boolean).join(" - ") || e.source_title || e.url;
+  const tags = e.tags || {};
+  const label = [tags.artist, tags.title].filter(Boolean).join(" - ") || e.source_title || e.url;
   const status = cssName(e.result);
   const link = videoLink(e);
   return el("details", { class: `hist-title ${status}` },
     el("summary", {},
-      el("span", { class: "hist-nr muted small" }, t.track_no ? String(t.track_no).padStart(2, "0") : ""),
+      el("span", { class: "hist-nr muted small" }, tags.track_no ? String(tags.track_no).padStart(2, "0") : ""),
       el("span", { class: "hist-label" }, label),
-      el("span", { class: `status ${status}` }, e.result)),
+      el("span", { class: `status ${status}` }, t(`status.${e.result}`))),
     e.path ? el("div", { class: "path" }, [e.win_path || e.path, formatSize(e.size)].filter(Boolean).join(" · ")) : null,
     e.path && !e.exists ? el("div", { class: "err" }, "Die Datei existiert nicht mehr an diesem Ort.") : null,
     e.error ? el("div", { class: "err" }, e.error) : null,
@@ -61,9 +62,9 @@ function renderTitle(e) {
 function renderGroup(g) {
   const when = new Date(g.ts * 1000).toLocaleString("de-DE");
   const parts = [`${g.count} Titel`];
-  for (const [result, n] of Object.entries(g.counts)) parts.push(`${n} ${result}`);
+  for (const [result, n] of Object.entries(g.counts)) parts.push(`${n} ${t(`status.${result}`)}`);
   if (g.format) parts.push(g.format.toUpperCase());
-  const failed = g.counts["fehler"] || 0;
+  const failed = g.counts.failed || 0;
 
   const head = el("summary", { class: "hist-group-head" },
     el("span", { class: "hist-group-title" }, `${g.mode === "musik" ? "🎵" : "🎙️"} ${g.title || "Download"}`),

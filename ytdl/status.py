@@ -1,7 +1,7 @@
-"""Status-Texte für Titel, Hintergrund-Vorgänge und die Historie – an einer Stelle.
+"""Status von Titeln, Hintergrund-Vorgängen und Historie-Einträgen – als sprachneutrale Codes.
 
-Die Werte erscheinen so in der Oberfläche, in den CSS-Klassen und in data/history.jsonl; deshalb dürfen sie sich
-nicht ändern. Als StrEnum sind sie gewöhnliche Strings (Vergleich mit "fertig", JSON, f-Strings)."""
+Die Codes stehen in data/history.jsonl, in CSS-Klassen und in Filtern; angezeigt wird die Übersetzung
+(i18n-Schlüssel status.<code>). Als StrEnum sind sie gewöhnliche Strings (Vergleich, JSON, f-Strings)."""
 
 from __future__ import annotations
 
@@ -10,24 +10,28 @@ from enum import StrEnum
 
 class Status(StrEnum):
     # gemeinsam (Titel, Vorgang, Historie)
-    DONE = "fertig"
-    FAILED = "fehler"
-    SKIPPED = "übersprungen"
+    DONE = "done"
+    FAILED = "failed"
+    SKIPPED = "skipped"
     # Titel in der Warteschlange
-    WAITING = "wartet"
-    WAITING_FOR_CONVERT = "wartet auf Konvertierung"
-    DOWNLOADING = "lädt"
-    CONVERTING = "konvertiert"
-    CUTTING = "schneidet"
-    TAGGING = "taggt"
-    RETRYING = "neuer Versuch"
-    PAUSED = "pausiert"
+    WAITING = "waiting"
+    WAITING_FOR_CONVERT = "waiting_for_convert"
+    DOWNLOADING = "downloading"
+    CONVERTING = "converting"
+    CUTTING = "cutting"
+    TAGGING = "tagging"
+    RETRYING = "retrying"
+    PAUSED = "paused"
     # Schritte eines Hintergrund-Vorgangs
-    RUNNING = "läuft"
-    NOTHING = "nichts gefunden"
+    RUNNING = "running"
+    NOTHING = "nothing"
     # Historie: vorhandene Datei ersetzt
-    OVERWRITTEN = "überschrieben"
+    OVERWRITTEN = "overwritten"
 
 
 # Titel ist abgeschlossen – egal mit welchem Ergebnis
 FINISHED = frozenset({Status.DONE, Status.FAILED, Status.SKIPPED})
+
+# Ältere Historie-Einträge speicherten den deutschen Anzeigetext
+LEGACY_RESULTS = {"fertig": Status.DONE, "fehler": Status.FAILED, "übersprungen": Status.SKIPPED,
+                  "überschrieben": Status.OVERWRITTEN}

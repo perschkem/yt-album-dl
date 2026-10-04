@@ -9,6 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from .i18n import DEFAULT_LANGUAGE, LANGUAGES
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # YTDL_ENV_FILE erlaubt eine andere Datei (z.B. für Tests, damit die echte .env unangetastet bleibt)
 ENV_FILE = Path(os.getenv("YTDL_ENV_FILE") or PROJECT_ROOT / ".env")
@@ -61,6 +63,7 @@ class Config:
     cookies_file: Path | None = None
     # Pause vor jedem Download in Sekunden (zufällig zwischen n und 2n) – schont das YouTube-Limit
     sleep_seconds: int = 0
+    language: str = DEFAULT_LANGUAGE  # Sprache der Oberfläche und der Meldungen
 
     def root(self, mode: str) -> Path:
         """Zielordner für einen Modus; Fehler mit Hinweis auf die Einstellungen, wenn keiner gesetzt ist."""
@@ -96,7 +99,15 @@ def load_config() -> Config:
         cookies_from_browser=os.getenv("COOKIES_FROM_BROWSER", "").strip(),
         cookies_file=optional_path(os.getenv("COOKIES_FILE")),
         sleep_seconds=max(0, int(os.getenv("SLEEP_SECONDS", "0") or 0)),
+        language=_language(os.getenv("LANGUAGE", DEFAULT_LANGUAGE)),
     )
+
+
+def _language(value: str) -> str:
+    value = value.strip().lower() or DEFAULT_LANGUAGE
+    if value not in LANGUAGES:
+        raise ValueError(f"LANGUAGE muss {' oder '.join(LANGUAGES)} sein, nicht {value!r}")
+    return value
 
 
 def _audio_format(value: str) -> str:

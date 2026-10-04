@@ -52,3 +52,16 @@ def test_imported_names_are_used():
                 if local:
                     uses = len(re.findall(rf"(?<![\w$.]){re.escape(local)}(?![\w$])", source))
                     assert uses > 1, f"{script.name}: {local} wird importiert, aber nicht verwendet"
+
+
+def test_t_is_never_shadowed():
+    """t() übersetzt – ein Parameter oder eine Variable namens t würde es in diesem Bereich verdecken."""
+    import re
+
+    # nicht: Aufrufe t(…), Text in Anführungszeichen und URL-Parameter wie `…?t=${sekunden}`
+    standalone = re.compile(r"(?<![\w$.'\"`}?&])t(?![\w$('\"`])")
+    for script in STATIC.rglob("*.js"):
+        for n, line in enumerate(script.read_text(encoding="utf-8").splitlines(), 1):
+            code = line.split("//")[0]
+            if standalone.search(re.sub(r"import \{[^}]*\}", "", code).replace("...", " ")):
+                raise AssertionError(f"{script.name}:{n}: {line.strip()}")

@@ -72,7 +72,7 @@ def test_job_manager_writes_history(client):
             break
         time.sleep(0.02)
     entries = web.manager.history.query()["entries"]
-    assert entries and entries[0]["result"] == "fertig" and entries[0]["path"].endswith("v1.mp3")
+    assert entries and entries[0]["result"] == "done" and entries[0]["path"].endswith("v1.mp3")
     lines = [json.loads(l) for l in web.manager.history.path.read_text().splitlines()]
     assert lines[0]["url"] == "https://youtu.be/v1"
 
@@ -148,3 +148,12 @@ def test_group_counts_per_result(tmp_path):
         h.record(song(n), result, job_id="j", job_title="Platte")
     (group,) = h.query_groups()["groups"]
     assert group["counts"] == {FINISHED: 2, FAILED: 1} and group["count"] == 3
+
+
+def test_legacy_german_results_are_read_as_codes(tmp_path):
+    """Ältere Einträge speicherten den deutschen Anzeigetext als Ergebnis."""
+    h = History(tmp_path)
+    h.path.write_text("\n".join(json.dumps({"ts": n, "result": r, "tags": {}}) for n, r in
+                                enumerate(("fertig", "fehler", "übersprungen", "überschrieben"))) + "\n")
+    assert [e["result"] for e in h.query()["entries"]] == ["overwritten", "skipped", "failed", "done"]
+    assert h.query(result=FAILED)["total"] == 1

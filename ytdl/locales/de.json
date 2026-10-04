@@ -1,0 +1,16 @@
+{
+  "status.done": "fertig",
+  "status.failed": "fehler",
+  "status.skipped": "übersprungen",
+  "status.overwritten": "überschrieben",
+  "status.waiting": "wartet",
+  "status.waiting_for_convert": "wartet auf Konvertierung",
+  "status.downloading": "lädt",
+  "status.converting": "konvertiert",
+  "status.cutting": "schneidet",
+  "status.tagging": "taggt",
+  "status.retrying": "neuer Versuch",
+  "status.paused": "pausiert",
+  "status.running": "läuft",
+  "status.nothing": "nichts gefunden"
+}

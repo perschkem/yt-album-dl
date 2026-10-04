@@ -56,7 +56,7 @@ def test_finish_track_tags_places_and_archives(cfg, tmp_path, tagged):
     target = finish_track(out, item, cfg, tmp_path / "thumb.jpg", lambda *a: reports.append(a[:2]), 80.0)
     assert target == cfg.musik_dir / "Band" / "Singles" / "Band - Titel.mp3" and target.read_bytes() == b"audio"
     assert tagged == [("out.mp3", tmp_path / "thumb.jpg", True)]
-    assert reports == [("taggt", 80.0), ("fertig", 100.0)]
+    assert reports == [("tagging", 80.0), ("done", 100.0)]
     assert Archive(cfg.data_dir, MUSIK).ids() == {"v1"}
 
 

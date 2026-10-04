@@ -27,11 +27,11 @@ def test_bot_check_pauses_all_downloads_without_using_attempts(tmp_path, monkeyp
         calls.append(it.id)
         if it.id == "v0" and calls.count("v0") == 1:
             raise RuntimeError(BOT)
-        report("fertig", 100.0)
+        report("done", 100.0)
 
     mgr = JobManager(make_cfg(tmp_path, parallel_downloads=1), runners=as_download(runner, tmp_path))
     mgr.submit("x", MUSIK, [item(n) for n in range(3)])
-    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "pausiert")
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "paused")
     time.sleep(0.2)
     assert calls == ["v0"]  # die anderen Titel warten mit, statt YouTube weiter anzufragen
     task = mgr.snapshot()[0]["tasks"][0]
@@ -50,7 +50,7 @@ def test_repeated_bot_check_finally_fails(tmp_path, monkeypatch):
 
     mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
     mgr.submit("x", MUSIK, [item(1)])
-    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "fehler")
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "failed")
     assert "Einstellungen" in mgr.snapshot()[0]["tasks"][0]["error"]
 
 

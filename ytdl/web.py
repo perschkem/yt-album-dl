@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import albumvideo, ffmpeg, settings
+from . import albumvideo, ffmpeg, i18n, settings
 from .activity import Activity, ActivityManager
 from .albumvideo import AlbumCache
 from .auth import BROWSERS, friendly_error, youtube
@@ -53,6 +53,7 @@ manager = JobManager(cfg, history=history)
 activities = ActivityManager(format_error=friendly_error)
 youtube.configure(cfg)
 ffmpeg.configure(cfg.ffmpeg_location)
+i18n.configure(cfg.language)
 app = FastAPI(title="yt-album-dl")
 
 
@@ -190,6 +191,12 @@ def put_settings(req: SettingsRequest) -> dict:
     manager.ensure_workers()
     youtube.configure(cfg)
     return get_settings()
+
+
+@app.get("/api/i18n")
+def get_i18n() -> dict:
+    """Wörterbuch der eingestellten Sprache für die Oberfläche."""
+    return {"language": i18n.language(), "languages": i18n.LANGUAGES, "messages": i18n.messages()}
 
 
 @app.get("/api/auth")

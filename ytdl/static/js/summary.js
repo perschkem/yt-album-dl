@@ -1,12 +1,14 @@
 // Texte der Download-Liste ohne DOM: Status eines Titels und die Zusammenfassung über der Liste.
 
 import { avgProgress, countDone, countStatus } from "./format.js";
+import { t } from "./i18n.js";
 
 /** Statustext eines Titels, bei Wartezeiten mit Countdown. */
-export function taskStatus(t) {
-  if (t.status === "neuer Versuch") return `neuer Versuch in ${t.retry_in} s`;
-  if (t.status === "pausiert") return `pausiert · noch ${Math.ceil(t.retry_in / 60)} min`;
-  return t.status;
+export function taskStatus(task) {
+  const label = t(`status.${task.status}`);
+  if (task.status === "retrying") return `${label} in ${task.retry_in} s`;
+  if (task.status === "paused") return `${label} · noch ${Math.ceil(task.retry_in / 60)} min`;
+  return label;
 }
 
 /** Zeile über der Liste. Gezählt werden nur Downloads, die noch laufen – abgeschlossene zählen nicht mit,
@@ -18,15 +20,15 @@ export function summarize(jobs) {
   const active = jobs.filter((j) => countDone(j.tasks) < j.tasks.length);
   const tasks = (active.length ? active : [jobs[0]]).flatMap((j) => j.tasks);
   const done = countDone(tasks);
-  const failed = countStatus(tasks, "fehler");
-  const skipped = countStatus(tasks, "übersprungen");
+  const failed = countStatus(tasks, "failed");
+  const skipped = countStatus(tasks, "skipped");
   const running = tasks.length - done;
   const extras = [failed && `${failed} Fehler`, skipped && `${skipped} übersprungen`].filter(Boolean);
 
-  const paused = tasks.filter((t) => t.status === "pausiert");
+  const paused = tasks.filter((task) => task.status === "paused");
   if (paused.length) {
     // YouTube-Bot-Prüfung: Downloads ruhen, bis die Pause vorbei ist oder fortgesetzt wird
-    const minutes = Math.ceil(Math.max(...paused.map((t) => t.retry_in)) / 60);
+    const minutes = Math.ceil(Math.max(...paused.map((task) => task.retry_in)) / 60);
     return { state: "paused", icon: "⏸", text: `YouTube verlangt eine Bot-Bestätigung – Downloads pausieren noch ` +
       `ca. ${minutes} min (${done} von ${tasks.length} fertig)` };
   }
