@@ -298,8 +298,26 @@ const tagSnapshot = (item) => Object.fromEntries(TAG_KEYS.map((k) => [k, item[k]
 const same = (a, b) => String(a ?? "") === String(b ?? "");
 const isChanged = (item) => TAG_KEYS.some((k) => !same(item[k], item.orig[k]));
 
+/** „Automatisch nummerieren“: ausgewählte Titel in Listenreihenfolge 1…n, abgewählte ohne Nummer. */
+function renumber() {
+  if (!$("#bulk-autonum").checked) return;
+  const selected = preview.items.filter((i) => i.selected);
+  let n = 0;
+  preview.items.forEach((i) => {
+    i.track_no = i.selected ? ++n : null;
+    i.track_total = i.selected ? selected.length : null;
+  });
+}
+
+$("#bulk-autonum").addEventListener("change", () => {
+  if ($("#bulk-autonum").checked) renumber();
+  else preview.items.forEach((i) => { i.track_no = i.orig.track_no; i.track_total = i.orig.track_total; });
+  renderRows();
+});
+
 function fillBulk() {
   const first = preview.items[0];
+  $("#bulk-autonum").checked = preview.items.some((i) => i.track_no); // Album erkannt → schon nummeriert
   $("#bulk-album").value = first.album || "";
   $("#bulk-album-artist").value = first.album ? first.album_artist : "";
   $("#bulk-year").value = first.album ? first.year : "";
@@ -329,6 +347,7 @@ function renderPreview(isPlaylist) {
     checked: preview.items.every((i) => i.selected) });
   allBox.addEventListener("change", () => {
     preview.items.forEach((i) => (i.selected = allBox.checked));
+    renumber();
     renderRows();
   });
   $("#preview-head").replaceChildren(
@@ -340,7 +359,10 @@ function renderRows() {
   const cols = COLUMNS[preview.mode];
   $("#preview-body").replaceChildren(...preview.items.map((item) => {
     const box = el("input", { type: "checkbox", checked: item.selected });
-    box.addEventListener("change", () => (item.selected = box.checked));
+    box.addEventListener("change", () => {
+      item.selected = box.checked;
+      if ($("#bulk-autonum").checked) { renumber(); renderRows(); }
+    });
     const reset = el("button", { type: "button", class: "small-btn", title: "Erkannte Werte wiederherstellen" }, "↺");
     const refresh = () => (reset.disabled = !isChanged(item));
     reset.addEventListener("click", () => { Object.assign(item, item.orig); renderRows(); });
@@ -386,15 +408,16 @@ $("#bulk-apply").addEventListener("click", () => {
   const albumArtist = $("#bulk-album-artist").value.trim();
   const year = $("#bulk-year").value.trim();
   const sameArtist = $("#bulk-same-artist").checked && albumArtist;
-  const total = preview.items.length;
-  preview.items.forEach((item, index) => {
+  preview.items.forEach((item) => {
     if (sameArtist) item.artist = albumArtist;
     item.album = album;
     item.album_artist = album ? (albumArtist || item.album_artist) : primaryArtist(item.artist);
-    item.track_no = album ? index + 1 : null;
-    item.track_total = album ? total : null;
     if (year) item.year = year;
   });
+  // Mit Album → nummerieren; ohne Album sind es Singles ohne Tracknummer
+  $("#bulk-autonum").checked = !!album;
+  if (album) renumber();
+  else preview.items.forEach((i) => { i.track_no = null; i.track_total = null; });
   renderRows();
 });
 

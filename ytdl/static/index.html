@@ -53,6 +53,20 @@
       <span id="preview-count" class="muted"></span>
     </div>
 
+    <div id="bulk" class="bulk" hidden>
+      <div class="checks bulk-top">
+        <label class="check strong"><input type="checkbox" id="bulk-autonum"> Automatisch nummerieren</label>
+      </div>
+      <label>Album für alle <input id="bulk-album" placeholder="leer = Singles"></label>
+      <label>Albuminterpret <input id="bulk-album-artist"></label>
+      <label class="narrow">Jahr <input id="bulk-year" inputmode="numeric" size="4"></label>
+      <button type="button" id="bulk-apply">Für alle übernehmen</button>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="bulk-va"> Verschiedene Interpreten (Sampler)</label>
+        <label class="check"><input type="checkbox" id="bulk-same-artist"> Interpret aller Titel = Albuminterpret</label>
+      </div>
+    </div>
+
     <div id="album-hint" class="hint" hidden>
       <span>Dieses Video enthält vermutlich ein ganzes Album.</span>
       <button type="button" id="album-open" class="primary">Als Album aufteilen</button>
@@ -74,17 +88,6 @@
           <span class="cover-msg muted small"></span>
         </div>
           </div>
-      </div>
-    </div>
-
-    <div id="bulk" class="bulk" hidden>
-      <label>Album für alle <input id="bulk-album" placeholder="leer = Singles"></label>
-      <label>Albuminterpret <input id="bulk-album-artist"></label>
-      <label class="narrow">Jahr <input id="bulk-year" inputmode="numeric" size="4"></label>
-      <button type="button" id="bulk-apply">Für alle übernehmen</button>
-      <div class="checks">
-        <label class="check"><input type="checkbox" id="bulk-va"> Verschiedene Interpreten (Sampler)</label>
-        <label class="check"><input type="checkbox" id="bulk-same-artist"> Interpret aller Titel = Albuminterpret</label>
       </div>
     </div>
 

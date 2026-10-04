@@ -158,7 +158,9 @@ button.small-btn { padding: 4px 10px; font-size: .82rem; }
 
 /* Massenbearbeitung */
 .bulk { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 14px; }
-.bulk > label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 160px; font-size: .85rem; color: var(--muted); }
+.bulk > label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 160px; font-size: .9rem; font-weight: 700; color: var(--frame); }
+label.check.strong { font-weight: 700; color: var(--frame); }
+.bulk-top { margin-bottom: 4px; }
 .bulk > label.narrow { flex: 0 1 90px; }
 .checks { flex-basis: 100%; display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; }
 label.check { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; }
@@ -168,6 +170,7 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: .9
 /* Eigenes Cover */
 .cover-field { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
 .cover-inputs { flex: 1; min-width: 0; }
+.cover-inputs > .label { color: var(--frame); font-weight: 700; }
 .cover-inputs .row { margin-top: 6px; }
 .cover-mode { margin-bottom: 8px; }
 .cover-thumb-note { margin: 0; }
