@@ -28,7 +28,7 @@ in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, n
 - 🐢 **Schildkröten-Design** – Pixel-Look passend zum Logo, Live-Updates ohne Neuladen
 - 🔄 **Robust** – automatische neue Versuche mit exponentiellem Backoff pro Titel, „Erneut versuchen“-Button
 - 📋 **Nachvollziehbar** – jeder Vorgang zeigt Schritt für Schritt, was gerade passiert und was gefunden wurde
-- 📂 **Im Ordner öffnen** – fertige Titel direkt im Windows-Explorer anzeigen
+- 📂 **Ordner öffnen** – den Zielordner eines Downloads direkt im Explorer bzw. Finder öffnen
 - 📜 **Historie** – was wann von welcher URL wohin geladen wurde, mit allen Tags; durchsuchbar, CSV-Export
 - 🔁 **Keine Duplikate** – bereits geladene Titel werden erkannt, vorhandene Dateien nie überschrieben
 - 🪟 **WSL-freundlich** – Windows-Pfade wie `D:\Musik` funktionieren direkt

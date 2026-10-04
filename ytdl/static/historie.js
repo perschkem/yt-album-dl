@@ -70,9 +70,7 @@ function renderEntry(e) {
   if (e.path && e.exists) {
     const open = el("button", { type: "button", class: "small-btn" }, "📂 Im Ordner öffnen");
     open.addEventListener("click", () => api("/api/open", { path: e.path }).catch((err) => alert(err.message)));
-    const copy = el("button", { type: "button", class: "small-btn" }, "Pfad kopieren");
-    copy.addEventListener("click", () => navigator.clipboard.writeText(e.win_path || e.path));
-    actions.push(open, copy);
+    actions.push(open);
   }
   const link = videoLink(e);
   if (link) actions.push(link);

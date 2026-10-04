@@ -462,7 +462,6 @@ function button(label, onClick, opts = {}) {
 }
 
 const openPath = (path) => api("/api/open", { path });
-const copyText = (text) => navigator.clipboard.writeText(text);
 const retry = (jobId, taskId = null) => api(`/api/jobs/${jobId}/retry`, { task_id: taskId });
 
 function taskStatus(t) {
@@ -480,10 +479,6 @@ function progressBar(progress) {
 
 function renderTask(job, t) {
   const actions = [];
-  if (t.status === "fertig" && t.path) {
-    actions.push(button("📂 Im Ordner öffnen", () => openPath(t.path), { title: "Im Explorer anzeigen" }));
-    actions.push(button("Pfad kopieren", () => copyText(t.win_path)));
-  }
   if (t.status === "fehler") actions.push(button("↻ Erneut versuchen", () => retry(job.id, t.id), { cls: "small-btn" }));
   return el("div", { class: `task ${cssName(t.status)}` },
     el("div", { class: "task-head" }, el("span", {}, t.label),
@@ -535,6 +530,12 @@ function renderJobs(jobs) {
   }
   $("#jobs").replaceChildren(...jobs.map((job) => {
     const head = [];
+    // „Ordner öffnen“ nur einmal pro Job; bei einem einzelnen Titel wird die Datei im Explorer markiert
+    const finished = job.tasks.filter((t) => t.path);
+    if (job.folder) {
+      const target = finished.length === 1 ? finished[0].path : job.folder;
+      head.push(button("📂 Ordner öffnen", () => openPath(target), { title: "Im Explorer anzeigen" }));
+    }
     if (job.failed) head.push(button(`↻ ${job.failed} fehlgeschlagene wiederholen`, () => retry(job.id), { cls: "small-btn" }));
     const counter = `${job.done}/${job.total}` + (job.failed ? ` · ${job.failed} Fehler` : "") +
       (job.skipped ? ` · ${job.skipped} übersprungen` : "") + ` · ${(job.audio_format || "").toUpperCase()}`;
