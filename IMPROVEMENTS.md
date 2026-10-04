@@ -16,6 +16,26 @@ Mit Server-Sent Events kämen Fortschritt und Schritte sofort an, und es gäbe w
 MP3 oder M4A lässt sich bisher nur global per `AUDIO_FORMAT` in `.env` einstellen. Besser wäre eine Auswahl
 in der Oberfläche pro Download bzw. Album, mit `.env` als Standardwert.
 
+## Dialog bei bereits vorhandenen Titeln
+
+**Ist-Zustand:** Bereits geladene Titel sind in der Vorschau abgewählt. Setzt man den Haken trotzdem oder
+existiert die Zieldatei schon (z.B. gleicher Name aus anderem Video), wird automatisch mit „ (2)“ daneben
+gespeichert (`_unique()` in `ytdl/downloader.py`). Man wird nicht gefragt.
+
+**Idee:** Vor dem Start prüfen, welche Zieldateien schon existieren, und einen Dialog zeigen:
+- **Überschreiben** – vorhandene Datei ersetzen
+- **Überspringen** („doch nicht“) – Titel nicht laden
+- **Beide behalten** – neue Datei als „Titel (2).mp3“ speichern (heutiges Verhalten)
+
+Details:
+- Bei mehreren Konflikten (Playlist, Album) eine Liste mit Auswahl pro Titel plus „Für alle übernehmen“
+- Neuer Endpunkt, z.B. `POST /api/conflicts` mit den geplanten Titeln → liefert vorhandene Zielpfade
+  (berechnet über `target_path()`), inkl. Dateigröße/Datum zum Vergleich
+- Die Entscheidung wird pro Titel mitgeschickt (`on_conflict: overwrite | skip | keep_both`) und in `place()`
+  angewendet. Beim Überschreiben erst in eine temporäre Datei schreiben und dann ersetzen, damit bei einem
+  Fehler nichts verloren geht.
+- Gilt auch für Album-Schnitte; als Standard ohne Dialog bleibt „Beide behalten“
+
 ## „Liste leeren“-Button für Downloads
 
 Ein Button über der Download-Liste, der die angezeigten Jobs einfach ausblendet, rein optisch.
