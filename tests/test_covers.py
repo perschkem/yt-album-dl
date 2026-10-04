@@ -77,3 +77,32 @@ def test_cover_crop_only_on_request(tmp_path):
     kept = Image.open(io.BytesIO(cover_jpeg(path, crop=False)))
     assert cropped.size == (900, 900)
     assert kept.size == (1000, 563)  # Seitenverhältnis bleibt, auf max. 1000 px verkleinert
+
+
+def test_trim_black_side_bars(tmp_path):
+    from ytdl.tagger import trim_bars
+
+    img = Image.new("RGB", (1280, 720), (3, 3, 3))  # fast schwarz wie bei JPEG
+    img.paste(Image.new("RGB", (720, 720), (200, 40, 40)), (280, 0))
+    trimmed = trim_bars(img)
+    assert trimmed.size == (720, 720)
+
+
+def test_trim_letterbox_and_keep_dark_artwork():
+    from ytdl.tagger import trim_bars
+
+    letterbox = Image.new("RGB", (1280, 720), "black")
+    letterbox.paste(Image.new("RGB", (1280, 540), (40, 120, 200)), (0, 90))
+    assert trim_bars(letterbox).size == (1280, 540)
+    dark = Image.new("RGB", (1280, 720), (5, 5, 5))
+    assert trim_bars(dark).size == (1280, 720)  # komplett dunkles Bild bleibt
+
+
+def test_cover_jpeg_thumbnail_with_bars_becomes_artwork(tmp_path):
+    img = Image.new("RGB", (1280, 720), "black")
+    img.paste(Image.new("RGB", (720, 720), (10, 200, 10)), (280, 0))
+    path = tmp_path / "thumb.png"
+    img.save(path)
+    out = Image.open(io.BytesIO(cover_jpeg(path, crop=True)))
+    assert out.size == (720, 720)
+    assert out.getpixel((5, 360))[1] > 150  # Rand ist grün, nicht schwarz

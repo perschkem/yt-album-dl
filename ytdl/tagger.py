@@ -15,12 +15,48 @@ COVER_SIZE = 1000
 VARIOUS_ARTISTS = "Various Artists"
 
 
+BAR_LUMA = 28  # Pixel dunkler als das gelten als „schwarz“ (JPEG-Rauschen toleriert)
+BAR_SHARE = 0.97  # so viel Anteil einer Zeile/Spalte muss dunkel sein
+BAR_MAX = 0.45  # höchstens so viel pro Seite abschneiden
+
+
+def trim_bars(img: Image.Image) -> Image.Image:
+    """Schneidet schwarze Balken ab (links/rechts bei quadratischem Cover im 16:9-Vorschaubild, oben/unten bei
+    Letterbox). Einfarbig dunkle Bilder bleiben unverändert."""
+    gray = img.convert("L")
+    w, h = gray.size
+    px = gray.load()
+
+    def dark_col(x: int) -> bool:
+        return sum(px[x, y] < BAR_LUMA for y in range(0, h, 2)) >= BAR_SHARE * len(range(0, h, 2))
+
+    def dark_row(y: int) -> bool:
+        return sum(px[x, y] < BAR_LUMA for x in range(0, w, 2)) >= BAR_SHARE * len(range(0, w, 2))
+
+    left = 0
+    while left < w * BAR_MAX and dark_col(left):
+        left += 1
+    right = w
+    while w - right < w * BAR_MAX and dark_col(right - 1):
+        right -= 1
+    top = 0
+    while top < h * BAR_MAX and dark_row(top):
+        top += 1
+    bottom = h
+    while h - bottom < h * BAR_MAX and dark_row(bottom - 1):
+        bottom -= 1
+    if right - left < w * 0.2 or bottom - top < h * 0.2:  # fast alles dunkel → nichts abschneiden
+        return img
+    return img.crop((left, top, right, bottom)) if (left, top, right, bottom) != (0, 0, w, h) else img
+
+
 def cover_jpeg(image_path: Path, crop: bool = True) -> bytes:
-    """Cover als JPEG-Bytes, max. COVER_SIZE px. crop=True schneidet mittig quadratisch zu
-    (für YouTube-Thumbnails, die 16:9 sind); eigene Cover bleiben auf Wunsch unbeschnitten."""
+    """Cover als JPEG-Bytes, max. COVER_SIZE px. crop=True entfernt schwarze Balken und schneidet mittig
+    quadratisch zu (für YouTube-Vorschaubilder, die 16:9 sind); eigene Cover bleiben auf Wunsch unbeschnitten."""
     with Image.open(image_path) as img:
         img = img.convert("RGB")
         if crop:
+            img = trim_bars(img)  # erst schwarze Ränder weg, dann mittig quadratisch
             side = min(img.size)
             left = (img.width - side) // 2
             top = (img.height - side) // 2

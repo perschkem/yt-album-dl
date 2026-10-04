@@ -58,3 +58,17 @@ def fetch_cover(url: str, cache_dir: Path) -> Path:
     img.save(tmp, format="JPEG", quality=92)
     tmp.replace(target)
     return target
+
+
+def thumbnail_preview(url: str, size: int = 300) -> bytes:
+    """Vorschaubild so, wie es als Cover eingebettet würde: schwarze Balken weg, mittig quadratisch."""
+    from .tagger import trim_bars  # hier importiert, um Kreisimporte zu vermeiden
+
+    img = trim_bars(_open(_download(url)).convert("RGB"))
+    side = min(img.size)
+    left, top = (img.width - side) // 2, (img.height - side) // 2
+    img = img.crop((left, top, left + side, top + side))
+    img.thumbnail((size, size), Image.LANCZOS)
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=88)
+    return buffer.getvalue()

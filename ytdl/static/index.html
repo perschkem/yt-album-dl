@@ -60,12 +60,19 @@
     <div class="cover-field" id="preview-cover">
       <img class="cover-preview" alt="Cover-Vorschau" width="72" height="72" hidden>
       <div class="cover-inputs">
-        <label class="label" for="preview-cover-url">Cover-URL (optional, für alle Titel)</label>
-        <input id="preview-cover-url" type="url" placeholder="https://…/cover.jpg – leer = YouTube-Vorschaubild">
-        <div class="row">
+        <span class="label">Cover (für alle Titel)</span>
+          <div class="segmented cover-mode" role="radiogroup" aria-label="Cover-Quelle">
+            <label><input type="radio" name="preview-cover-mode" value="thumb" checked> Vorschaubild</label>
+            <label><input type="radio" name="preview-cover-mode" value="url"> Eigene URL</label>
+          </div>
+          <p class="cover-thumb-note muted small">YouTube-Vorschaubild, schwarze Ränder werden entfernt.</p>
+          <div class="cover-url-part" hidden>
+            <input id="preview-cover-url" type="url" placeholder="https://…/cover.jpg">
+            <div class="row">
           <label class="check"><input type="checkbox" class="cover-crop"> quadratisch zuschneiden</label>
           <span class="cover-msg muted small"></span>
         </div>
+          </div>
       </div>
     </div>
 
@@ -120,11 +127,18 @@
       <div class="cover-field" id="album-cover">
         <img class="cover-preview" alt="Cover-Vorschau" width="72" height="72" hidden>
         <div class="cover-inputs">
-          <label class="label" for="album-cover-url">Cover-URL (optional)</label>
-          <input id="album-cover-url" type="url" placeholder="https://…/cover.jpg – leer = YouTube-Vorschaubild">
-          <div class="row">
+          <span class="label">Cover</span>
+          <div class="segmented cover-mode" role="radiogroup" aria-label="Cover-Quelle">
+            <label><input type="radio" name="album-cover-mode" value="thumb" checked> Vorschaubild</label>
+            <label><input type="radio" name="album-cover-mode" value="url"> Eigene URL</label>
+          </div>
+          <p class="cover-thumb-note muted small">YouTube-Vorschaubild, schwarze Ränder werden entfernt.</p>
+          <div class="cover-url-part" hidden>
+            <input id="album-cover-url" type="url" placeholder="https://…/cover.jpg">
+            <div class="row">
             <label class="check"><input type="checkbox" class="cover-crop"> quadratisch zuschneiden</label>
             <span class="cover-msg muted small"></span>
+          </div>
           </div>
         </div>
       </div>

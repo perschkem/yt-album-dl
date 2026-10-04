@@ -10,14 +10,14 @@ import os
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import albumvideo
 from .activity import ActivityManager
 from .config import MissingFolder, load_config, to_local_path, update_env_file
-from .covers import CoverError, check_cover
+from .covers import CoverError, check_cover, thumbnail_preview
 from .downloader import conflicts, ffmpeg_available, probe
 from .explorer import is_allowed, open_in_file_manager
 from .jobs import JobManager
@@ -293,6 +293,15 @@ def cover_check(req: CoverRequest) -> dict:
     """Prüft eine Cover-URL (ist es wirklich ein Bild?) – für die Vorschau neben dem Feld."""
     try:
         return check_cover(req.url)
+    except CoverError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/cover/thumbnail")
+def cover_thumbnail(src: str) -> Response:
+    """Vorschau: YouTube-Vorschaubild mit entfernten schwarzen Balken, quadratisch – wie es eingebettet wird."""
+    try:
+        return Response(thumbnail_preview(src), media_type="image/jpeg", headers={"Cache-Control": "max-age=3600"})
     except CoverError as exc:
         raise HTTPException(400, str(exc)) from exc
 

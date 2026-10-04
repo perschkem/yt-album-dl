@@ -212,6 +212,10 @@ $("#probe-form").addEventListener("submit", async (event) => {
     $("#album").hidden = true;
     $("#album-hint").hidden = !data.album_video;
     renderPreview(data.is_playlist);
+    const first = preview.items[0];
+    previewCover.setThumbnail(first?.thumbnail, preview.items.length > 1
+      ? "Jeder Titel bekommt sein eigenes YouTube-Vorschaubild (schwarze Ränder werden entfernt) – Vorschau: erster Titel."
+      : "");
     updateFolderState();
   } catch (err) {
     $("#probe-error").textContent = err.message;
@@ -225,35 +229,63 @@ $("#probe-form").addEventListener("submit", async (event) => {
 
 // ---------- Eigenes Cover per URL ----------
 
-/** Cover-Feld mit Prüfung und Vorschau; liefert {value(), clear()}.
- *  Die Prüfung ist nur Rückmeldung: gesendet wird immer der Feldinhalt (der Server prüft beim Download selbst
- *  und nimmt sonst das Vorschaubild). So geht nichts verloren, wenn man direkt nach dem Tippen klickt. */
+/** Cover-Feld: „Vorschaubild“ (Standard, schwarze Ränder werden entfernt) oder „Eigene URL“ mit Prüfung.
+ *  Liefert {value(), clear(), setThumbnail(src, note)}. Bei eigener URL wird immer der Feldinhalt gesendet –
+ *  die Prüfung ist nur Rückmeldung, der Server prüft beim Download selbst und nimmt sonst das Vorschaubild. */
 function coverField(root) {
   const input = root.querySelector("input[type=url]");
   const crop = root.querySelector(".cover-crop");
   const img = root.querySelector(".cover-preview");
   const msg = root.querySelector(".cover-msg");
+  const note = root.querySelector(".cover-thumb-note");
+  const urlPart = root.querySelector(".cover-url-part");
+  const modes = root.querySelectorAll(".cover-mode input");
+  let thumbSrc = "", thumbNote = "";
+  const mode = () => root.querySelector(".cover-mode input:checked").value;
   const show = (text, isError = false) => { msg.textContent = text; msg.classList.toggle("error", isError); };
-  input.addEventListener("change", async () => {
+
+  function showThumbnail() {
+    img.hidden = !thumbSrc;
+    if (thumbSrc) img.src = `/api/cover/thumbnail?src=${encodeURIComponent(thumbSrc)}`;
+    note.textContent = thumbNote || "YouTube-Vorschaubild, schwarze Ränder werden entfernt.";
+  }
+
+  async function checkUrl() {
     const url = input.value.trim();
     img.hidden = true;
     if (!url) return show("");
     show("Prüfe Cover …");
     try {
       const info = await api("/api/cover/check", { url });
-      if (input.value.trim() !== url) return; // inzwischen geändert
+      if (input.value.trim() !== url || mode() !== "url") return; // inzwischen geändert
       img.src = url;
       img.hidden = false;
       show(`${info.width}×${info.height} px` + (info.square ? "" : " · nicht quadratisch"));
-      if (!info.square && !crop.dataset.touched) crop.checked = false;
     } catch (err) {
       show(`${err.message} – es bleibt das YouTube-Vorschaubild`, true);
     }
-  });
-  crop.addEventListener("change", () => (crop.dataset.touched = "1"));
+  }
+
+  function applyMode() {
+    const isUrl = mode() === "url";
+    urlPart.hidden = !isUrl;
+    note.hidden = isUrl;
+    if (isUrl) checkUrl(); else showThumbnail();
+  }
+
+  img.addEventListener("error", () => { if (mode() === "thumb") img.hidden = true; });
+  modes.forEach((r) => r.addEventListener("change", applyMode));
+  input.addEventListener("change", checkUrl);
   return {
-    value: () => ({ cover_url: input.value.trim(), cover_crop: crop.checked }),
-    clear: () => { input.value = ""; img.hidden = true; crop.checked = false; delete crop.dataset.touched; show(""); },
+    value: () => mode() === "url"
+      ? { cover_url: input.value.trim(), cover_crop: crop.checked }
+      : { cover_url: "", cover_crop: false },
+    clear: () => {
+      input.value = ""; crop.checked = false; show("");
+      root.querySelector(".cover-mode input[value=thumb]").checked = true;
+      applyMode();
+    },
+    setThumbnail: (src, text = "") => { thumbSrc = src || ""; thumbNote = text; if (mode() === "thumb") showThumbnail(); },
   };
 }
 
@@ -590,6 +622,7 @@ $("#album-open").addEventListener("click", async () => {
     album = { id: data.id, duration: data.duration, peaks: data.peaks, tracks: [], albumArtist: data.artist,
       original: { album: data.album, artist: data.artist, year: data.year || "", tracks: [] } };
     resetAlbumFields();
+    albumCover.setThumbnail(data.thumbnail);
     renderHints(data.hints || []);
     audio.src = data.audio_url;
     $("#album-body").hidden = false;
