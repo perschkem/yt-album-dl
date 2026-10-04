@@ -326,7 +326,36 @@ function renderTask(job, t) {
   );
 }
 
+/** Zeile über der Liste: „✓ Alle Downloads fertig“ bzw. „3 von 7 fertig · 4 laufen“ mit Gesamtbalken. */
+function renderSummary(jobs) {
+  const box = $("#jobs-summary");
+  const tasks = jobs.flatMap((j) => j.tasks);
+  box.hidden = !tasks.length;
+  if (!tasks.length) return;
+  const done = tasks.filter((t) => ["fertig", "fehler", "übersprungen"].includes(t.status)).length;
+  const failed = tasks.filter((t) => t.status === "fehler").length;
+  const skipped = tasks.filter((t) => t.status === "übersprungen").length;
+  const running = tasks.length - done;
+  const extras = [failed && `${failed} Fehler`, skipped && `${skipped} übersprungen`].filter(Boolean);
+  let icon, text;
+  if (running) {
+    icon = "⏳";
+    text = [`${done} von ${tasks.length} fertig`, `${running} ${running === 1 ? "läuft" : "laufen"}`, ...extras].join(" · ");
+  } else if (failed) {
+    icon = "⚠";
+    text = ["Alle Downloads abgeschlossen", ...extras].join(" · ");
+  } else {
+    icon = "✓";
+    text = ["Alle Downloads fertig", ...extras].join(" · ");
+  }
+  box.className = `jobs-summary ${running ? "running" : failed ? "failed" : "done"}`;
+  const avg = tasks.reduce((sum, t) => sum + (["fehler", "übersprungen"].includes(t.status) ? 100 : t.progress), 0) / tasks.length;
+  box.replaceChildren(el("span", { class: "summary-icon" }, icon), el("span", {}, text),
+    running ? progressBar(avg) : null);
+}
+
 function renderJobs(jobs) {
+  renderSummary(jobs);
   $("#clear-jobs").hidden = !jobs.some((j) => j.done === j.total);
   if (!jobs.length) {
     $("#jobs").replaceChildren(el("div", { class: "empty" }, turtle("leer", { size: 72 }),

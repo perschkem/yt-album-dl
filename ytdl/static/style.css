@@ -205,6 +205,11 @@ tr.already td { opacity: .6; }
 .task.neuer-Versuch .bar > .fill, .task.wartet-auf-Konvertierung .bar > .fill { background: var(--frame-soft); }
 
 /* Downloads */
+.jobs-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; font-weight: 600; }
+.jobs-summary .summary-icon { font-size: 1.1rem; }
+.jobs-summary.done { color: var(--ok); }
+.jobs-summary.failed { color: var(--err); }
+.jobs-summary .bar { flex: 1 1 100%; margin-top: 14px; }
 .downloads { margin: 0 var(--pixel); }
 .job { padding: 14px 18px; margin: 0 0 22px; }
 .job h3 { margin: 0 0 8px; font-size: 1.05rem; display: flex; justify-content: space-between; gap: 12px; }

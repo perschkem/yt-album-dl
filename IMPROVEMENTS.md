@@ -56,15 +56,6 @@ Was wann wohin geladen wurde, ist nicht nachvollziehbar, und die Job-Liste geht 
 - Die Historie ergänzt das Archiv, ersetzt es aber nicht. Das Archiv bleibt die schnelle Prüfung auf
   „schon geladen“.
 
-## Zusammenfassung über der Download-Liste
-
-Über der Liste eine Zeile mit dem Gesamtstand, z.B.:
-- „✓ Alle Downloads fertig“
-- „⚠ Alle Downloads abgeschlossen · 2 Fehler“
-- „⏳ 3 von 7 fertig · 4 laufen · 1 übersprungen“, solange etwas läuft, mit einem Gesamtbalken
-
-*Vorarbeit liegt im selben Git-Stash.*
-
 ## Kleine Schrift ohne Pixel-Schrift
 
 Die Pixel-Schrift ist bei kleinen Größen schwer lesbar. Sie soll nur noch für Überschriften und normale
