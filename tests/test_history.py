@@ -100,3 +100,51 @@ def test_query_groups_by_job(tmp_path):
     assert [e["tags"]["track_no"] for e in album["entries"]] == [1, 2, 3]
     assert album["folder"] == str(tmp_path / "Band" / "Platte")
     assert h.query_groups(limit=1, offset=2)["groups"][0]["id"] == "job1"
+
+
+def test_file_is_read_again_only_after_changes(tmp_path, monkeypatch):
+    h = History(tmp_path)
+    h.record(song(1), FINISHED)
+    parsed = []
+    original = History._parse
+    monkeypatch.setattr(History, "_parse", staticmethod(lambda text: parsed.append(1) or original(text)))
+    assert h.query()["total"] == 1 and h.query()["total"] == 1 and h.knows_path(tmp_path) is False
+    assert len(parsed) == 1  # zwischengespeichert
+    h.record(song(2), FINISHED)
+    assert h.query()["total"] == 2 and len(parsed) == 2  # neue Zeile → neu eingelesen
+    h.clear()
+    assert h.query()["total"] == 0
+
+
+def test_query_results_do_not_change_the_cache(tmp_path):
+    h = History(tmp_path)
+    h.record(song(1), FINISHED, path=str(tmp_path / "x.mp3"))
+    first = h.query()["entries"][0]
+    first["tags"]["title"] = "verändert"
+    first["result"] = "kaputt"
+    again = h.query()["entries"][0]
+    assert again["result"] == FINISHED and again["tags"]["title"] == "Titel 1" and "exists" in again
+
+
+def test_csv_columns_line_up(tmp_path):
+    import csv
+    import io
+
+    h = History(tmp_path)
+    h.record(song(1, track_no=4, year="2001", start=10.0, end=20.0), FAILED, error="kaputt", audio_format="mp3")
+    rows = list(csv.reader(io.StringIO(h.to_csv()), delimiter=";"))
+    header, row = rows
+    record = dict(zip(header, row))
+    assert len(header) == len(row) == 17
+    assert (record["Ergebnis"], record["Interpret"], record["Titel"], record["Album"], record["Nr."]) == (
+        "fehler", "Band", "Titel 1", "Platte", "4")
+    assert (record["Jahr"], record["Start"], record["Ende"], record["Fehler"]) == ("2001", "10.0", "20.0", "kaputt")
+    assert h.to_csv(result=FINISHED).count("\n") == 1  # Filter gelten auch für den Export
+
+
+def test_group_counts_per_result(tmp_path):
+    h = History(tmp_path)
+    for n, result in ((1, FINISHED), (2, FAILED), (3, FINISHED)):
+        h.record(song(n), result, job_id="j", job_title="Platte")
+    (group,) = h.query_groups()["groups"]
+    assert group["counts"] == {FINISHED: 2, FAILED: 1} and group["count"] == 3
