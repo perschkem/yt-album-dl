@@ -1,27 +1,9 @@
-const $ = (sel) => document.querySelector(sel);
+import { api } from "./js/api.js";
+import { $, button, el, emptyState } from "./js/dom.js";
+import { cssName, formatSize, formatTime, plural } from "./js/format.js";
+
 const PAGE = 20; // Downloads pro Seite
 let offset = 0;
-
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === "class") node.className = v;
-    else if (k in node) node[k] = v;
-    else node.setAttribute(k, v);
-  }
-  node.append(...children.filter((c) => c != null && c !== ""));
-  return node;
-}
-
-async function api(path, body, method) {
-  const res = await fetch(path, body || method ? {
-    method: method || "POST", headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  } : undefined);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || `Fehler ${res.status}`);
-  return data;
-}
 
 function filters() {
   const params = new URLSearchParams();
@@ -35,20 +17,10 @@ function filters() {
 const TAG_LABELS = { artist: "Interpret", title: "Titel", album: "Album", album_artist: "Albuminterpret",
   track_no: "Tracknummer", track_total: "Titel gesamt", year: "Jahr", date: "Datum", genre: "Genre" };
 
-function clock(sec) {
-  const s = Math.round(sec || 0);
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
-  return (h ? `${h}:${String(m).padStart(2, "0")}` : `${m}`) + `:${String(r).padStart(2, "0")}`;
-}
-
-function sizeText(bytes) {
-  return bytes ? `${(bytes / 1_048_576).toFixed(1)} MB` : "";
-}
-
 function videoLink(entry) {
   if (!entry.url) return null;
   const url = entry.start ? `${entry.url}${entry.url.includes("?") ? "&" : "?"}t=${Math.floor(entry.start)}` : entry.url;
-  return el("a", { href: url, target: "_blank", rel: "noopener" }, entry.start ? `Video ab ${clock(entry.start)} öffnen` : "Video öffnen");
+  return el("a", { href: url, target: "_blank", rel: "noopener" }, entry.start ? `Video ab ${formatTime(entry.start)} öffnen` : "Video öffnen");
 }
 
 function tagRows(e) {
@@ -57,7 +29,7 @@ function tagRows(e) {
     .map(([k, name]) => el("tr", {}, el("th", {}, name), el("td", {}, String(t[k]))));
   rows.push(el("tr", {}, el("th", {}, "Cover"), el("td", {}, e.cover + (e.cover_url ? ` (${e.cover_url})` : ""))));
   rows.push(el("tr", {}, el("th", {}, "Format"), el("td", {}, `${(e.format || "").toUpperCase()}${e.bitrate ? ` · ${e.bitrate} kbit/s` : ""}`)));
-  if (e.start != null) rows.push(el("tr", {}, el("th", {}, "Ausschnitt"), el("td", {}, `${clock(e.start)} – ${clock(e.end)}`)));
+  if (e.start != null) rows.push(el("tr", {}, el("th", {}, "Ausschnitt"), el("td", {}, `${formatTime(e.start)} – ${formatTime(e.end)}`)));
   if (e.boundary_source) rows.push(el("tr", {}, el("th", {}, "Grenzen aus"), el("td", {}, e.boundary_source)));
   if (e.source_title) rows.push(el("tr", {}, el("th", {}, "Originaltitel"), el("td", {}, e.source_title)));
   rows.push(el("tr", {}, el("th", {}, "Versuche"), el("td", {}, String(e.attempts || 1))));
@@ -70,14 +42,14 @@ function tagRows(e) {
 function renderTitle(e) {
   const t = e.tags || {};
   const label = [t.artist, t.title].filter(Boolean).join(" - ") || e.source_title || e.url;
-  const status = e.result.replace(" ", "-");
+  const status = cssName(e.result);
   const link = videoLink(e);
   return el("details", { class: `hist-title ${status}` },
     el("summary", {},
       el("span", { class: "hist-nr muted small" }, t.track_no ? String(t.track_no).padStart(2, "0") : ""),
       el("span", { class: "hist-label" }, label),
       el("span", { class: `status ${status}` }, e.result)),
-    e.path ? el("div", { class: "path" }, `${e.win_path || e.path}${sizeText(e.size) ? ` · ${sizeText(e.size)}` : ""}`) : null,
+    e.path ? el("div", { class: "path" }, [e.win_path || e.path, formatSize(e.size)].filter(Boolean).join(" · ")) : null,
     e.path && !e.exists ? el("div", { class: "err" }, "Die Datei existiert nicht mehr an diesem Ort.") : null,
     e.error ? el("div", { class: "err" }, e.error) : null,
     el("table", { class: "hist-tags" }, el("tbody", {}, ...tagRows(e))),
@@ -88,7 +60,7 @@ function renderTitle(e) {
 /** Ein Download (Job) wie in der Download-Liste: Kopf mit Zähler und „Ordner öffnen“, Titel zum Ausklappen. */
 function renderGroup(g) {
   const when = new Date(g.ts * 1000).toLocaleString("de-DE");
-  const parts = [`${g.count} ${g.count === 1 ? "Titel" : "Titel"}`];
+  const parts = [`${g.count} Titel`];
   for (const [result, n] of Object.entries(g.counts)) parts.push(`${n} ${result}`);
   if (g.format) parts.push(g.format.toUpperCase());
   const failed = g.counts["fehler"] || 0;
@@ -97,11 +69,7 @@ function renderGroup(g) {
     el("span", { class: "hist-group-title" }, `${g.mode === "musik" ? "🎵" : "🎙️"} ${g.title || "Download"}`),
     el("span", { class: "muted small" }, `${when} · ${parts.join(" · ")}`));
   const actions = [];
-  if (g.folder) {
-    const open = el("button", { type: "button", class: "small-btn" }, "📂 Ordner öffnen");
-    open.addEventListener("click", () => api("/api/open", { path: g.folder }).catch((err) => alert(err.message)));
-    actions.push(open);
-  }
+  if (g.folder) actions.push(button("📂 Ordner öffnen", () => api("/api/open", { path: g.folder }), { cls: "small-btn" }));
   return el("details", { class: `job hist-group${failed ? " has-errors" : ""}` },
     head,
     actions.length ? el("div", { class: "task-actions job-actions" }, ...actions) : null,
@@ -118,13 +86,11 @@ async function load(reset = true) {
   const list = $("#hist-list");
   if (reset) list.replaceChildren();
   if (!data.total) {
-    list.replaceChildren(el("div", { class: "empty" }, el("img", { src: "img/turtles/platzhalter.svg", alt: "", width: 72, height: 40, class: "turtle" }),
-      el("span", {}, filters().toString() ? "Keine Einträge für diese Filter." : "Noch keine Einträge.")));
+    list.replaceChildren(emptyState(filters().toString() ? "Keine Einträge für diese Filter." : "Noch keine Einträge."));
   }
   list.append(...data.groups.map(renderGroup));
   offset += data.groups.length;
-  $("#hist-count").textContent = `${data.total} ${data.total === 1 ? "Download" : "Downloads"} · ` +
-    `${data.entries_total} ${data.entries_total === 1 ? "Titel" : "Titel"}`;
+  $("#hist-count").textContent = `${plural(data.total, "Download", "Downloads")} · ${data.entries_total} Titel`;
   $("#hist-more").hidden = offset >= data.total;
   $("#hist-csv").href = `/api/history.csv?${filters()}`;
 }

@@ -15,7 +15,7 @@ helle und dunkle Variante, Logo im Kopf, laufende Schildkröte auf dem Fortschri
 Schrittprotokoll. Für fehlende Situationsbilder springt `ytdl/static/img/turtles/platzhalter.svg` ein.
 
 **Neues Bild einbauen:** Datei nach `ytdl/static/img/turtles/<situation>.png` legen und in `TURTLES` in
-`ytdl/static/app.js` eintragen (z.B. `leer: { src: "img/turtles/leer.png" }`), dann hier abhaken.
+`ytdl/static/js/dom.js` eintragen (z.B. `leer: { src: "img/turtles/leer.png" }`), dann hier abhaken.
 Im Code bereits verwendet: `pruefen` (Prüfen, Analyse, Konflikt-Dialog) und `leer` (leere Download-Liste).
 
 ## Farben aus dem Logo
@@ -61,4 +61,4 @@ Damit die Bilder zusammenpassen:
   Prüf-Bild
 - Quadratisch, mind. 512×512 px (wird auf ca. 96–140 px verkleinert angezeigt)
 - Als PNG oder WebP nach `ytdl/static/img/turtles/` legen (Dateiname siehe Tabelle) und in `TURTLES` in
-  `ytdl/static/app.js` eintragen, z.B. `downloads: { src: "img/turtles/downloads.webp", round: true }`
+  `ytdl/static/js/dom.js` eintragen, z.B. `downloads: { src: "img/turtles/downloads.webp", round: true }`

@@ -388,8 +388,9 @@ ytdl/
   albumvideo.py   Album in einem Video: Analyse, Zwischenspeicher, Schnitt
   split.py        Tracklisten-Parser, Pausenerkennung, Schnitt per ffmpeg
   ocr.py          Text im Videobild lesen (RapidOCR)
-  static/         Weboberfläche (HTML/CSS/JS, ohne Build-Schritt), Schrift, Schildkröten-Bilder
-tests/            pytest
+  static/         Weboberfläche (HTML/CSS, ES-Module ohne Build-Schritt), Schrift, Schildkröten-Bilder
+    js/           gemeinsame Module (api, dom, format …)
+tests/            pytest; tests/js/ mit node --test (läuft über pytest mit, falls Node installiert ist)
 ```
 
 ## Entwicklung

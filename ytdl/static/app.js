@@ -1,4 +1,7 @@
-const $ = (sel) => document.querySelector(sel);
+import { api } from "./js/api.js";
+import { $, button, el, emptyState, turtle } from "./js/dom.js";
+import { countDone, cssName, formatSize, formatTime, parseTime, primaryArtist, sameValue as same }
+  from "./js/format.js";
 
 const COLUMNS = {
   musik: [
@@ -16,49 +19,6 @@ const COLUMNS = {
 };
 
 let preview = null; // { title, mode, items: [...] }
-
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === "class") node.className = v;
-    else if (k in node) node[k] = v;
-    else node.setAttribute(k, v);
-  }
-  node.append(...children.filter((c) => c != null));
-  return node;
-}
-
-async function api(path, body, method) {
-  const res = await fetch(path, body || method ? {
-    method: method || "POST", headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  } : undefined);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const detail = data.detail;
-    const err = new Error((typeof detail === "object" ? detail?.message : detail) || `Fehler ${res.status}`);
-    err.fields = typeof detail === "object" ? detail?.fields || {} : {};
-    err.missingFolder = !!data.missing_folder;
-    throw err;
-  }
-  return data;
-}
-
-// ---------- Schildkröten ----------
-// Fertige Bilder je Situation (DESIGN.md). Fehlende kommen nach und nach – bis dahin der Pixel-Platzhalter.
-const TURTLES = {
-  pruefen: { src: "img/turtles/pruefen.webp", round: true },
-};
-const TURTLE_PLACEHOLDER = "img/turtles/platzhalter.svg";
-
-function turtle(situation, { size = 64, walking = false, alt = "" } = {}) {
-  const known = TURTLES[situation];
-  const img = el("img", { src: known ? known.src : TURTLE_PLACEHOLDER, alt, width: size,
-    height: known ? size : Math.round(size * 9 / 16), class: "turtle" });
-  if (known?.round) img.classList.add("round");
-  if (walking) img.classList.add("walking");
-  return img;
-}
 
 document.querySelectorAll("[data-turtle]").forEach((slot) => slot.append(turtle(slot.dataset.turtle, { size: 120 })));
 
@@ -86,7 +46,7 @@ function renderSteps(box, steps) {
   box.replaceChildren(...steps.map((s) => {
     const running = s.state === "läuft";
     const detail = [s.detail, running && s.elapsed >= 1 ? `${s.elapsed} s` : ""].filter(Boolean).join(" · ");
-    return el("div", { class: `step ${s.state.replace(" ", "-")}` },
+    return el("div", { class: `step ${cssName(s.state)}` },
       el("span", { class: "step-icon" }, STEP_ICONS[s.state] ?? ""),
       el("span", { class: "step-label" }, s.label),
       detail ? el("span", { class: "step-detail" }, detail) : null,
@@ -310,7 +270,6 @@ const albumCover = coverField($("#album-cover"));
 // ---------- Tags zurücksetzen ----------
 const TAG_KEYS = ["artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date"];
 const tagSnapshot = (item) => Object.fromEntries(TAG_KEYS.map((k) => [k, item[k] ?? null]));
-const same = (a, b) => String(a ?? "") === String(b ?? "");
 const isChanged = (item) => TAG_KEYS.some((k) => !same(item[k], item.orig[k]));
 
 /** „Automatisch nummerieren“: ausgewählte Titel in Listenreihenfolge 1…n, abgewählte ohne Nummer. */
@@ -402,7 +361,6 @@ function renderRows() {
 }
 
 const VA = "Various Artists";
-const primaryArtist = (artist) => artist.split(/ feat\. |, /)[0];
 
 let bulkArtistBeforeVa = "";
 $("#bulk-va").addEventListener("change", () => {
@@ -439,10 +397,6 @@ $("#bulk-apply").addEventListener("click", () => {
 // ---------- Konflikt-Dialog: Überschreiben / Überspringen / Beide behalten ----------
 
 const CONFLICT_CHOICES = [["keep_both", "Beide behalten (… (2))"], ["overwrite", "Überschreiben"], ["skip", "Überspringen"]];
-
-function formatSize(bytes) {
-  return bytes > 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
-}
 
 /** Zeigt den Dialog für bereits vorhandene Dateien; liefert {id: Entscheidung} oder null bei Abbruch. */
 function resolveConflicts(conflicts) {
@@ -490,15 +444,6 @@ $("#download-btn").addEventListener("click", async () => {
   }
 });
 
-function button(label, onClick, opts = {}) {
-  const b = el("button", { type: "button", class: opts.cls || "secondary small-btn", title: opts.title || "" }, label);
-  b.addEventListener("click", async () => {
-    b.disabled = true;
-    try { await onClick(); } catch (err) { alert(err.message); } finally { b.disabled = false; }
-  });
-  return b;
-}
-
 const openPath = (path) => api("/api/open", { path });
 const retry = (jobId, taskId = null) => api(`/api/jobs/${jobId}/retry`, { task_id: taskId });
 
@@ -507,8 +452,6 @@ function taskStatus(t) {
   if (t.status === "pausiert") return `pausiert · noch ${Math.ceil(t.retry_in / 60)} min`;
   return t.status;
 }
-
-const cssName = (status) => status.replaceAll(" ", "-");
 
 function progressBar(progress) {
   return el("div", { class: "bar" },
@@ -530,8 +473,6 @@ function renderTask(job, t) {
   );
 }
 
-const FINISHED_STATES = ["fertig", "fehler", "übersprungen"];
-const countDone = (tasks) => tasks.filter((t) => FINISHED_STATES.includes(t.status)).length;
 
 /** Zeile über der Liste. Gezählt werden nur Downloads, die noch laufen – abgeschlossene zählen nicht mit,
  *  sonst stünde nach einem fertigen 10er-Album beim nächsten 12er-Album „10 von 22“. */
@@ -614,8 +555,7 @@ function renderJobs(jobs) {
   $("#toggle-jobs").hidden = jobs.length < 2;
   $("#toggle-jobs").textContent = jobs.length && jobs.every((j) => collapsedJobs.has(j.id)) ? "Alle ausklappen" : "Alle einklappen";
   if (!jobs.length) {
-    $("#jobs").replaceChildren(el("div", { class: "empty" }, turtle("leer", { size: 72 }),
-      el("span", {}, "Noch keine Downloads.")));
+    $("#jobs").replaceChildren(emptyState("Noch keine Downloads."));
     return;
   }
   $("#jobs").replaceChildren(...jobs.map((job) => {
@@ -704,19 +644,6 @@ $("#clear-jobs").addEventListener("click", async () => {
 let album = null; // { id, duration, peaks, tracks: [{start, artist, title}] }
 const audio = $("#album-audio");
 const wave = $("#wave");
-
-function fmt(sec) {
-  sec = Math.max(0, sec || 0);
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-  const ss = s.toFixed(1).padStart(4, "0");
-  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-}
-
-function parseTime(text) {
-  const parts = text.trim().replace(",", ".").split(":").map(Number);
-  if (!parts.length || parts.some(Number.isNaN)) return null;
-  return parts.reduce((acc, v) => acc * 60 + v, 0);
-}
 
 function albumBusy(busy, text = "Analysiere …") {
   document.querySelectorAll("#album button").forEach((b) => (b.disabled = busy));
@@ -863,7 +790,7 @@ function renderAlbum() {
   updateArtistColumn();
   const playing = currentTrackIndex();
   $("#album-tracks").replaceChildren(...album.tracks.map((t, i) => {
-    const start = el("input", { value: fmt(t.start) });
+    const start = el("input", { value: formatTime(t.start, { tenths: true }) });
     start.addEventListener("change", () => {
       const v = parseTime(start.value);
       if (v != null && v >= 0 && v < album.duration) t.start = v;
@@ -895,7 +822,7 @@ function renderAlbum() {
     const row = el("tr", { class: i === playing ? "playing" : "" },
       el("td", { class: "dur" }, String(i + 1)),
       el("td", { class: "time" }, start),
-      el("td", { class: "dur" }, fmt(trackEnd(i) - t.start).replace(/\.\d$/, "")),
+      el("td", { class: "dur" }, formatTime(trackEnd(i) - t.start)),
       el("td", {}, artist), el("td", {}, title),
       el("td", { class: "actions" }, play, here, reset, del));
     mark();
