@@ -407,20 +407,20 @@ def album_analyze(req: AlbumAnalyzeRequest) -> dict:
 
 @app.post("/api/album/{video_id}/detect")
 def album_detect(video_id: str, req: AlbumDetectRequest) -> dict:
-    _album_call(albumvideo.cache_dir, cfg, video_id)  # ID prüfen
+    _album_call(albumvideo.AlbumCache, cfg, video_id)  # ID prüfen
     return _start("album-pausen", albumvideo.redetect, cfg, video_id, req.count, req.min_pause,
                   req.sensitivity, req.artist)
 
 
 @app.post("/api/album/{video_id}/text")
 def album_text(video_id: str, req: AlbumTextRequest) -> dict:
-    _album_call(albumvideo.cache_dir, cfg, video_id)
+    _album_call(albumvideo.AlbumCache, cfg, video_id)
     return _start("album-trackliste", albumvideo.from_text, cfg, video_id, req.text, req.artist)
 
 
 @app.post("/api/album/{video_id}/scan")
 def album_scan(video_id: str, req: AlbumScanRequest) -> dict:
-    _album_call(albumvideo.cache_dir, cfg, video_id)
+    _album_call(albumvideo.AlbumCache, cfg, video_id)
     return _start("album-scan", albumvideo.scan_overlays, cfg, video_id, req.artist)
 
 

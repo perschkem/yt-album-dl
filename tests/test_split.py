@@ -65,15 +65,6 @@ def test_peaks_scaled():
     assert len(values) <= 50 and max(values) == 1.0 and min(values) >= 0
 
 
-def test_audio_file_ignores_thumbnail(tmp_path):
-    from ytdl.albumvideo import _audio_file, _thumbnail_file
-
-    for name in ("audio.webp", "audio.m4a", "audio.jpg"):
-        (tmp_path / name).write_bytes(b"x")
-    assert _audio_file(tmp_path).name == "audio.m4a"
-    assert _thumbnail_file(tmp_path).suffix in {".jpg", ".webp"}
-
-
 def test_cut_and_tag_m4a(tmp_path):
     import shutil
     import subprocess

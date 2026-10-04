@@ -7,11 +7,13 @@ import re
 import shutil
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 
-from .activity import Activity, NullActivity
+from .activity import Activity, NullActivity, Step
 from .config import Config
 from .library import ProgressCallback, audio_format, downloaded_file, finish_track
 from .metadata import MUSIK, Item, clean_title, music_item, normalize_feat, split_artist_title
@@ -47,73 +49,107 @@ _ALBUM_NOISE = re.compile(
     r"(19|20)\d{2}|top\s+\d+|hq|hd)\b",
     re.IGNORECASE,
 )
+_VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
-def cache_dir(cfg: Config, video_id: str) -> Path:
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", video_id):
-        raise ValueError("Ungültige Video-ID")
-    return cfg.data_dir / "cache" / video_id
+# ---------- Zwischenspeicher ----------
 
+class AlbumCache:
+    """Zwischenspeicher eines Videos unter data/cache/<video-id>/: Audiospur (für Vorschau-Player, Analyse und
+    Schnitt) samt Vorschaubild, 480p-Video für den Einblendungs-Scan, Lautstärkeverlauf und die Analyse-Metadaten."""
 
-def cleanup_cache(cfg: Config) -> None:
-    root = cfg.data_dir / "cache"
-    if not root.exists():
-        return
-    limit = time.time() - CACHE_DAYS * 86400
-    for entry in root.iterdir():
-        if entry.is_dir() and entry.stat().st_mtime < limit:
-            shutil.rmtree(entry, ignore_errors=True)
+    def __init__(self, cfg: Config, video_id: str):
+        if not _VIDEO_ID.fullmatch(video_id):
+            raise ValueError("Ungültige Video-ID")
+        self.video_id = video_id
+        self.folder = cfg.data_dir / "cache" / video_id
 
+    @staticmethod
+    def cleanup(cfg: Config) -> None:
+        """Zwischenspeicher, die länger als CACHE_DAYS nicht angefasst wurden, löschen."""
+        root = cfg.data_dir / "cache"
+        if not root.exists():
+            return
+        limit = time.time() - CACHE_DAYS * 86400
+        for entry in root.iterdir():
+            if entry.is_dir() and entry.stat().st_mtime < limit:
+                shutil.rmtree(entry, ignore_errors=True)
 
-def _audio_file(folder: Path) -> Path | None:
-    """Die Audiospur im Zwischenspeicher – nicht das gleichnamige Vorschaubild (audio.webp/.jpg)."""
-    return downloaded_file(folder, "audio")
+    @property
+    def audio(self) -> Path | None:
+        """Die Audiospur – nicht das gleichnamige Vorschaubild (audio.webp/.jpg)."""
+        return downloaded_file(self.folder, "audio")
 
+    @property
+    def thumbnail(self) -> Path | None:
+        return downloaded_file(self.folder, "audio", image=True)
 
-def _thumbnail_file(folder: Path) -> Path | None:
-    return downloaded_file(folder, "audio", image=True)
+    @property
+    def video(self) -> Path | None:
+        return downloaded_file(self.folder, "video")
 
+    def require_audio(self) -> Path:
+        if audio := self.audio:
+            return audio
+        raise RuntimeError("Zwischengespeichertes Audio fehlt – bitte Video erneut analysieren")
 
-def _fetch_audio(info: dict, folder: Path, step=None) -> Path:
-    """Lädt die Audiospur einmal in den Zwischenspeicher (für Vorschau-Player, Analyse und Schnitt)."""
-    if audio := _audio_file(folder):
-        return audio
-    folder.mkdir(parents=True, exist_ok=True)
-    # m4a/webm spielen alle Browser ab
-    ytdlp_download(info["webpage_url"], folder / "audio.%(ext)s", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
-                   step.update if step else None, writethumbnail=True)
-    audio = _audio_file(folder)
-    if not audio:
+    def fetch_audio(self, url: str, step: Step | None = None) -> Path:
+        """Lädt die Audiospur einmal (m4a/webm spielen alle Browser ab)."""
+        if audio := self.audio:
+            return audio
+        self.folder.mkdir(parents=True, exist_ok=True)
+        ytdlp_download(url, self.folder / "audio.%(ext)s", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
+                       step.update if step else None, writethumbnail=True)
+        if audio := self.audio:
+            return audio
         raise RuntimeError("Audio konnte nicht geladen werden")
-    return audio
+
+    def fetch_video(self, url: str, step: Step | None = None) -> Path:
+        """Lädt das Video in 480p (nur für das Lesen der Einblendungen)."""
+        if video := self.video:
+            return video
+        ytdlp_download(url, self.folder / "video.%(ext)s", "bv*[height<=480]/b[height<=480]",
+                       step.update if step else None)
+        if video := self.video:
+            return video
+        raise RuntimeError("Video konnte nicht geladen werden")
+
+    @property
+    def _envelope_path(self) -> Path:
+        return self.folder / "envelope.npy"
+
+    @property
+    def has_envelope(self) -> bool:
+        return self._envelope_path.exists()
+
+    def envelope(self, step: Step | None = None, duration: float | None = None) -> np.ndarray:
+        """Lautstärkeverlauf – einmal berechnen, danach aus dem Zwischenspeicher."""
+        if self.has_envelope:
+            return np.load(self._envelope_path)
+        on_progress = None
+        if step and duration:
+            def on_progress(sec: float) -> None:
+                step.update(f"{int(sec // 60)} von {int(duration // 60)} Min.", sec / duration * 100)
+        env = envelope(self.require_audio(), on_progress)
+        np.save(self._envelope_path, env)
+        return env
+
+    def save_meta(self, meta: dict) -> None:
+        self.folder.mkdir(parents=True, exist_ok=True)
+        (self.folder / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+    def meta(self) -> dict:
+        path = self.folder / "meta.json"
+        if not path.exists():
+            raise ValueError("Video nicht analysiert – bitte erneut prüfen")
+        return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _envelope(folder: Path, audio: Path, step=None, duration: float | None = None) -> np.ndarray:
-    path = folder / "envelope.npy"
-    if path.exists():
-        return np.load(path)
-    on_progress = None
-    if step and duration:
-        on_progress = lambda sec: step.update(f"{int(sec // 60)} von {int(duration // 60)} Min.", sec / duration * 100)  # noqa: E731
-    env = envelope(audio, on_progress)
-    np.save(path, env)
-    return env
+def audio_path(cfg: Config, video_id: str) -> Path | None:
+    return AlbumCache(cfg, video_id).audio
 
 
-def _comment_tracklist(url: str, duration: float) -> tuple[list[Segment], int]:
-    info = extract_info(url, getcomments=True,
-                        extractor_args={"youtube": {"max_comments": ["60"], "comment_sort": ["top"]}}) or {}
-    comments = sorted(
-        info.get("comments") or [],
-        key=lambda c: (not c.get("is_pinned"), not c.get("author_is_uploader"), -(c.get("like_count") or 0)),
-    )
-    best: list[Segment] = []
-    for comment in comments:
-        segments = parse_tracklist(comment.get("text") or "", duration)
-        if len(segments) > len(best):
-            best = segments
-    return best, len(comments)
-
+# ---------- Hilfen ----------
 
 def _guess_album(title: str) -> str:
     lower = title.lower()
@@ -140,21 +176,100 @@ def _tracks(segments: list[Segment], default_artist: str) -> list[dict]:
     return tracks
 
 
-def _save_meta(folder: Path, meta: dict) -> None:
-    (folder / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+def _result(source: str, segments: list[Segment], artist: str) -> dict:
+    """Ergebnis einer Erkennung für die Oberfläche: Quelle + Trackzeilen."""
+    return {"source": source, "source_label": SOURCE_LABELS[source], "tracks": _tracks(segments, artist)}
 
 
-def load_meta(cfg: Config, video_id: str) -> dict:
-    path = cache_dir(cfg, video_id) / "meta.json"
-    if not path.exists():
-        raise ValueError("Video nicht analysiert – bitte erneut prüfen")
-    return json.loads(path.read_text(encoding="utf-8"))
+def _snap_step(act: Activity, segments: list[Segment], env: np.ndarray, window: float = 3.0) -> list[Segment]:
+    step = act.step("Grenzen auf Pausen ausrichten")
+    segments = snap(segments, env, window=window)
+    step.done(f"auf die leiseste Stelle in ±{window:g} s gerückt")
+    return segments
 
+
+# ---------- Quellen für Trackgrenzen (in dieser Reihenfolge versucht) ----------
+
+class Found(NamedTuple):
+    segments: list[Segment]
+    message: str  # Text für den Schritt – „gefunden“ oder „nichts gefunden“
+    hints: tuple[str, ...] = ()  # übrige Textzeilen im Bild (z.B. der Interpret)
+
+
+def _from_chapters(info: dict, duration: float, step: Step) -> Found:
+    if len(info.get("chapters") or []) >= 2:
+        segments = segments_from_chapters(info["chapters"], duration)
+        return Found(segments, f"{len(segments)} Kapitel gefunden")
+    return Found([], "keine Kapitel")
+
+
+def _from_description(info: dict, duration: float, step: Step) -> Found:
+    description = info.get("description") or ""
+    if segments := parse_tracklist(description, duration):
+        return Found(segments, f"{len(segments)} Titel gefunden")
+    return Found([], "Beschreibung ist leer" if not description.strip() else "keine Trackliste mit Zeitstempeln")
+
+
+def _from_frames(info: dict, duration: float, step: Step) -> Found:
+    def on_progress(n: int, total: int, lines: int) -> None:
+        step.update(f"Bild {n}/{total} gelesen" + (f" · {lines} Textzeilen" if lines else " · kein Text"),
+                    n / total * 100)
+
+    segments, hints = tracklist_from_frames(info, duration, on_progress=on_progress)
+    if segments:
+        return Found(segments, f"{len(segments)} Titel mit Zeitstempeln im Bild gefunden", tuple(hints))
+    return Found([], "kein Text mit Zeitstempeln in den Standbildern", tuple(hints))
+
+
+def _from_comments(info: dict, duration: float, step: Step) -> Found:
+    info = extract_info(info["webpage_url"], getcomments=True,
+                        extractor_args={"youtube": {"max_comments": ["60"], "comment_sort": ["top"]}}) or {}
+    comments = sorted(
+        info.get("comments") or [],
+        key=lambda c: (not c.get("is_pinned"), not c.get("author_is_uploader"), -(c.get("like_count") or 0)),
+    )
+    best: list[Segment] = []
+    for comment in comments:
+        segments = parse_tracklist(comment.get("text") or "", duration)
+        if len(segments) > len(best):
+            best = segments
+    if best:
+        return Found(best, f"{len(best)} Titel in einem von {len(comments)} Kommentaren gefunden")
+    return Found([], f"{len(comments)} Kommentare durchsucht, keine Trackliste")
+
+
+Finder = Callable[[dict, float, Step], Found]
+# (Quelle, Schritt, Text beim Start, Suche)
+SOURCES: list[tuple[str, str, str, Finder]] = [
+    ("kapitel", "YouTube-Kapitel", "", _from_chapters),
+    ("beschreibung", "Zeitstempel in der Beschreibung", "", _from_description),
+    ("bild", "Trackliste im Videobild (OCR)", "Standbilder holen …", _from_frames),
+    ("kommentar", "Zeitstempel in Kommentaren", "Kommentare laden …", _from_comments),
+]
+
+
+def _find_segments(act: Activity, info: dict, duration: float) -> tuple[str, list[Segment], list[str]]:
+    """Probiert die Quellen der Reihe nach; nach dem ersten Treffer werden die übrigen übersprungen."""
+    hints: list[str] = []
+    for i, (source, label, detail, find) in enumerate(SOURCES):
+        step = act.step(label, detail)
+        found = find(info, duration, step)
+        hints = hints or list(found.hints)
+        if found.segments:
+            step.done(found.message)
+            for _, later, _, _ in SOURCES[i + 1:]:
+                act.skip(later, "nicht nötig")
+            return source, found.segments, hints
+        step.nothing(found.message)
+    return "stille", [], hints
+
+
+# ---------- Vorgänge ----------
 
 def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
     """Findet Trackgrenzen und Titel. Reihenfolge: Kapitel → Beschreibung → Bild (OCR) → Kommentare → Pausen."""
     act = activity or NullActivity()
-    cleanup_cache(cfg)
+    AlbumCache.cleanup(cfg)
 
     step = act.step("Video-Infos laden")
     info = extract_info(url)
@@ -163,71 +278,21 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
     duration = float(info.get("duration") or 0)
     step.done(f"„{info.get('title') or ''}“ · {int(duration // 60)} Min.")
 
-    folder = cache_dir(cfg, info["id"])
-    cached = _audio_file(folder) is not None
+    cache = AlbumCache(cfg, info["id"])
+    cached = cache.audio is not None
     step = act.step("Audiospur laden")
-    audio = _fetch_audio(info, folder, step)
+    audio = cache.fetch_audio(info["webpage_url"], step)
     step.done(f"{'aus dem Zwischenspeicher' if cached else 'geladen'} · {mb(audio.stat().st_size)} MB")
 
-    cached = (folder / "envelope.npy").exists()
+    cached = cache.has_envelope
     step = act.step("Lautstärkeverlauf berechnen")
-    env = _envelope(folder, audio, step, duration)
+    env = cache.envelope(step, duration)
     duration = duration or len(env) / FPS
     step.done("aus dem Zwischenspeicher" if cached else f"{int(duration // 60)} Min. analysiert")
 
-    hints: list[str] = []
-    source = "stille"
-    segments: list[Segment] = []
-
-    step = act.step("YouTube-Kapitel")
-    if len(info.get("chapters") or []) >= 2:
-        source, segments = "kapitel", segments_from_chapters(info["chapters"], duration)
-        step.done(f"{len(segments)} Kapitel gefunden")
-    else:
-        step.nothing("keine Kapitel")
-
-    if segments:
-        act.skip("Zeitstempel in der Beschreibung", "nicht nötig")
-    else:
-        step = act.step("Zeitstempel in der Beschreibung")
-        description = info.get("description") or ""
-        if segments := parse_tracklist(description, duration):
-            source = "beschreibung"
-            step.done(f"{len(segments)} Titel gefunden")
-        else:
-            step.nothing("Beschreibung ist leer" if not description.strip() else "keine Trackliste mit Zeitstempeln")
-
-    if segments:
-        act.skip("Trackliste im Videobild (OCR)", "nicht nötig")
-    else:
-        step = act.step("Trackliste im Videobild (OCR)", "Standbilder holen …")
-
-        def ocr_progress(n: int, total: int, lines: int) -> None:
-            step.update(f"Bild {n}/{total} gelesen" + (f" · {lines} Textzeilen" if lines else " · kein Text"),
-                        n / total * 100)
-
-        segments, hints = tracklist_from_frames(info, duration, on_progress=ocr_progress)
-        if segments:
-            source = "bild"
-            step.done(f"{len(segments)} Titel mit Zeitstempeln im Bild gefunden")
-        else:
-            step.nothing("kein Text mit Zeitstempeln in den Standbildern")
-
-    if segments:
-        act.skip("Zeitstempel in Kommentaren", "nicht nötig")
-    else:
-        step = act.step("Zeitstempel in Kommentaren", "Kommentare laden …")
-        segments, searched = _comment_tracklist(info["webpage_url"], duration)
-        if segments:
-            source = "kommentar"
-            step.done(f"{len(segments)} Titel in einem von {searched} Kommentaren gefunden")
-        else:
-            step.nothing(f"{searched} Kommentare durchsucht, keine Trackliste")
-
+    source, segments, hints = _find_segments(act, info, duration)
     if segments and source != "kapitel":
-        step = act.step("Grenzen auf Pausen ausrichten")
-        segments = snap(segments, env)
-        step.done("auf die leiseste Stelle in ±3 s gerückt")
+        segments = _snap_step(act, segments, env)
     if not segments:
         step = act.step("Pausenerkennung im Audio")
         segments = segments_from_boundaries(detect_boundaries(env), duration)
@@ -236,11 +301,9 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
     base = music_item(info)
     artist = base.artist
     # Interpret im Bild (z.B. "DIRE STRAITS" über der Trackliste) ist meist zuverlässiger als der Videotitel
-    if hints:
-        big = [h for h in hints if len(h) > 3 and h.isupper()]
-        if big:
-            artist = big[0].title()
-            act.step("Interpret im Bild erkannt").done(artist)
+    if big := [h for h in hints if len(h) > 3 and h.isupper()]:
+        artist = big[0].title()
+        act.step("Interpret im Bild erkannt").done(artist)
 
     meta = {
         "id": info["id"],
@@ -250,15 +313,13 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
         "thumbnail": info.get("thumbnail") or "",
         "year": base.year,
     }
-    _save_meta(folder, meta)
+    cache.save_meta(meta)
     return {
         **meta,
-        "source": source,
-        "source_label": SOURCE_LABELS[source],
+        **_result(source, segments, artist),
         "artist": artist,
         "album": _guess_album(meta["title"]),
         "hints": hints,
-        "tracks": _tracks(segments, artist),
         "peaks": peaks(env),
         "audio_url": f"/api/album/{info['id']}/audio",
         "steps": act.log(),
@@ -268,9 +329,8 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
 def redetect(cfg: Config, video_id: str, count: int | None, min_pause: float, sensitivity: float,
              artist: str, activity: Activity | None = None) -> dict:
     act = activity or NullActivity()
-    folder = cache_dir(cfg, video_id)
-    meta = load_meta(cfg, video_id)
-    env = _envelope(folder, _audio_file(folder))
+    cache = AlbumCache(cfg, video_id)
+    meta, env = cache.meta(), cache.envelope()
     step = act.step("Pausen suchen", f"genau {count} Titel" if count else
                     f"Pausen ab {min_pause:g} s, {sensitivity:g} dB unter dem Durchschnitt")
     cuts = detect_boundaries(env, count=count, min_pause=min_pause, sensitivity_db=sensitivity)
@@ -281,21 +341,18 @@ def redetect(cfg: Config, video_id: str, count: int | None, min_pause: float, se
         step.nothing("keine Pausen gefunden – Empfindlichkeit verringern oder Anzahl Titel angeben")
     else:
         step.done(f"{len(cuts)} Pausen → {len(segments)} Titel")
-    return {"source": "stille", "source_label": SOURCE_LABELS["stille"], "tracks": _tracks(segments, artist)}
+    return _result("stille", segments, artist)
 
 
 def from_text(cfg: Config, video_id: str, text: str, artist: str, activity: Activity | None = None) -> dict:
     """Eingefügte Trackliste: mit Zeitstempeln → direkt übernehmen; nur Titel → so viele Grenzen suchen."""
     act = activity or NullActivity()
-    folder = cache_dir(cfg, video_id)
-    meta = load_meta(cfg, video_id)
-    env = _envelope(folder, _audio_file(folder))
+    cache = AlbumCache(cfg, video_id)
+    meta, env = cache.meta(), cache.envelope()
     step = act.step("Trackliste lesen")
     if segments := parse_tracklist(text, meta["duration"]):
         step.done(f"{len(segments)} Titel mit Zeitstempeln")
-        step = act.step("Grenzen auf Pausen ausrichten")
-        segments = snap(segments, env)
-        step.done("auf die leiseste Stelle in ±3 s gerückt")
+        segments = _snap_step(act, segments, env)
     else:
         titles = parse_titles(text)
         if not titles:
@@ -307,24 +364,18 @@ def from_text(cfg: Config, video_id: str, text: str, artist: str, activity: Acti
         for seg, title in zip(segments, titles):
             seg.title = title
         step.done(f"{len(cuts)} Grenzen gefunden")
-    return {"source": "eingabe", "source_label": SOURCE_LABELS["eingabe"], "tracks": _tracks(segments, artist)}
+    return _result("eingabe", segments, artist)
 
 
 def scan_overlays(cfg: Config, video_id: str, artist: str, activity: Activity | None = None) -> dict:
     """Langsamer Bild-Scan: Video in 480p laden und alle 10 s die Einblendung lesen."""
     act = activity or NullActivity()
-    folder = cache_dir(cfg, video_id)
-    meta = load_meta(cfg, video_id)
+    cache = AlbumCache(cfg, video_id)
+    meta = cache.meta()
     step = act.step("Video in 480p laden")
-    video = downloaded_file(folder, "video")
-    if video:
-        step.done("aus dem Zwischenspeicher")
-    else:
-        ytdlp_download(meta["url"], folder / "video.%(ext)s", "bv*[height<=480]/b[height<=480]", step.update)
-        video = downloaded_file(folder, "video")
-        if not video:
-            raise RuntimeError("Video konnte nicht geladen werden")
-        step.done(f"{mb(video.stat().st_size)} MB")
+    cached = cache.video is not None
+    video = cache.fetch_video(meta["url"], step)
+    step.done("aus dem Zwischenspeicher" if cached else f"{mb(video.stat().st_size)} MB")
     step = act.step("Einblendungen lesen (alle 10 s ein Bild)")
     segments = overlay_titles(video, meta["duration"],
                               on_progress=lambda n, total: step.update(f"Bild {n}/{total}", n / total * 100))
@@ -332,21 +383,16 @@ def scan_overlays(cfg: Config, video_id: str, artist: str, activity: Activity | 
         step.nothing("keine wechselnden Titeleinblendungen gefunden")
         raise ValueError("Keine wechselnden Titeleinblendungen gefunden")
     step.done(f"{len(segments)} verschiedene Einblendungen")
-    step = act.step("Grenzen auf Pausen ausrichten")
-    env = _envelope(folder, _audio_file(folder))
-    segments = snap(segments, env, window=8.0)
-    step.done("auf die leiseste Stelle in ±8 s gerückt")
-    return {"source": "einblendung", "source_label": SOURCE_LABELS["einblendung"], "tracks": _tracks(segments, artist)}
+    segments = _snap_step(act, segments, cache.envelope(), window=8.0)
+    return _result("einblendung", segments, artist)
 
 
-def audio_path(cfg: Config, video_id: str) -> Path | None:
-    return _audio_file(cache_dir(cfg, video_id))
-
+# ---------- Schneiden ----------
 
 def build_items(cfg: Config, video_id: str, album: str, album_artist: str, year: str, genre: str,
                 tracks: list[dict], fmt: str = "", cover_url: str = "", cover_crop: bool = False,
                 boundary_source: str = "") -> list[Item]:
-    meta = load_meta(cfg, video_id)
+    meta = AlbumCache(cfg, video_id).meta()
     ordered = sorted(tracks, key=lambda t: float(t["start"]))
     items = []
     for n, track in enumerate(ordered, start=1):
@@ -367,13 +413,10 @@ def build_items(cfg: Config, video_id: str, album: str, album_artist: str, year:
 
 def cut_track(item: Item, cfg: Config, progress: ProgressCallback, workdir: Path | None = None) -> Path:
     """Schneidet einen Titel aus dem zwischengespeicherten Audio, taggt und legt ihn ab."""
-    folder = cache_dir(cfg, item.source_id)
-    audio = _audio_file(folder)
-    if not audio:
-        raise RuntimeError("Zwischengespeichertes Audio fehlt – bitte Video erneut analysieren")
-    thumb = _thumbnail_file(folder)
+    cache = AlbumCache(cfg, item.source_id)
+    audio = cache.require_audio()
     progress(Status.CUTTING, 10.0)
     with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
         out = Path(tmp) / f"track.{audio_format(item, cfg)}"
         cut(audio, item.start or 0.0, item.end, out, cfg.bitrate)
-        return finish_track(out, item, cfg, thumb, progress, 90.0)
+        return finish_track(out, item, cfg, cache.thumbnail, progress, 90.0)
