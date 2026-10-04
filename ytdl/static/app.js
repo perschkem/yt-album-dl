@@ -132,7 +132,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
   btn.textContent = "Prüfe …";
   $("#probe-error").hidden = true;
   $("#preview").hidden = true;
-  showBusy($("#probe-busy"), "Die Schildkröte schaut sich das an …");
+  showBusy($("#probe-busy"), "Lade Infos …");
   try {
     const data = await runActivity("/api/probe", { url: $("#url").value, mode }, $("#probe-steps"));
     $("#probe-steps").hidden = true;
@@ -381,7 +381,7 @@ function parseTime(text) {
   return parts.reduce((acc, v) => acc * 60 + v, 0);
 }
 
-function albumBusy(busy, text = "Die Schildkröte hört genau hin …") {
+function albumBusy(busy, text = "Analysiere …") {
   document.querySelectorAll("#album button").forEach((b) => (b.disabled = busy));
   showBusy($("#album-busy"), busy ? text : "");
   if (busy) $("#album-error").hidden = true;

@@ -101,7 +101,6 @@ code { background: var(--panel-2); padding: 1px 5px; }
 
 .masthead { display: flex; gap: 18px; align-items: center; margin: 4px var(--pixel) 8px; }
 .masthead .logo { width: 88px; height: 88px; flex: none; border-radius: 50%; }
-.tagline { margin: 4px 0 2px; font-family: var(--font-pixel); color: var(--primary); }
 .warning { padding: 10px 14px; margin: 18px var(--pixel) 0; color: var(--warn); }
 
 /* Eingaben */

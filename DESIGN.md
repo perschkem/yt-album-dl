@@ -29,11 +29,13 @@ Im Code bereits verwendet: `pruefen` (Prüfen, Analyse, Konflikt-Dialog) und `le
 
 ## Stil
 
+- **Texte bleiben sachlich.** Das Schildkröten-Thema ist rein visuell (Bilder, Farben, Schrift, Rahmen) –
+  keine verspielten Formulierungen wie „Die Schildkröte schaut sich das an“, kein Slogan.
+
 - Pixel-Schrift für Überschriften und Buttons (z.B. „Pixelify Sans“ oder „Silkscreen“, lokal eingebunden,
   damit es offline läuft), normale Schrift für Fließtext und Tabellen (Lesbarkeit)
 - Kantige Pixel-Rahmen (gestufte Ecken per `box-shadow`) statt runder Ecken, `image-rendering: pixelated`
 - ✅ Fortschrittsbalken: eine kleine Schildkröte läuft auf dem Balken mit dem Fortschritt mit
-  („langsam, aber sie kommt an“)
 - Lade-Spinner durch eine animierte Schildkröte ersetzen (z.B. Kopf ein-/ausfahren, 2–4 Frames)
 - Logo im Kopfbereich, Favicon als vereinfachter Schildkrötenkopf (16/32 px)
 
