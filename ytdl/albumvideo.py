@@ -65,8 +65,17 @@ def cleanup_cache(cfg: Config) -> None:
             shutil.rmtree(entry, ignore_errors=True)
 
 
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+
+
 def _audio_file(folder: Path) -> Path | None:
-    return next((p for p in folder.glob("audio.*") if not p.name.endswith((".part", ".ytdl"))), None)
+    """Die Audiospur im Zwischenspeicher – nicht das gleichnamige Vorschaubild (audio.webp/.jpg)."""
+    return next((p for p in sorted(folder.glob("audio.*"))
+                 if p.suffix.lower() not in _IMAGE_SUFFIXES and not p.name.endswith((".part", ".ytdl"))), None)
+
+
+def _thumbnail_file(folder: Path) -> Path | None:
+    return next((p for p in sorted(folder.glob("audio.*")) if p.suffix.lower() in _IMAGE_SUFFIXES), None)
 
 
 def _fetch_audio(info: dict, folder: Path) -> Path:
@@ -292,8 +301,7 @@ def cut_track(item: Item, cfg: Config, progress: ProgressCallback) -> Path:
     audio = _audio_file(folder)
     if not audio:
         raise RuntimeError("Zwischengespeichertes Audio fehlt – bitte Video erneut analysieren")
-    thumb = next((p for p in folder.iterdir() if p.stem == "audio" and p.suffix.lower() in
-                  {".jpg", ".jpeg", ".png", ".webp"}), None)
+    thumb = _thumbnail_file(folder)
     progress("schneidet", 10.0)
     with tempfile.TemporaryDirectory(prefix="ytdl-") as tmp:
         mp3 = Path(tmp) / "track.mp3"

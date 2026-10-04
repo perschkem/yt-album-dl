@@ -63,3 +63,12 @@ def test_peaks_scaled():
     env, _ = synthetic([100, 100])
     values = peaks(env, points=50)
     assert len(values) <= 50 and max(values) == 1.0 and min(values) >= 0
+
+
+def test_audio_file_ignores_thumbnail(tmp_path):
+    from ytdl.albumvideo import _audio_file, _thumbnail_file
+
+    for name in ("audio.webp", "audio.m4a", "audio.jpg"):
+        (tmp_path / name).write_bytes(b"x")
+    assert _audio_file(tmp_path).name == "audio.m4a"
+    assert _thumbnail_file(tmp_path).suffix in {".jpg", ".webp"}
