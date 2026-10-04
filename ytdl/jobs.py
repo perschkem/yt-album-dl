@@ -79,6 +79,8 @@ class Task:
     attempt: int = 1
     next_try: float = 0.0
     workdir: str = ""  # Ergebnis der FETCH-Stufe
+    job_id: str = ""
+    job_title: str = ""
 
     @property
     def pool(self) -> str:
@@ -180,6 +182,8 @@ class JobManager:
         fmt = items[0].audio_format if items else ""
         job = Job(id=uuid.uuid4().hex[:8], title=title, mode=mode, tasks=tasks, max_attempts=self.max_attempts,
                   audio_format=fmt or self.cfg.audio_format)
+        for task in tasks:  # für die Historie: zu welchem Download gehört der Titel
+            task.job_id, task.job_title = job.id, title
         with self._cond:
             self.jobs.insert(0, job)
             del self.jobs[MAX_JOBS_KEPT:]
@@ -281,7 +285,8 @@ class JobManager:
         try:
             fmt = audio_format(task.item, self.cfg)
             self.history.record(task.item, result, path=task.path, error=task.error, attempts=task.attempt,
-                                audio_format=fmt, bitrate=self.cfg.bitrate)
+                                audio_format=fmt, bitrate=self.cfg.bitrate, job_id=task.job_id,
+                                job_title=task.job_title)
         except Exception:
             pass
 

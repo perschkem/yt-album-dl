@@ -72,3 +72,28 @@ def test_job_manager_writes_history(client):
     assert entries and entries[0]["result"] == "fertig" and entries[0]["path"].endswith("v1.mp3")
     lines = [json.loads(l) for l in web.manager.history.path.read_text().splitlines()]
     assert lines[0]["url"] == "https://youtu.be/v1"
+
+
+def test_query_groups_by_job(tmp_path):
+    h = History(tmp_path)
+    files = []
+    for n in (1, 2, 3):
+        f = tmp_path / "Band" / "Platte" / f"{n:02d}.mp3"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"x")
+        files.append(f)
+    # Album-Job mit drei Titeln (Reihenfolge der Fertigstellung durcheinander)
+    for n in (2, 1, 3):
+        h.record(song(n, track_no=n), FINISHED, path=str(files[n - 1]), job_id="job1", job_title="Platte")
+    h.record(song(9), FAILED, error="kaputt", job_id="job2", job_title="Einzeltitel")
+    h.record(song(8), FINISHED)  # alter Eintrag ohne Job-ID → eigene Gruppe
+
+    data = h.query_groups()
+    assert data["total"] == 3 and data["entries_total"] == 5
+    newest, failed, album = data["groups"]
+    assert newest["count"] == 1 and newest["title"] == "Platte"  # Titel aus Album-Tag
+    assert failed["counts"] == {FAILED: 1} and failed["folder"] == ""
+    assert album["title"] == "Platte" and album["count"] == 3
+    assert [e["tags"]["track_no"] for e in album["entries"]] == [1, 2, 3]
+    assert album["folder"] == str(tmp_path / "Band" / "Platte")
+    assert h.query_groups(limit=1, offset=2)["groups"][0]["id"] == "job1"

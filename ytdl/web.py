@@ -399,9 +399,10 @@ def _history_filters(q: str, mode: str, result: str, days: int | None) -> dict:
 
 @app.get("/api/history")
 def get_history(q: str = "", mode: str = "", result: str = "", days: int | None = None,
-                limit: int = 50, offset: int = 0) -> dict:
-    return history.query(limit=max(1, min(limit, 500)), offset=max(0, offset),
-                         **_history_filters(q, mode, result, days))
+                limit: int = 20, offset: int = 0) -> dict:
+    """Nach Download gruppiert (wie die Download-Liste); Titel einer Gruppe in Job-Reihenfolge."""
+    return history.query_groups(limit=max(1, min(limit, 200)), offset=max(0, offset),
+                                **_history_filters(q, mode, result, days))
 
 
 @app.get("/api/history.csv")

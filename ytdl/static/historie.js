@@ -1,5 +1,5 @@
 const $ = (sel) => document.querySelector(sel);
-const PAGE = 50;
+const PAGE = 20; // Downloads pro Seite
 let offset = 0;
 
 function el(tag, attrs = {}, ...children) {
@@ -51,12 +51,8 @@ function videoLink(entry) {
   return el("a", { href: url, target: "_blank", rel: "noopener" }, entry.start ? `Video ab ${clock(entry.start)} öffnen` : "Video öffnen");
 }
 
-function renderEntry(e) {
+function tagRows(e) {
   const t = e.tags || {};
-  const label = [t.artist, t.title].filter(Boolean).join(" - ") || e.source_title || e.url;
-  const when = new Date(e.ts * 1000).toLocaleString("de-DE");
-  const status = e.result.replace(" ", "-");
-
   const rows = Object.entries(TAG_LABELS).filter(([k]) => t[k] != null && t[k] !== "")
     .map(([k, name]) => el("tr", {}, el("th", {}, name), el("td", {}, String(t[k]))));
   rows.push(el("tr", {}, el("th", {}, "Cover"), el("td", {}, e.cover + (e.cover_url ? ` (${e.cover_url})` : ""))));
@@ -65,27 +61,49 @@ function renderEntry(e) {
   if (e.boundary_source) rows.push(el("tr", {}, el("th", {}, "Grenzen aus"), el("td", {}, e.boundary_source)));
   if (e.source_title) rows.push(el("tr", {}, el("th", {}, "Originaltitel"), el("td", {}, e.source_title)));
   rows.push(el("tr", {}, el("th", {}, "Versuche"), el("td", {}, String(e.attempts || 1))));
+  return rows;
+}
 
-  const actions = [];
-  if (e.path && e.exists) {
-    const open = el("button", { type: "button", class: "small-btn" }, "📂 Im Ordner öffnen");
-    open.addEventListener("click", () => api("/api/open", { path: e.path }).catch((err) => alert(err.message)));
-    actions.push(open);
-  }
+/** Ein Titel innerhalb eines Downloads – aufklappbar für Tags und Details. */
+function renderTitle(e) {
+  const t = e.tags || {};
+  const label = [t.artist, t.title].filter(Boolean).join(" - ") || e.source_title || e.url;
+  const status = e.result.replace(" ", "-");
   const link = videoLink(e);
-  if (link) actions.push(link);
-
-  return el("details", { class: `job hist ${status}` },
+  return el("details", { class: `hist-title ${status}` },
     el("summary", {},
-      el("span", { class: "hist-when muted small" }, when),
-      el("span", { class: `status ${status}` }, e.result),
-      el("span", { class: "hist-label" }, `${e.mode === "musik" ? "🎵" : "🎙️"} ${label}`),
-      el("span", { class: "hist-album muted small" }, t.album || "")),
+      el("span", { class: "hist-nr muted small" }, t.track_no ? String(t.track_no).padStart(2, "0") : ""),
+      el("span", { class: "hist-label" }, label),
+      el("span", { class: `status ${status}` }, e.result)),
     e.path ? el("div", { class: "path" }, `${e.win_path || e.path}${sizeText(e.size) ? ` · ${sizeText(e.size)}` : ""}`) : null,
     e.path && !e.exists ? el("div", { class: "err" }, "Die Datei existiert nicht mehr an diesem Ort.") : null,
     e.error ? el("div", { class: "err" }, e.error) : null,
-    el("table", { class: "hist-tags" }, el("tbody", {}, ...rows)),
-    actions.length ? el("div", { class: "task-actions" }, ...actions) : null,
+    el("table", { class: "hist-tags" }, el("tbody", {}, ...tagRows(e))),
+    link ? el("div", { class: "task-actions" }, link) : null,
+  );
+}
+
+/** Ein Download (Job) wie in der Download-Liste: Kopf mit Zähler und „Ordner öffnen“, Titel zum Ausklappen. */
+function renderGroup(g) {
+  const when = new Date(g.ts * 1000).toLocaleString("de-DE");
+  const parts = [`${g.count} ${g.count === 1 ? "Titel" : "Titel"}`];
+  for (const [result, n] of Object.entries(g.counts)) parts.push(`${n} ${result}`);
+  if (g.format) parts.push(g.format.toUpperCase());
+  const failed = g.counts["fehler"] || 0;
+
+  const head = el("summary", { class: "hist-group-head" },
+    el("span", { class: "hist-group-title" }, `${g.mode === "musik" ? "🎵" : "🎙️"} ${g.title || "Download"}`),
+    el("span", { class: "muted small" }, `${when} · ${parts.join(" · ")}`));
+  const actions = [];
+  if (g.folder) {
+    const open = el("button", { type: "button", class: "small-btn" }, "📂 Ordner öffnen");
+    open.addEventListener("click", () => api("/api/open", { path: g.folder }).catch((err) => alert(err.message)));
+    actions.push(open);
+  }
+  return el("details", { class: `job hist-group${failed ? " has-errors" : ""}` },
+    head,
+    actions.length ? el("div", { class: "task-actions job-actions" }, ...actions) : null,
+    el("div", { class: "hist-titles" }, ...g.entries.map(renderTitle)),
   );
 }
 
@@ -101,9 +119,10 @@ async function load(reset = true) {
     list.replaceChildren(el("div", { class: "empty" }, el("img", { src: "img/turtles/platzhalter.svg", alt: "", width: 72, height: 40, class: "turtle" }),
       el("span", {}, filters().toString() ? "Keine Einträge für diese Filter." : "Noch keine Einträge.")));
   }
-  list.append(...data.entries.map(renderEntry));
-  offset += data.entries.length;
-  $("#hist-count").textContent = `${data.total} ${data.total === 1 ? "Eintrag" : "Einträge"}`;
+  list.append(...data.groups.map(renderGroup));
+  offset += data.groups.length;
+  $("#hist-count").textContent = `${data.total} ${data.total === 1 ? "Download" : "Downloads"} · ` +
+    `${data.entries_total} ${data.entries_total === 1 ? "Titel" : "Titel"}`;
   $("#hist-more").hidden = offset >= data.total;
   $("#hist-csv").href = `/api/history.csv?${filters()}`;
 }

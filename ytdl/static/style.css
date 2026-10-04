@@ -276,10 +276,19 @@ tr.playing td { background: color-mix(in srgb, var(--primary) 16%, transparent);
 .hist-filter > label.grow { flex: 1 1 260px; }
 .hist-filter select { font: inherit; color: var(--text); background: var(--input); border: 2px solid var(--frame-soft); padding: 6px 8px; }
 .hist-actions { margin-left: auto; }
-.hist { padding: 10px 16px; margin: 0 0 14px; }
-.hist summary { display: grid; grid-template-columns: 150px 110px 1fr auto; gap: 12px; align-items: baseline; cursor: pointer; }
-.hist summary::-webkit-details-marker { display: none; }
-.hist[open] summary { margin-bottom: 8px; }
+.hist-group { padding: 12px 18px; margin: 0 0 18px; }
+.hist-group-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; align-items: baseline; cursor: pointer; }
+.hist-group-head::-webkit-details-marker, .hist-title summary::-webkit-details-marker { display: none; }
+.hist-group-head::before, .hist-title summary::before { content: "▸"; color: var(--frame); margin-right: 6px; }
+.hist-group[open] > .hist-group-head::before, .hist-title[open] > summary::before { content: "▾"; }
+.hist-group-title { font-family: var(--font-pixel); font-size: 1.05rem; flex: 1; min-width: 0; }
+.hist-group.has-errors .hist-group-head .muted { color: var(--err); }
+.hist-group[open] > .hist-group-head { margin-bottom: 8px; }
+.hist-titles { display: grid; }
+.hist-title { padding: 8px 0; border-top: 1px solid var(--panel-hi); }
+.hist-title summary { display: grid; grid-template-columns: auto 34px 1fr auto; gap: 10px; align-items: baseline; cursor: pointer; }
+.hist-title[open] summary { margin-bottom: 6px; }
+.hist-title > :not(summary) { margin-left: 52px; }
 .hist-label { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .status.überschrieben { color: var(--warn); }
 .status.übersprungen { color: var(--muted); }
@@ -288,7 +297,7 @@ tr.playing td { background: color-mix(in srgb, var(--primary) 16%, transparent);
 .hist-tags td { border: 0; padding: 2px 0; }
 .hist-more { justify-content: center; }
 .hist-filter + .downloads { margin-top: 30px; }
-.hist .task-actions a { color: var(--primary); align-self: center; font-size: .88rem; }
+.hist-title .task-actions a { color: var(--primary); align-self: center; font-size: .88rem; }
 
 /* Konflikt-Dialog */
 dialog { color: var(--text); border: 0; padding: 0; max-width: min(720px, calc(100vw - 32px)); width: 100%; }
@@ -311,8 +320,9 @@ dialog::backdrop { background: rgba(5, 8, 15, .7); }
   .conflict { grid-template-columns: 1fr; }
   .conflict select { grid-row: auto; grid-column: 1; }
   .settings-grid { grid-template-columns: 1fr; }
-  .hist summary { grid-template-columns: 1fr auto; }
-  .hist-when, .hist-album { grid-column: 1 / -1; }
+  .hist-title summary { grid-template-columns: auto 1fr auto; }
+  .hist-nr { display: none; }
+  .hist-title > :not(summary) { margin-left: 18px; }
   .masthead { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {

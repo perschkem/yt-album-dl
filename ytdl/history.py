@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -22,10 +23,12 @@ class History:
         self._lock = threading.Lock()
 
     def record(self, item: Item, result: str, *, path: str = "", error: str = "", attempts: int = 1,
-               audio_format: str = "", bitrate: int | None = None) -> dict:
+               audio_format: str = "", bitrate: int | None = None, job_id: str = "", job_title: str = "") -> dict:
         file = Path(path) if path else None
         entry = {
             "ts": time.time(),
+            "job_id": job_id,
+            "job_title": job_title,
             "result": result,
             "mode": item.mode,
             "format": audio_format,
@@ -87,6 +90,38 @@ class History:
         for entry in page:
             entry["exists"] = bool(entry.get("path")) and Path(entry["path"]).exists()
         return {"total": len(matches), "entries": page}
+
+    def query_groups(self, q: str = "", mode: str = "", result: str = "", since: float | None = None,
+                     limit: int = 20, offset: int = 0) -> dict:
+        """Wie query(), aber nach Download (Job) gruppiert – neueste Downloads zuerst, Titel in Job-Reihenfolge.
+        Ältere Einträge ohne Job-ID bilden jeweils eine eigene Gruppe."""
+        entries = self.query(q=q, mode=mode, result=result, since=since, limit=10**9)["entries"]
+        groups: dict[str, dict] = {}
+        for i, e in enumerate(entries):  # neueste zuerst
+            key = e.get("job_id") or f"einzeln-{i}"
+            group = groups.get(key)
+            if group is None:
+                t = e.get("tags", {})
+                group = groups[key] = {
+                    "id": key,
+                    "title": e.get("job_title") or t.get("album") or " - ".join(filter(None, (t.get("artist"), t.get("title")))),
+                    "mode": e.get("mode"), "format": e.get("format"), "ts": e.get("ts", 0), "entries": [],
+                }
+            group["entries"].append(e)
+        result_groups = []
+        for group in groups.values():
+            group["entries"].sort(key=lambda e: (e.get("tags", {}).get("track_no") or 0, e.get("ts", 0)))
+            counts: dict[str, int] = {}
+            for e in group["entries"]:
+                counts[e["result"]] = counts.get(e["result"], 0) + 1
+            existing = [e["path"] for e in group["entries"] if e.get("exists")]
+            folder = existing[0] if len(existing) == 1 else (
+                os.path.commonpath([str(Path(p).parent) for p in existing]) if existing else "")
+            group.update(count=len(group["entries"]), counts=counts, folder=folder,
+                         win_folder=to_windows_path(Path(folder)) if folder else "")
+            result_groups.append(group)
+        return {"total": len(result_groups), "entries_total": len(entries),
+                "groups": result_groups[offset:offset + limit]}
 
     def knows_path(self, path: Path) -> bool:
         """Für „Im Ordner öffnen“: Pfade aus der Historie dürfen geöffnet werden (auch aus früheren Zielordnern)."""
