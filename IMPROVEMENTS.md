@@ -55,3 +55,62 @@ Was wann wohin geladen wurde, ist nicht nachvollziehbar, und die Job-Liste geht 
   nicht mehr existiert.
 - Die Historie ergänzt das Archiv, ersetzt es aber nicht. Das Archiv bleibt die schnelle Prüfung auf
   „schon geladen“.
+
+## Ein Fortschrittsbalken pro Titel
+
+**Ist-Zustand:** Laden, Konvertieren und Taggen haben jeweils einen eigenen Fortschritt von 0–100 %.
+Der Balken läuft also bis zum Ende, springt auf 0 zurück und beginnt von vorn.
+
+**Idee:** Ein durchgehender Balken pro Titel. Die Stufen bekommen feste Anteile, z.B. Laden 0–70 %,
+Umwandeln und Taggen 70–100 %. Album-Schnitte laufen einmal von 0 bis 100 %. Bei „wartet auf Konvertierung“
+bleibt der Balken bei 70 % stehen. Bei einem neuen Versuch geht er nur auf den Anfang der aktuellen Stufe zurück.
+
+*Vorarbeit liegt lokal im Git-Stash „Vorarbeit: ein Fortschrittsbalken …“ (inkl. Tests).*
+
+## Zusammenfassung über der Download-Liste
+
+Über der Liste eine Zeile mit dem Gesamtstand, z.B.:
+- „✓ Alle Downloads fertig“
+- „⚠ Alle Downloads abgeschlossen · 2 Fehler“
+- „⏳ 3 von 7 fertig · 4 laufen · 1 übersprungen“, solange etwas läuft, mit einem Gesamtbalken
+
+*Vorarbeit liegt im selben Git-Stash.*
+
+## Kleine Schrift ohne Pixel-Schrift
+
+Die Pixel-Schrift ist bei kleinen Größen schwer lesbar. Sie soll nur noch für Überschriften und normale
+Buttons verwendet werden. Status, Tabellenköpfe, Feldbeschriftungen, Schrittprotokoll, kleine Buttons und
+Hinweise bekommen die normale Schrift.
+
+*Vorarbeit liegt im selben Git-Stash.*
+
+## Album-Art per URL
+
+**Ist-Zustand:** Als Cover dient immer das YouTube-Vorschaubild (mittig quadratisch zugeschnitten).
+
+**Idee:**
+- Feld „Cover-URL“ in der Playlist-Vorschau (für alle Titel) und im Album-Editor. Optional auch pro Titel
+  in der normalen Vorschau.
+- Der Server lädt das Bild, prüft, ob es wirklich ein Bild ist (Typ, Größe, max. ~10 MB), und nutzt es statt
+  des Vorschaubilds. Quadratisch zuschneiden nur auf Wunsch, da echte Cover meist schon quadratisch sind.
+- Vorschau des Covers direkt neben dem Feld. Lässt sich das Bild nicht laden, kommt eine verständliche
+  Fehlermeldung und das Vorschaubild bleibt.
+- Optional: Bild per Drag & Drop oder Datei-Upload statt URL.
+
+## „Zurücksetzen“-Knopf für Tags
+
+Wenn man sich bei den Tags komplett vertan hat:
+- Pro Titel ein Knopf „↺ Zurücksetzen“, der Interpret, Titel, Album, Tracknummer, Jahr usw. auf die
+  ursprünglich erkannten Werte zurücksetzt
+- Dazu ein „Alle zurücksetzen“ für die ganze Vorschau bzw. den ganzen Album-Editor (inkl. Album-Feldern,
+  Sampler-Haken und Grenzen aus der Analyse), mit Rückfrage
+- Umsetzung: Beim Prüfen bzw. bei der Analyse eine unveränderte Kopie der erkannten Werte merken.
+  Geänderte Felder dezent markieren, damit man sieht, was von Hand angepasst wurde.
+
+## Breitere Eingabefelder
+
+Die Felder für Interpret, Titel und Album sind in den Tabellen zu schmal, längere Titel werden abgeschnitten.
+- Tabellen-Spalten für Interpret/Titel/Album breiter, z.B. mit Mindestbreite ~220 px. Nur schmale Spalten
+  (Nr., Jahr, Dauer) bleiben schmal.
+- Die Seite insgesamt breiter nutzen (aktuell max. 1100 px), z.B. bis ~1400 px auf großen Bildschirmen
+- Optional: Feld beim Fokussieren ausklappen oder vollen Text als Tooltip anzeigen
