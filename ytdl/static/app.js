@@ -520,8 +520,9 @@ function renderSummary(jobs) {
   }
   box.className = `jobs-summary ${running ? "running" : failed ? "failed" : "done"}`;
   const avg = tasks.reduce((sum, t) => sum + (["fehler", "übersprungen"].includes(t.status) ? 100 : t.progress), 0) / tasks.length;
-  box.replaceChildren(el("span", { class: "summary-icon" }, icon), el("span", {}, text),
-    running ? progressBar(avg) : null);
+  // replaceChildren filtert null nicht (würde als Text „null“ erscheinen) – deshalb bedingt anhängen
+  box.replaceChildren(el("span", { class: "summary-icon" }, icon), el("span", {}, text));
+  if (running) box.append(progressBar(avg));
 }
 
 function renderJobs(jobs) {
@@ -534,7 +535,6 @@ function renderJobs(jobs) {
   }
   $("#jobs").replaceChildren(...jobs.map((job) => {
     const head = [];
-    if (job.folder) head.push(button("📂 Ordner öffnen", () => openPath(job.folder)));
     if (job.failed) head.push(button(`↻ ${job.failed} fehlgeschlagene wiederholen`, () => retry(job.id), { cls: "small-btn" }));
     const counter = `${job.done}/${job.total}` + (job.failed ? ` · ${job.failed} Fehler` : "") +
       (job.skipped ? ` · ${job.skipped} übersprungen` : "") + ` · ${(job.audio_format || "").toUpperCase()}`;
