@@ -39,38 +39,25 @@ Im Code bereits verwendet: `pruefen` (Prüfen, Analyse, Konflikt-Dialog) und `le
 - Lade-Spinner durch eine animierte Schildkröte ersetzen (z.B. Kopf ein-/ausfahren, 2–4 Frames)
 - Logo im Kopfbereich, Favicon als vereinfachter Schildkrötenkopf (16/32 px)
 
-## Schildkröte je Situation
+## Schildkröten-Bilder
+
+**Entscheidung:** Jeder Hauptbereich der Oberfläche bekommt eine eigene Schildkröte – mehr Bilder braucht es
+nicht. Alles andere (Fortschrittsbalken, Ladeanzeigen in Schritten, leere Liste) nutzt weiter die kleine
+Pixel-Schildkröte `ytdl/static/img/turtles/platzhalter.svg`.
 
 Die Bilder kommen wegen des Rate-Limits des Bild-Tools nach und nach. ✅ = vorhanden, ⏳ = noch zu erstellen.
-Neue Bilder hier abhaken.
 
-| Status | Situation in der App | Schildkröte | Wo |
-|---|---|---|---|
-| ✅ | Prüfen / Analyse läuft | prüft mit Lupe (`docs/turtles/pruefen.webp`) | Schrittprotokoll beim Prüfen |
-| ⏳ | Leere Download-Liste | sitzt vor leerer Plattenkiste und wartet | „Noch keine Downloads“ |
-| ⏳ | Download läuft | trägt einen Stapel Platten auf dem Panzer | Job-Karte, Fortschrittsbalken |
-| ⏳ | Konvertieren | rührt in einem Kessel, aus dem Noten aufsteigen | Status „konvertiert“ |
-| ⏳ | Album aufteilen / Schneiden | schneidet mit großer Schere eine Schallplatte in Stücke | Album-Editor, Status „schneidet“ |
-| ⏳ | Taggen | klebt Etiketten auf Platten | Status „taggt“ |
-| ⏳ | OCR / Trackliste im Bild | liest mit Brille ein großes Plakat mit Zeitstempeln | OCR-Schritt |
-| ⏳ | Kommentare durchsuchen | blättert durch einen Stapel Sprechblasen | Kommentar-Schritt |
-| ⏳ | Pausen erkennen | lauscht mit Hörrohr an einer Wellenform | Pausen-Schritt |
-| ⏳ | Neuer Versuch (Backoff) | schläft mit „zZz“ neben einer Sanduhr | Status „neuer Versuch in 8 s“ |
-| ⏳ | YouTube drosselt (429) | steht im Stau vor einem Tempolimit-Schild | Hinweis bei Drosselung |
-| ⏳ | Fehler | liegt hilflos auf dem Rücken | Fehlermeldungen |
-| ⏳ | Fertig | hört entspannt Musik, Daumen hoch | abgeschlossener Job |
-| ⏳ | Im Ordner öffnen | schaut aus einem Ordner heraus | Button-Icon |
-| ⏳ | Liste leeren | fegt mit einem Besen | „Liste leeren“-Button |
-| ⏳ | Modus Musik | spielt Gitarre | Modus-Umschalter |
-| ⏳ | Modus Podcast | spricht in ein Mikrofon | Modus-Umschalter |
-| ⏳ | Album-Editor / Wellenform | steht als DJ am Plattenspieler | Editor-Kopf |
+| Status | Bereich | Schildkröte | Wo sie erscheint | Datei |
+|---|---|---|---|---|
+| ✅ | **Prüfen** | prüft mit Lupe | Ladeanzeige beim Prüfen/Analysieren, Konflikt-Dialog | `pruefen.webp` |
+| ⏳ | **Downloads** | z.B. trägt einen Stapel Platten auf dem Panzer | neben der Überschrift „Downloads“ | `downloads.webp` |
+| ⏳ | **Historie** | z.B. blättert in einem dicken Plattenarchiv / Logbuch | im Kopf der Seite „Historie“ | `historie.webp` |
 
 ## Anforderungen an die Bilder
 
-Damit alle Bilder einheitlich wirken:
-- Stil wie Logo und `pruefen.webp`: gleiche Schildkröte, Pixel-Art, gleiche Farben
-- **Transparenter Hintergrund** (PNG oder WebP), **ohne** runden Rahmen. Den Rahmen kann das CSS
-  zeichnen, so passt die Figur auch in Buttons und Zeilen
-- Quadratisch, 512×512 px. Wird für die Anzeige verkleinert (64–160 px) bzw. für Icons auf 32 px
-- Für Animationen (Spinner, laufende Schildkröte): 2–4 Einzelbilder derselben Pose
-- Ablage in `ytdl/static/img/turtles/`, Dateinamen nach Situation (`download.png`, `fehler.png` …)
+Damit die Bilder zusammenpassen:
+- Stil wie Logo und `pruefen.webp`: gleiche Schildkröte, Pixel-Art, gleiche Farben, runder Rahmen wie beim
+  Prüf-Bild
+- Quadratisch, mind. 512×512 px (wird auf ca. 96–140 px verkleinert angezeigt)
+- Als PNG oder WebP nach `ytdl/static/img/turtles/` legen (Dateiname siehe Tabelle) und in `TURTLES` in
+  `ytdl/static/app.js` eintragen, z.B. `downloads: { src: "img/turtles/downloads.webp", round: true }`
