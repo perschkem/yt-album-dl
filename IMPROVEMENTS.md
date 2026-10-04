@@ -1,21 +1,17 @@
 # Verbesserungen
 
-## Umgesetzt (Oktober 2026)
+## Pipeline mit getrennten Pools
 
-- ✅ **Parallele Downloads** – `PARALLEL_DOWNLOADS` Worker für Downloads, `PARALLEL_CUTS` für Album-Schnitte.
-  Download und Konvertierung verschiedener Titel überlappen sich dadurch automatisch.
-- ✅ **Exponentieller Backoff pro Titel** – 2 s, 4 s, 8 s … max. 2 Min., ±20 % Jitter; wartende Titel blockieren
-  keinen Worker; nach HTTP 429 vorübergehend nur ein Download; dauerhafte Fehler werden nicht wiederholt
-- ✅ **Download-Retry** – automatisch (`MAX_RETRIES`) und per Button pro Titel bzw. „Fehlgeschlagene wiederholen“ pro Job
-- ✅ **„Im Ordner öffnen“** – pro Titel (Datei markiert) und pro Job; Windows-Pfade anzeigen und kopieren
-- ✅ **Ladeanzeigen mit Schrittprotokoll** – Prüfen, Album-Analyse, Pausensuche, Trackliste, Scan;
-  Fortschritt wo messbar; Fehler nennen den Schritt; Protokoll bleibt im Editor
-- ✅ **Album/Interpret für alle Titel** – auch beim Aufteilen; Sampler/Various Artists mit Compilation-Tag
-- ✅ **M4A ohne Umkodieren** (`AUDIO_FORMAT=m4a`) und parallele Fragment-Downloads
+Download (Netzwerk) und Konvertierung/Schnitt (CPU, ffmpeg) laufen pro Titel noch nacheinander im selben
+Worker. Die Parallelität über mehrere Titel gleicht das meist aus. Bei sehr großen Warteschlangen wären
+getrennte Pools besser: einer für Downloads, einer für ffmpeg (Größe ≈ CPU-Kerne).
 
-## Offen
+## Live-Updates per Server-Sent Events
 
-- **Pipeline mit getrennten Pools** für Netzwerk (Download) und CPU (ffmpeg) innerhalb eines Titels –
-  aktuell reicht die Parallelität über mehrere Titel; lohnt sich erst bei sehr großen Warteschlangen
-- **Live-Updates per Server-Sent Events** statt Abfrage im Sekundentakt
-- **Formatwahl pro Job in der Oberfläche** statt nur per `.env`
+Die Oberfläche fragt Jobs und Vorgänge aktuell jede Sekunde ab (`/api/jobs`, `/api/activities/{id}`).
+Mit Server-Sent Events kämen Fortschritt und Schritte sofort an, und es gäbe weniger Anfragen.
+
+## Formatwahl pro Job in der Oberfläche
+
+MP3 oder M4A lässt sich bisher nur global per `AUDIO_FORMAT` in `.env` einstellen. Besser wäre eine Auswahl
+in der Oberfläche pro Download bzw. Album, mit `.env` als Standardwert.
