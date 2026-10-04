@@ -11,11 +11,18 @@
 <main>
   <header class="masthead">
     <img src="img/logo.webp" alt="" class="logo" width="88" height="88">
-    <div>
+    <div class="masthead-text">
       <h1>yt-album-dl</h1>
       <p id="dirs" class="muted small"></p>
     </div>
+    <nav class="masthead-nav">
+      <button type="button" id="open-settings">⚙ Einstellungen</button>
+    </nav>
   </header>
+  <p id="folder-warning" class="warning" hidden>
+    <span id="folder-warning-text"></span>
+    <button type="button" class="small-btn" id="folder-warning-open">Einstellungen öffnen</button>
+  </p>
   <p id="ffmpeg-warning" class="warning" hidden>
     ffmpeg wurde nicht gefunden. Bitte in WSL installieren: <code>sudo apt install ffmpeg</code>
   </p>
@@ -196,6 +203,34 @@
     <div class="row spread">
       <button value="cancel" class="ghost">Abbrechen</button>
       <button value="ok" class="primary" id="conflict-ok">Weiter</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="settings-dialog">
+  <form id="settings-form" class="dialog-body">
+    <h2>Einstellungen</h2>
+    <p class="muted small">Wird in <code>.env</code> im Projektordner gespeichert und gilt sofort. Laufende Downloads behalten ihren Zielordner.</p>
+    <div class="settings-grid">
+      <label class="label" for="set-musik">Ordner für Musik</label>
+      <div><input id="set-musik" name="musik_dir" placeholder="z.B. D:\Musik oder /home/ich/Musik"><p class="field-error" data-for="musik_dir"></p></div>
+      <label class="label" for="set-podcast">Ordner für Podcasts / Audio</label>
+      <div><input id="set-podcast" name="podcast_dir" placeholder="z.B. D:\Podcasts"><p class="field-error" data-for="podcast_dir"></p></div>
+      <label class="label" for="set-format">Standardformat</label>
+      <div><select id="set-format" name="audio_format"><option value="mp3">MP3</option><option value="m4a">M4A (ohne Umkodieren)</option></select></div>
+      <label class="label" for="set-bitrate">MP3-Bitrate</label>
+      <div><select id="set-bitrate" name="bitrate"></select><p class="field-error" data-for="bitrate"></p></div>
+      <label class="label" for="set-downloads">Gleichzeitige Downloads</label>
+      <div><input id="set-downloads" name="parallel_downloads" type="number" min="1" max="16"><p class="field-error" data-for="parallel_downloads"></p></div>
+      <label class="label" for="set-cuts">Gleichzeitige Umwandlungen/Schnitte</label>
+      <div><input id="set-cuts" name="parallel_cuts" type="number" min="1" max="32"><p class="field-error" data-for="parallel_cuts"></p></div>
+      <label class="label" for="set-retries">Neue Versuche bei Fehlern</label>
+      <div><input id="set-retries" name="max_retries" type="number" min="0" max="10"><p class="field-error" data-for="max_retries"></p></div>
+    </div>
+    <p id="settings-error" class="error" hidden></p>
+    <div class="row spread">
+      <button type="button" class="ghost" id="settings-cancel">Abbrechen</button>
+      <button type="submit" class="primary" id="settings-save">Speichern</button>
     </div>
   </form>
 </dialog>

@@ -31,6 +31,7 @@ in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, n
 - 📂 **Im Ordner öffnen** – fertige Titel direkt im Windows-Explorer anzeigen
 - 🔁 **Keine Duplikate** – bereits geladene Titel werden erkannt, vorhandene Dateien nie überschrieben
 - 🪟 **WSL-freundlich** – Windows-Pfade wie `D:\Musik` funktionieren direkt
+- ⚙ **Einstellungen in der Oberfläche** – Zielordner, Format, Bitrate, Parallelität; gespeichert in `.env`
 
 ## Ablage
 
@@ -56,7 +57,7 @@ cd yt-album-dl
 sudo apt install ffmpeg
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Paketverwaltung, falls noch nicht vorhanden
 uv sync
-cp .env.example .env                               # Zielordner anpassen
+cp .env.example .env                               # optional – Ordner lassen sich auch in der Oberfläche setzen
 ```
 
 ## Benutzung
@@ -115,8 +116,8 @@ Im Editor kontrollierst du das Ergebnis:
 
 | Variable          | Standard                    | Bedeutung                                  |
 |-------------------|-----------------------------|--------------------------------------------|
-| `MUSIK_DIR`       | `D:\Musik`      | Zielordner Musik (Windows-Pfade erlaubt)   |
-| `PODCAST_DIR`     | `D:\Podcasts`   | Zielordner Podcasts/Audio                  |
+| `MUSIK_DIR`       | – (nicht gesetzt)           | Zielordner Musik (Windows-Pfade erlaubt)   |
+| `PODCAST_DIR`     | – (nicht gesetzt)           | Zielordner Podcasts/Audio                  |
 | `AUDIO_FORMAT`    | `mp3`                       | Standardformat `mp3`/`m4a` (in der Oberfläche änderbar) |
 | `BITRATE`         | `320`                       | MP3-Bitrate in kbit/s                      |
 | `PARALLEL_DOWNLOADS` | `3`                      | gleichzeitige Downloads                    |

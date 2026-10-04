@@ -10,28 +10,6 @@ Bis dahin zeigt die Oberfläche eine Pixel-Platzhalter-Schildkröte.
 Welche Bilder es gibt und welche fehlen, steht in **[DESIGN.md](DESIGN.md)**. Neues Bild einbauen:
 Datei nach `ytdl/static/img/turtles/` legen und in `TURTLES` in `ytdl/static/app.js` eintragen.
 
-## Zielordner in der Oberfläche einstellen – keine persönlichen Pfade im Repo
-
-**Ist-Zustand:** Die Ordner für Musik und Podcasts kommen aus `MUSIK_DIR`/`PODCAST_DIR` in `.env`.
-Persönliche Pfade stehen aber auch im Repo:
-- `ytdl/config.py` nutzt `D:\Musik` bzw. `…\Podcasts` als Standard, wenn nichts eingestellt ist
-- `.env.example` und die Konfig-Tabelle im README enthalten dieselben Pfade
-
-**Idee:**
-- **Keine Standardpfade im Code.** Ist nichts eingestellt, ist der Ordner leer bzw. „nicht gesetzt“.
-  `.env.example` und README nur mit neutralen Platzhaltern (z.B. `MUSIK_DIR=` mit Kommentar und Beispiel
-  `D:\Musik`). Beispiel-Pfade in Tests sind neutral oder bleiben reine Umwandlungsbeispiele.
-- **Einstellungen in der Oberfläche:** ein Bereich „⚙ Einstellungen“, in dem man die Ordner für Musik und
-  Podcasts eintragen kann. Windows-Pfade (`E:\…`) sind erlaubt und werden wie bisher umgewandelt. Beim
-  Speichern wird geprüft, ob der Ordner existiert bzw. angelegt werden kann.
-- **Speichern in `.env`:** Geänderte Werte schreibt der Server in `.env`. Andere Zeilen und Kommentare
-  bleiben erhalten, nur die betroffenen Variablen werden ersetzt oder ergänzt. `.env` steht schon in
-  `.gitignore`, landet also nie im Repo. Neuer Endpunkt, z.B. `PUT /api/settings`.
-- Die Einstellung gilt sofort, ohne Neustart. Laufende Downloads behalten ihren ursprünglichen Zielordner.
-- **Solange kein Ordner gesetzt ist,** zeigt die Oberfläche einen Hinweis mit Link zu den Einstellungen,
-  und „Herunterladen“ bzw. „Schneiden & speichern“ ist gesperrt.
-- Optional dieselben Einstellungen für Standardformat, Bitrate und Parallelität.
-
 ## Download-Historie
 
 **Ist-Zustand:** Es gibt nur das Archiv (`data/archive-<modus>.txt`) mit Video-IDs gegen doppelte Downloads.

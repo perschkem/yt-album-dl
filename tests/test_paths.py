@@ -39,7 +39,7 @@ def test_podcast_path():
 
 
 def test_windows_path_conversion():
-    assert to_local_path(r"D:\Musik") == Path("/mnt/d/Musik/Musik")
+    assert to_local_path(r"D:\Musik\Alben") == Path("/mnt/d/Musik/Alben")
     assert to_local_path("D:/Musik/") == Path("/mnt/d/Musik")
     assert to_local_path("/srv/musik") == Path("/srv/musik")
 

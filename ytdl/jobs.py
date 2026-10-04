@@ -149,14 +149,31 @@ class JobManager:
         self._active = {NET: 0, CPU: 0}
         self._throttle_until = 0.0
         self._cond = threading.Condition()
-        for n in range(cfg.parallel_downloads + cfg.parallel_cuts):
-            threading.Thread(target=self._worker, daemon=True, name=f"ytdl-worker-{n}").start()
+        self._workers = 0
+        self.ensure_workers()
+
+    def ensure_workers(self) -> None:
+        """Genug Worker-Threads für die aktuellen Limits starten (z.B. nach Änderung in den Einstellungen).
+        Weniger Parallelität greift über die Limits in _take(), überzählige Threads warten nur."""
+        with self._cond:
+            needed = self.cfg.parallel_downloads + self.cfg.parallel_cuts
+            while self._workers < needed:
+                threading.Thread(target=self._worker, daemon=True, name=f"ytdl-worker-{self._workers}").start()
+                self._workers += 1
+            self._cond.notify_all()
+
+    def known_roots(self) -> list[Path]:
+        """Zielordner aller Jobs in der Liste (auch solche, die vor einer Ordner-Änderung gestartet wurden)."""
+        with self._cond:
+            return [Path(r) for r in {t.item.target_root for j in self.jobs for t in j.tasks} if r]
 
     @property
     def max_attempts(self) -> int:
         return self.cfg.max_retries + 1
 
     def submit(self, title: str, mode: str, items: list[Item]) -> Job:
+        for item in items:  # Zielordner jetzt festhalten (wirft MissingFolder, wenn keiner eingestellt ist)
+            item.target_root = item.target_root or str(self.cfg.root(item.mode))
         tasks = [Task(item=i, stage=CUT if i.start is not None else FETCH) for i in items]
         fmt = items[0].audio_format if items else ""
         job = Job(id=uuid.uuid4().hex[:8], title=title, mode=mode, tasks=tasks, max_attempts=self.max_attempts,

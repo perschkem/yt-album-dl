@@ -6,16 +6,17 @@ from pathlib import Path
 
 import asyncio
 import json
+import os
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import albumvideo
 from .activity import ActivityManager
-from .config import load_config
+from .config import MissingFolder, load_config, to_local_path, update_env_file
 from .covers import CoverError, check_cover
 from .downloader import conflicts, ffmpeg_available, probe
 from .explorer import is_allowed, open_in_file_manager
@@ -28,7 +29,13 @@ STATIC_DIR = Path(__file__).parent / "static"
 cfg = load_config()
 manager = JobManager(cfg)
 activities = ActivityManager()
-app = FastAPI(title="ytdl")
+app = FastAPI(title="yt-album-dl")
+
+
+@app.exception_handler(MissingFolder)
+async def missing_folder(request: Request, exc: MissingFolder) -> JSONResponse:
+    """Kein Zielordner eingestellt → verständliche 400-Meldung statt Serverfehler."""
+    return JSONResponse(status_code=400, content={"detail": str(exc), "missing_folder": True})
 
 
 class ProbeRequest(BaseModel):
@@ -98,13 +105,96 @@ def _items(req: JobRequest) -> list[Item]:
 @app.get("/api/config")
 def get_config() -> dict:
     return {
-        "musik_dir": to_windows_path(cfg.musik_dir),
-        "podcast_dir": to_windows_path(cfg.podcast_dir),
+        "musik_dir": to_windows_path(cfg.musik_dir) if cfg.musik_dir else "",
+        "podcast_dir": to_windows_path(cfg.podcast_dir) if cfg.podcast_dir else "",
         "audio_format": cfg.audio_format,
         "parallel_downloads": cfg.parallel_downloads,
         "bitrate": cfg.bitrate,
         "ffmpeg": ffmpeg_available(cfg),
     }
+
+
+# ---------- Einstellungen (werden in .env gespeichert) ----------
+
+BITRATES = (128, 160, 192, 256, 320)
+
+
+class SettingsRequest(BaseModel):
+    musik_dir: str | None = None
+    podcast_dir: str | None = None
+    audio_format: str | None = None
+    bitrate: int | None = None
+    parallel_downloads: int | None = None
+    parallel_cuts: int | None = None
+    max_retries: int | None = None
+
+
+@app.get("/api/settings")
+def get_settings() -> dict:
+    return {
+        # so, wie sie eingetragen wurden (z.B. Windows-Pfad), damit man sie wiedererkennt
+        "musik_dir": os.getenv("MUSIK_DIR", "").strip(),
+        "podcast_dir": os.getenv("PODCAST_DIR", "").strip(),
+        "audio_format": cfg.audio_format,
+        "bitrate": cfg.bitrate,
+        "parallel_downloads": cfg.parallel_downloads,
+        "parallel_cuts": cfg.parallel_cuts,
+        "max_retries": cfg.max_retries,
+        "bitrates": BITRATES,
+    }
+
+
+def _check_folder(value: str) -> tuple[Path | None, str | None]:
+    """Leer = nicht eingestellt. Sonst muss der Ordner existieren oder sich anlegen lassen und beschreibbar sein."""
+    if not value.strip():
+        return None, None
+    path = to_local_path(value)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return None, f"Ordner existiert nicht und lässt sich nicht anlegen ({exc.strerror or exc})"
+    if not os.access(path, os.W_OK):
+        return None, "Ordner ist nicht beschreibbar"
+    return path, None
+
+
+@app.put("/api/settings")
+def put_settings(req: SettingsRequest) -> dict:
+    errors: dict[str, str] = {}
+    env: dict[str, str] = {}
+    changes: dict = {}
+    for field, key in (("musik_dir", "MUSIK_DIR"), ("podcast_dir", "PODCAST_DIR")):
+        value = getattr(req, field)
+        if value is None:
+            continue
+        path, error = _check_folder(value)
+        if error:
+            errors[field] = error
+        else:
+            env[key], changes[field] = value.strip(), path
+    numbers = {"bitrate": ("BITRATE", BITRATES), "parallel_downloads": ("PARALLEL_DOWNLOADS", range(1, 17)),
+               "parallel_cuts": ("PARALLEL_CUTS", range(1, 33)), "max_retries": ("MAX_RETRIES", range(0, 11))}
+    for field, (key, allowed) in numbers.items():
+        value = getattr(req, field)
+        if value is None:
+            continue
+        if value not in allowed:
+            errors[field] = f"Erlaubt: {min(allowed)}–{max(allowed)}" if isinstance(allowed, range) else \
+                f"Erlaubt: {', '.join(map(str, allowed))}"
+        else:
+            env[key], changes[field] = str(value), value
+    if req.audio_format is not None:
+        if req.audio_format not in ("mp3", "m4a"):
+            errors["audio_format"] = "mp3 oder m4a"
+        else:
+            env["AUDIO_FORMAT"], changes["audio_format"] = req.audio_format, req.audio_format
+    if errors:
+        raise HTTPException(400, {"message": "Einstellungen nicht gespeichert", "fields": errors})
+    update_env_file(env)
+    for field, value in changes.items():  # sofort wirksam, ohne Neustart
+        setattr(cfg, field, value)
+    manager.ensure_workers()
+    return get_settings()
 
 
 def _start(kind: str, func, *args) -> dict:
@@ -214,7 +304,7 @@ class OpenRequest(BaseModel):
 @app.post("/api/open")
 def open_path(req: OpenRequest) -> dict:
     path = Path(req.path)
-    if not is_allowed(path, [cfg.musik_dir, cfg.podcast_dir]):
+    if not is_allowed(path, cfg.roots() + manager.known_roots()):
         raise HTTPException(403, "Nur Dateien in den Musik-/Podcast-Ordnern können geöffnet werden")
     try:
         return {"opened": open_in_file_manager(path)}
@@ -291,9 +381,9 @@ app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 
 def main() -> None:
-    print(f"ytdl läuft auf http://localhost:{cfg.port}")
-    print(f"  Musik:    {cfg.musik_dir}")
-    print(f"  Podcasts: {cfg.podcast_dir}")
+    print(f"yt-album-dl läuft auf http://localhost:{cfg.port}")
+    print(f"  Musik:    {cfg.musik_dir or '– nicht eingestellt (⚙ Einstellungen) –'}")
+    print(f"  Podcasts: {cfg.podcast_dir or '– nicht eingestellt (⚙ Einstellungen) –'}")
     if not ffmpeg_available(cfg):
         print("  WARNUNG: ffmpeg nicht gefunden – bitte installieren: sudo apt install ffmpeg")
     uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="warning")

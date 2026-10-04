@@ -68,6 +68,8 @@ class Item:
     # Eigenes Cover statt YouTube-Vorschaubild; cover_crop = mittig quadratisch zuschneiden
     cover_url: str = ""
     cover_crop: bool = False
+    # Zielordner zum Zeitpunkt des Auftrags – spätere Änderungen in den Einstellungen betreffen laufende Jobs nicht
+    target_root: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)

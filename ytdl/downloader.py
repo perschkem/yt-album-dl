@@ -157,7 +157,8 @@ def audio_format(item: Item, cfg: Config) -> str:
 
 def final_path(item: Item, cfg: Config) -> Path:
     """Zielpfad inkl. Endung des gewählten Formats (ohne Kollisionsbehandlung)."""
-    return target_path(item, cfg.musik_dir, cfg.podcast_dir).with_suffix(f".{audio_format(item, cfg)}")
+    root = Path(item.target_root) if item.target_root else cfg.root(item.mode)
+    return target_path(item, root, root).with_suffix(f".{audio_format(item, cfg)}")
 
 
 def place(src: Path, item: Item, cfg: Config) -> Path:

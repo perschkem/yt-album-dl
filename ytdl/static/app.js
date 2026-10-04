@@ -34,7 +34,13 @@ async function api(path, body, method) {
     body: body ? JSON.stringify(body) : undefined,
   } : undefined);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || `Fehler ${res.status}`);
+  if (!res.ok) {
+    const detail = data.detail;
+    const err = new Error((typeof detail === "object" ? detail?.message : detail) || `Fehler ${res.status}`);
+    err.fields = typeof detail === "object" ? detail?.fields || {} : {};
+    err.missingFolder = !!data.missing_folder;
+    throw err;
+  }
   return data;
 }
 
@@ -108,13 +114,77 @@ async function runActivity(path, body, box) {
 async function loadConfig() {
   const cfg = await api("/api/config");
   bitrate = cfg.bitrate;
+  folders = { musik: cfg.musik_dir, podcast: cfg.podcast_dir };
   document.querySelector(`input[name=fmt][value=${cfg.audio_format}]`).checked = true;
-  $("#dirs").textContent = `Musik: ${cfg.musik_dir} · Podcasts: ${cfg.podcast_dir} · ` +
+  const show = (dir) => dir || "nicht eingestellt";
+  $("#dirs").textContent = `Musik: ${show(cfg.musik_dir)} · Podcasts: ${show(cfg.podcast_dir)} · ` +
     `${cfg.parallel_downloads} Downloads gleichzeitig`;
+  updateFolderState();
   $("#ffmpeg-warning").hidden = cfg.ffmpeg;
 }
 
 let bitrate = 320;
+let folders = { musik: "", podcast: "" };
+
+/** Hinweis + gesperrte Buttons, solange für den gewählten Modus kein Zielordner eingestellt ist. */
+function updateFolderState() {
+  const missing = [!folders.musik && "Musik", !folders.podcast && "Podcasts"].filter(Boolean);
+  $("#folder-warning").hidden = !missing.length;
+  $("#folder-warning-text").textContent = missing.length
+    ? `Kein Zielordner für ${missing.join(" und ")} eingestellt – Herunterladen ist bis dahin gesperrt.` : "";
+  const previewMode = preview?.mode || selectedMode();
+  const download = $("#download-btn");
+  download.disabled = !folders[previewMode];
+  download.title = folders[previewMode] ? "" : "Erst unter ⚙ Einstellungen einen Ordner festlegen";
+  const cut = $("#album-cut");
+  cut.disabled = !folders.musik;
+  cut.title = folders.musik ? "" : "Erst unter ⚙ Einstellungen einen Ordner für Musik festlegen";
+}
+
+document.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", updateFolderState));
+
+// ---------- Einstellungen ----------
+
+const settingsDialog = $("#settings-dialog");
+
+async function openSettings() {
+  const s = await api("/api/settings");
+  const form = $("#settings-form");
+  $("#set-bitrate").replaceChildren(...s.bitrates.map((b) => el("option", { value: b }, `${b} kbit/s`)));
+  for (const [name, value] of Object.entries(s)) {
+    if (form.elements[name]) form.elements[name].value = value;
+  }
+  form.querySelectorAll(".field-error").forEach((p) => (p.textContent = ""));
+  $("#settings-error").hidden = true;
+  settingsDialog.showModal();
+}
+
+$("#open-settings").addEventListener("click", openSettings);
+$("#folder-warning-open").addEventListener("click", openSettings);
+$("#settings-cancel").addEventListener("click", () => settingsDialog.close());
+
+$("#settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const body = Object.fromEntries(new FormData(form));
+  for (const key of ["bitrate", "parallel_downloads", "parallel_cuts", "max_retries"]) body[key] = Number(body[key]);
+  form.querySelectorAll(".field-error").forEach((p) => (p.textContent = ""));
+  $("#settings-save").disabled = true;
+  try {
+    await api("/api/settings", body, "PUT");
+    settingsDialog.close();
+    await loadConfig();
+  } catch (err) {
+    for (const [field, message] of Object.entries(err.fields || {})) {
+      const slot = form.querySelector(`.field-error[data-for=${field}]`);
+      if (slot) slot.textContent = message;
+    }
+    $("#settings-error").textContent = err.message;
+    $("#settings-error").hidden = false;
+  } finally {
+    $("#settings-save").disabled = false;
+  }
+});
 
 function selectedMode() {
   return document.querySelector("input[name=mode]:checked").value;
@@ -142,6 +212,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
     $("#album").hidden = true;
     $("#album-hint").hidden = !data.album_video;
     renderPreview(data.is_playlist);
+    updateFolderState();
   } catch (err) {
     $("#probe-error").textContent = err.message;
     $("#probe-error").hidden = false;
