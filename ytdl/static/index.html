@@ -27,6 +27,7 @@
       </div>
       <button type="submit" id="probe-btn">Prüfen</button>
     </div>
+    <div id="probe-steps" class="steps" hidden></div>
     <p id="probe-error" class="error" hidden></p>
   </form>
 
@@ -66,7 +67,7 @@
       <h2>Album aufteilen</h2>
       <span id="album-source" class="muted"></span>
     </div>
-    <p id="album-busy" class="busy" hidden></p>
+    <div id="album-steps" class="steps" hidden></div>
     <p id="album-error" class="error" hidden></p>
 
     <div id="album-body" hidden>
@@ -77,6 +78,10 @@
         <label>Genre <input id="album-genre"></label>
       </div>
       <p id="album-hints" class="muted" hidden></p>
+      <details class="album-log">
+        <summary>Wie wurden die Grenzen gefunden?</summary>
+        <div id="album-log-steps" class="steps"></div>
+      </details>
 
       <audio id="album-audio" controls preload="metadata"></audio>
       <canvas id="wave" height="110" title="Klicken: dorthin springen · Markierung ziehen: Grenze verschieben"></canvas>

@@ -38,6 +38,31 @@ async function api(path, body) {
   return data;
 }
 
+const STEP_ICONS = { "läuft": "", "fertig": "✓", "nichts gefunden": "✗", "übersprungen": "–", "fehler": "⚠" };
+
+function renderSteps(box, steps) {
+  box.hidden = !steps.length;
+  box.replaceChildren(...steps.map((s) => el("div", { class: `step ${s.state.replace(" ", "-")}` },
+    el("span", { class: "step-icon" }, STEP_ICONS[s.state] ?? ""),
+    el("span", { class: "step-label" }, s.label),
+    s.detail ? el("span", { class: "step-detail" }, s.detail) : null,
+    s.state === "läuft" && s.progress != null
+      ? el("div", { class: "bar step-bar" }, el("div", { style: `width:${s.progress}%` })) : null,
+  )));
+}
+
+/** Startet einen Hintergrund-Vorgang und zeigt dessen Schritte live in `box`; liefert das Ergebnis. */
+async function runActivity(path, body, box) {
+  const { activity_id } = await api(path, body);
+  while (true) {
+    await new Promise((r) => setTimeout(r, 400));
+    const act = await api(`/api/activities/${activity_id}`);
+    renderSteps(box, act.steps);
+    if (act.status === "fertig") return { ...act.result, steps: act.result.steps || act.steps };
+    if (act.status === "fehler") throw new Error(act.error);
+  }
+}
+
 async function loadConfig() {
   const cfg = await api("/api/config");
   const fmtLabel = cfg.audio_format === "mp3" ? `MP3 ${cfg.bitrate} kbit/s` : "M4A";
@@ -55,10 +80,12 @@ $("#probe-form").addEventListener("submit", async (event) => {
   const btn = $("#probe-btn");
   const mode = selectedMode();
   btn.disabled = true;
-  btn.textContent = "Lade Infos …";
+  btn.textContent = "Prüfe …";
   $("#probe-error").hidden = true;
+  $("#preview").hidden = true;
   try {
-    const data = await api("/api/probe", { url: $("#url").value, mode });
+    const data = await runActivity("/api/probe", { url: $("#url").value, mode }, $("#probe-steps"));
+    $("#probe-steps").hidden = true;
     preview = { title: data.title, mode, url: $("#url").value.trim(),
       items: data.items.map((i) => ({ ...i, selected: !i.already })) };
     $("#album").hidden = true;
@@ -239,11 +266,10 @@ function parseTime(text) {
   return parts.reduce((acc, v) => acc * 60 + v, 0);
 }
 
-function albumBusy(message) {
-  $("#album-busy").textContent = message || "";
-  $("#album-busy").hidden = !message;
-  document.querySelectorAll("#album button").forEach((b) => (b.disabled = !!message));
-  if (message) $("#album-error").hidden = true;
+function albumBusy(busy) {
+  document.querySelectorAll("#album button").forEach((b) => (b.disabled = busy));
+  if (busy) $("#album-error").hidden = true;
+  else $("#album-steps").hidden = true;
 }
 
 function albumError(err) {
@@ -259,9 +285,10 @@ function trackEnd(i) {
   return i + 1 < album.tracks.length ? album.tracks[i + 1].start : album.duration;
 }
 
-function setTracks(result) {
+function setTracks(result, steps) {
   album.tracks = result.tracks.map((t) => ({ start: t.start, artist: t.artist, title: t.title }));
   $("#album-source").textContent = `Grenzen aus: ${result.source_label} · bitte kontrollieren`;
+  if (steps) renderSteps($("#album-log-steps"), steps);
   renderAlbum();
 }
 
@@ -270,9 +297,9 @@ $("#album-open").addEventListener("click", async () => {
   $("#album").hidden = false;
   $("#album-body").hidden = true;
   $("#album-source").textContent = "";
-  albumBusy("Lade Audio und suche Trackgrenzen (Kapitel, Beschreibung, Bild-OCR, Kommentare, Pausen) – dauert etwa eine Minute …");
+  albumBusy(true);
   try {
-    const data = await api("/api/album/analyze", { url: preview.url });
+    const data = await runActivity("/api/album/analyze", { url: preview.url }, $("#album-steps"));
     album = { id: data.id, duration: data.duration, peaks: data.peaks, tracks: [] };
     $("#album-name").value = data.album;
     $("#album-artist").value = data.artist;
@@ -281,11 +308,11 @@ $("#album-open").addEventListener("click", async () => {
     renderHints(data.hints || []);
     audio.src = data.audio_url;
     $("#album-body").hidden = false;
-    setTracks(data);
+    setTracks(data, data.steps);
   } catch (err) {
     albumError(err);
   } finally {
-    albumBusy("");
+    albumBusy(false);
   }
 });
 
@@ -422,29 +449,30 @@ $("#album-add").addEventListener("click", () => {
   renderAlbum();
 });
 
-async function albumAction(path, body, message) {
-  albumBusy(message);
+async function albumAction(path, body) {
+  albumBusy(true);
+  const box = $("#album-steps");
+  box.scrollIntoView({ block: "nearest", behavior: "smooth" });
   try {
-    setTracks(await api(`/api/album/${album.id}/${path}`, { ...body, artist: $("#album-artist").value }));
+    const result = await runActivity(`/api/album/${album.id}/${path}`,
+      { ...body, artist: $("#album-artist").value }, box);
+    setTracks(result, result.steps);
   } catch (err) {
     albumError(err);
   } finally {
-    albumBusy("");
+    albumBusy(false);
   }
 }
 
 $("#det-run").addEventListener("click", () => {
   const count = $("#det-count").value ? Number($("#det-count").value) : null;
-  albumAction("detect", { count, min_pause: Number($("#det-pause").value), sensitivity: Number($("#det-sens").value) },
-    "Suche Pausen …");
+  albumAction("detect", { count, min_pause: Number($("#det-pause").value), sensitivity: Number($("#det-sens").value) });
 });
-$("#det-text-run").addEventListener("click", () =>
-  albumAction("text", { text: $("#det-text").value }, "Übernehme Trackliste …"));
-$("#det-scan").addEventListener("click", () =>
-  albumAction("scan", {}, "Lade Video und lese Titeleinblendungen – das dauert einige Minuten …"));
+$("#det-text-run").addEventListener("click", () => albumAction("text", { text: $("#det-text").value }));
+$("#det-scan").addEventListener("click", () => albumAction("scan", {}));
 
 $("#album-cut").addEventListener("click", async () => {
-  albumBusy("Starte Schnitt …");
+  albumBusy(true);
   try {
     await api(`/api/album/${album.id}/jobs`, {
       album: $("#album-name").value, album_artist: $("#album-artist").value,
@@ -458,7 +486,7 @@ $("#album-cut").addEventListener("click", async () => {
   } catch (err) {
     albumError(err);
   } finally {
-    albumBusy("");
+    albumBusy(false);
   }
 });
 

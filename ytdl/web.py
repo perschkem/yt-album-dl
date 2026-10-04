@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import albumvideo
+from .activity import ActivityManager
 from .config import load_config
 from .downloader import ffmpeg_available, probe
 from .explorer import is_allowed, open_in_file_manager
@@ -22,6 +23,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 cfg = load_config()
 manager = JobManager(cfg)
+activities = ActivityManager()
 app = FastAPI(title="ytdl")
 
 
@@ -88,13 +90,23 @@ def get_config() -> dict:
     }
 
 
+def _start(kind: str, func, *args) -> dict:
+    """Startet einen Vorgang im Hintergrund; Fortschritt per GET /api/activities/{id}."""
+    return {"activity_id": activities.start(kind, lambda act: func(*args, activity=act)).id}
+
+
+@app.get("/api/activities/{activity_id}")
+def get_activity(activity_id: str) -> dict:
+    activity = activities.get(activity_id)
+    if activity is None:
+        raise HTTPException(404, "Vorgang nicht gefunden")
+    return activity.to_dict()
+
+
 @app.post("/api/probe")
 def post_probe(req: ProbeRequest) -> dict:
     _check_mode(req.mode)
-    try:
-        return probe(req.url.strip(), req.mode, cfg)
-    except Exception as exc:
-        raise HTTPException(400, str(exc).removeprefix("ERROR: ")) from exc
+    return _start("probe", probe, req.url.strip(), req.mode, cfg)
 
 
 @app.post("/api/jobs")
@@ -142,22 +154,26 @@ def retry_job(job_id: str, req: RetryRequest) -> dict:
 
 @app.post("/api/album/analyze")
 def album_analyze(req: AlbumAnalyzeRequest) -> dict:
-    return _album_call(albumvideo.analyze, req.url.strip(), cfg)
+    return _start("album-analyse", albumvideo.analyze, req.url.strip(), cfg)
 
 
 @app.post("/api/album/{video_id}/detect")
 def album_detect(video_id: str, req: AlbumDetectRequest) -> dict:
-    return _album_call(albumvideo.redetect, cfg, video_id, req.count, req.min_pause, req.sensitivity, req.artist)
+    _album_call(albumvideo.cache_dir, cfg, video_id)  # ID prüfen
+    return _start("album-pausen", albumvideo.redetect, cfg, video_id, req.count, req.min_pause,
+                  req.sensitivity, req.artist)
 
 
 @app.post("/api/album/{video_id}/text")
 def album_text(video_id: str, req: AlbumTextRequest) -> dict:
-    return _album_call(albumvideo.from_text, cfg, video_id, req.text, req.artist)
+    _album_call(albumvideo.cache_dir, cfg, video_id)
+    return _start("album-trackliste", albumvideo.from_text, cfg, video_id, req.text, req.artist)
 
 
 @app.post("/api/album/{video_id}/scan")
 def album_scan(video_id: str, req: AlbumScanRequest) -> dict:
-    return _album_call(albumvideo.scan_overlays, cfg, video_id, req.artist)
+    _album_call(albumvideo.cache_dir, cfg, video_id)
+    return _start("album-scan", albumvideo.scan_overlays, cfg, video_id, req.artist)
 
 
 @app.get("/api/album/{video_id}/audio")

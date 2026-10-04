@@ -6,6 +6,7 @@ import io
 import re
 import subprocess
 from collections import Counter
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 
@@ -66,10 +67,13 @@ def video_stream(info: dict, max_height: int = 720) -> tuple[str, dict] | None:
     return best["url"], best.get("http_headers") or {}
 
 
-def tracklist_from_frames(info: dict, duration: float, samples: int = 6) -> tuple[list[Segment], list[str]]:
+def tracklist_from_frames(info: dict, duration: float, samples: int = 6,
+                          on_progress: Callable[[int, int, int], None] | None = None
+                          ) -> tuple[list[Segment], list[str]]:
     """Sucht eine eingeblendete Trackliste mit Zeitstempeln in einigen Standbildern.
 
     Liefert (Segmente, übrige Textzeilen des besten Bildes – z.B. Interpretname als Hinweis).
+    on_progress(bild, von, gefundene_zeilen_mit_text) wird nach jedem Bild aufgerufen.
     """
     stream = video_stream(info)
     if not stream:
@@ -79,23 +83,31 @@ def tracklist_from_frames(info: dict, duration: float, samples: int = 6) -> tupl
     for i in range(samples):
         t = duration * (0.02 + 0.96 * i / max(1, samples - 1))
         frame = grab_frame(url, t, headers)
-        if frame is None:
+        lines = read_lines(frame) if frame is not None else []
+        if on_progress:
+            on_progress(i + 1, samples, len(lines))
+        if not lines:
             continue
-        lines = read_lines(frame)
         segments = parse_tracklist("\n".join(lines), duration)
         if len(segments) > len(best[0]):
             others = [line for line in lines if not _TIMESTAMP.search(line)]
             best = (segments, others)
+            if len(segments) >= 3:
+                break  # Trackliste gefunden – restliche Bilder nicht nötig
     return best
 
 
-def overlay_titles(video: Path, duration: float, step: float = 10.0) -> list[Segment]:
+def overlay_titles(video: Path, duration: float, step: float = 10.0,
+                   on_progress: Callable[[int, int], None] | None = None) -> list[Segment]:
     """Liest wechselnde Titeleinblendungen: alle `step` Sekunden ein Bild, Textwechsel = neuer Titel."""
     readings: list[tuple[float, list[str]]] = []
+    total = max(1, int(duration // step) + 1)
     t = 0.0
     while t < duration:
         frame = grab_frame(str(video), t, height=480)
         readings.append((t, read_lines(frame) if frame else []))
+        if on_progress:
+            on_progress(len(readings), total)
         t += step
     if not readings:
         return []

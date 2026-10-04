@@ -7,9 +7,12 @@ import shutil
 import tempfile
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from yt_dlp import YoutubeDL
+
+from .activity import Activity, NullActivity
 
 from .config import Config, load_config
 from .metadata import MUSIK, PODCAST, Item, apply_playlist, music_item, podcast_item
@@ -18,6 +21,7 @@ from .tagger import write_tags
 
 ProgressCallback = Callable[..., None]  # (Status, Prozent 0..100, Detailtext="")
 ALBUM_VIDEO_MIN_DURATION = 20 * 60  # Sekunden
+PROBE_WORKERS = 4  # Playlist-Einträge gleichzeitig abfragen
 
 
 def ffmpeg_available(cfg: Config) -> bool:
@@ -68,21 +72,57 @@ def is_album_video(info: dict) -> bool:
     )
 
 
-def probe(url: str, mode: str, cfg: Config) -> dict:
-    """Lädt nur die Metadaten (Einzelvideo oder alle Playlist-Einträge)."""
-    with YoutubeDL(_base_opts()) as ydl:
+def _entry_url(entry: dict) -> str:
+    url = entry.get("url") or entry.get("webpage_url") or ""
+    if url.startswith("http"):
+        return url
+    return f"https://www.youtube.com/watch?v={entry.get('id')}"
+
+
+def probe(url: str, mode: str, cfg: Config, activity: Activity | None = None) -> dict:
+    """Lädt nur die Metadaten (Einzelvideo oder alle Playlist-Einträge) – Schritte landen im Protokoll."""
+    act = activity or NullActivity()
+    step = act.step("Video-Infos laden")
+    with YoutubeDL({**_base_opts(), "extract_flat": "in_playlist"}) as ydl:
         info = ydl.extract_info(url, download=False)
     if not info:
         raise ValueError("Keine Informationen gefunden – ist die URL korrekt und das Video verfügbar?")
 
-    make = music_item if mode == MUSIK else podcast_item
     is_playlist = info.get("_type") == "playlist"
-    entries = [e for e in (info.get("entries") or []) if e] if is_playlist else [info]
+    if is_playlist:
+        flat = [e for e in (info.get("entries") or []) if e]
+        step.done(f"Playlist „{info.get('title') or ''}“ mit {len(flat)} Einträgen")
+        details = act.step("Details der Titel laden", f"0/{len(flat)}")
+        entries: list[dict | None] = [None] * len(flat)
+        finished = 0
+
+        def load(index: int) -> None:
+            with YoutubeDL(_base_opts()) as y:
+                entries[index] = y.extract_info(_entry_url(flat[index]), download=False)
+
+        with ThreadPoolExecutor(max_workers=PROBE_WORKERS) as pool:
+            for _ in as_completed(pool.submit(load, i) for i in range(len(flat))):
+                finished += 1
+                details.update(f"{finished}/{len(flat)}", finished / max(1, len(flat)) * 100)
+        missing = sum(e is None for e in entries)
+        entries = [e for e in entries if e]
+        details.done(f"{len(entries)} Titel" + (f", {missing} nicht verfügbar" if missing else ""))
+    else:
+        entries = [info]
+        length = f" · {int(info['duration']) // 60} Min." if info.get("duration") else ""
+        step.done(f"„{info.get('title') or ''}“{length}")
+
+    make = music_item if mode == MUSIK else podcast_item
     items = [make(e) for e in entries]
     if is_playlist and mode == MUSIK:
         apply_playlist(items, info)
+        if items and items[0].album:
+            act.step("Album erkannt").done(f"„{items[0].album}“ von {items[0].album_artist}")
 
+    archive = act.step("Mit bereits geladenen Titeln abgleichen")
     done = Archive(cfg.data_dir, mode).ids()
+    already = sum(i.id in done for i in items)
+    archive.done(f"{already} bereits geladen" if already else "alles neu")
     return {
         "title": info.get("title") or "",
         "is_playlist": is_playlist,

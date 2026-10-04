@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -94,8 +95,9 @@ def segments_from_chapters(chapters: list[dict], duration: float) -> list[Segmen
     ]
 
 
-def envelope(audio: Path) -> np.ndarray:
-    """Lautstärke in dBFS, FPS Werte pro Sekunde (über ffmpeg dekodiert)."""
+def envelope(audio: Path, on_progress: Callable[[float], None] | None = None) -> np.ndarray:
+    """Lautstärke in dBFS, FPS Werte pro Sekunde (über ffmpeg dekodiert). on_progress bekommt die
+    bisher verarbeiteten Sekunden."""
     proc = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-i", str(audio), "-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "s16le", "-"],
         stdout=subprocess.PIPE,
@@ -110,6 +112,8 @@ def envelope(audio: Path) -> np.ndarray:
         rms = np.sqrt(np.mean(samples[:usable].reshape(-1, frame) ** 2, axis=1))
         values.append(rms)
         rest = samples[usable:]
+        if on_progress:
+            on_progress(sum(len(v) for v in values) / FPS)
     if proc.wait() != 0:
         raise RuntimeError("ffmpeg konnte das Audio nicht lesen")
     rms = np.concatenate(values) if values else np.zeros(1)

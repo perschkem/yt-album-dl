@@ -94,3 +94,18 @@ textarea { font: inherit; color: var(--text); background: var(--input); border: 
 button.small-btn { padding: 4px 10px; font-size: .8rem; }
 .task .status.neuer-Versuch { color: var(--accent); }
 .task.neuer-Versuch .bar > div { background: var(--muted); }
+
+.steps { margin-top: 12px; display: grid; gap: 4px; font-size: .88rem; }
+.step { display: grid; grid-template-columns: 18px auto 1fr; gap: 2px 8px; align-items: baseline; }
+.step-icon { text-align: center; font-weight: 700; }
+.step-label { font-weight: 600; }
+.step-detail { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.step-bar { grid-column: 2 / -1; margin-top: 2px; }
+.step.läuft .step-icon::before { content: ""; display: inline-block; width: 10px; height: 10px;
+  border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+.step.fertig .step-icon { color: var(--ok); }
+.step.nichts-gefunden .step-icon, .step.übersprungen { color: var(--muted); }
+.step.fehler .step-icon, .step.fehler .step-detail { color: var(--err); }
+.album-log { margin: 4px 0 12px; font-size: .88rem; }
+.album-log summary { cursor: pointer; color: var(--muted); }
+@media (max-width: 560px) { .step { grid-template-columns: 18px 1fr; } .step-detail { grid-column: 2; } }
