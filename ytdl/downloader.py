@@ -17,6 +17,7 @@ from .paths import target_path
 from .tagger import write_tags
 
 ProgressCallback = Callable[[str, float], None]  # (Status, Prozent 0..100)
+ALBUM_VIDEO_MIN_DURATION = 20 * 60  # Sekunden
 
 
 def ffmpeg_available(cfg: Config) -> bool:
@@ -45,7 +46,7 @@ class Archive:
 
 
 def _base_opts() -> dict:
-    return {
+    opts = {
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
@@ -54,6 +55,17 @@ def _base_opts() -> dict:
         "noplaylist": True,
         "ignoreerrors": True,
     }
+    # yt-dlp braucht für YouTube eine JavaScript-Umgebung; standardmäßig sucht es nur deno
+    if shutil.which("deno") is None and (node := shutil.which("node")):
+        opts["js_runtimes"] = {"node": {"path": node}}
+    return opts
+
+
+def is_album_video(info: dict) -> bool:
+    """Einzelvideo, das vermutlich ein ganzes Album enthält (Kapitel oder sehr lang)."""
+    return info.get("_type") != "playlist" and (
+        len(info.get("chapters") or []) >= 3 or (info.get("duration") or 0) >= ALBUM_VIDEO_MIN_DURATION
+    )
 
 
 def probe(url: str, mode: str, cfg: Config) -> dict:
@@ -74,6 +86,7 @@ def probe(url: str, mode: str, cfg: Config) -> dict:
     return {
         "title": info.get("title") or "",
         "is_playlist": is_playlist,
+        "album_video": mode == MUSIK and is_album_video(info),
         "items": [{**i.to_dict(), "already": i.id in done} for i in items],
     }
 

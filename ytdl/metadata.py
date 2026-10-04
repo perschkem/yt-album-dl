@@ -57,6 +57,10 @@ class Item:
     thumbnail: str = ""
     duration: int | None = None
     source_title: str = ""  # Original-Videotitel (zur Kontrolle in der Oberfläche)
+    # Album in einem Video: Ausschnitt [start, end) in Sekunden aus dem Video source_id
+    start: float | None = None
+    end: float | None = None
+    source_id: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -57,7 +57,10 @@ $("#probe-form").addEventListener("submit", async (event) => {
   $("#probe-error").hidden = true;
   try {
     const data = await api("/api/probe", { url: $("#url").value, mode });
-    preview = { title: data.title, mode, items: data.items.map((i) => ({ ...i, selected: !i.already })) };
+    preview = { title: data.title, mode, url: $("#url").value.trim(),
+      items: data.items.map((i) => ({ ...i, selected: !i.already })) };
+    $("#album").hidden = true;
+    $("#album-hint").hidden = !data.album_video;
     renderPreview(data.is_playlist);
   } catch (err) {
     $("#probe-error").textContent = err.message;
@@ -173,6 +176,248 @@ function startPolling() {
   if (!polling) polling = setInterval(refreshJobs, 1000);
   refreshJobs();
 }
+
+// ---------- Album in einem Video ----------
+
+let album = null; // { id, duration, peaks, tracks: [{start, artist, title}] }
+const audio = $("#album-audio");
+const wave = $("#wave");
+
+function fmt(sec) {
+  sec = Math.max(0, sec || 0);
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const ss = s.toFixed(1).padStart(4, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+function parseTime(text) {
+  const parts = text.trim().replace(",", ".").split(":").map(Number);
+  if (!parts.length || parts.some(Number.isNaN)) return null;
+  return parts.reduce((acc, v) => acc * 60 + v, 0);
+}
+
+function albumBusy(message) {
+  $("#album-busy").textContent = message || "";
+  $("#album-busy").hidden = !message;
+  document.querySelectorAll("#album button").forEach((b) => (b.disabled = !!message));
+  if (message) $("#album-error").hidden = true;
+}
+
+function albumError(err) {
+  $("#album-error").textContent = err.message;
+  $("#album-error").hidden = false;
+}
+
+function sortTracks() {
+  album.tracks.sort((a, b) => a.start - b.start);
+}
+
+function trackEnd(i) {
+  return i + 1 < album.tracks.length ? album.tracks[i + 1].start : album.duration;
+}
+
+function setTracks(result) {
+  album.tracks = result.tracks.map((t) => ({ start: t.start, artist: t.artist, title: t.title }));
+  $("#album-source").textContent = `Grenzen aus: ${result.source_label} · bitte kontrollieren`;
+  renderAlbum();
+}
+
+$("#album-open").addEventListener("click", async () => {
+  $("#preview").hidden = true;
+  $("#album").hidden = false;
+  $("#album-body").hidden = true;
+  $("#album-source").textContent = "";
+  albumBusy("Lade Audio und suche Trackgrenzen (Kapitel, Beschreibung, Bild-OCR, Kommentare, Pausen) – dauert etwa eine Minute …");
+  try {
+    const data = await api("/api/album/analyze", { url: preview.url });
+    album = { id: data.id, duration: data.duration, peaks: data.peaks, tracks: [] };
+    $("#album-name").value = data.album;
+    $("#album-artist").value = data.artist;
+    $("#album-year").value = data.year || "";
+    $("#album-genre").value = "";
+    renderHints(data.hints || []);
+    audio.src = data.audio_url;
+    $("#album-body").hidden = false;
+    setTracks(data);
+  } catch (err) {
+    albumError(err);
+  } finally {
+    albumBusy("");
+  }
+});
+
+function renderHints(hints) {
+  const box = $("#album-hints");
+  box.hidden = !hints.length;
+  box.replaceChildren("Weiterer Text im Bild (klicken = als Albuminterpret):",
+    ...hints.map((h) => {
+      const chip = el("button", { type: "button", class: "chip" }, h);
+      chip.addEventListener("click", () => {
+        const old = $("#album-artist").value;
+        $("#album-artist").value = h;
+        album.tracks.forEach((t) => { if (!t.artist || t.artist === old) t.artist = h; });
+        renderAlbum();
+      });
+      return chip;
+    }));
+}
+
+function renderAlbum() {
+  sortTracks();
+  const playing = currentTrackIndex();
+  $("#album-tracks").replaceChildren(...album.tracks.map((t, i) => {
+    const start = el("input", { value: fmt(t.start) });
+    start.addEventListener("change", () => {
+      const v = parseTime(start.value);
+      if (v != null && v >= 0 && v < album.duration) t.start = v;
+      renderAlbum();
+    });
+    const artist = el("input", { value: t.artist });
+    artist.addEventListener("input", () => (t.artist = artist.value));
+    const title = el("input", { value: t.title });
+    title.addEventListener("input", () => (t.title = title.value));
+
+    const play = el("button", { type: "button", class: "secondary", title: "Ab Start abspielen" }, "▶");
+    play.addEventListener("click", () => { audio.currentTime = t.start; audio.play(); });
+    const here = el("button", { type: "button", class: "secondary", title: "Start = aktuelle Abspielposition" }, "⇤ hier");
+    here.addEventListener("click", () => { t.start = audio.currentTime; renderAlbum(); });
+    const del = el("button", { type: "button", class: "secondary", title: "Grenze entfernen (mit vorherigem Titel zusammenfassen)" }, "✕");
+    del.addEventListener("click", () => { album.tracks.splice(i, 1); renderAlbum(); });
+
+    return el("tr", { class: i === playing ? "playing" : "" },
+      el("td", { class: "dur" }, String(i + 1)),
+      el("td", { class: "time" }, start),
+      el("td", { class: "dur" }, fmt(trackEnd(i) - t.start).replace(/\.\d$/, "")),
+      el("td", {}, artist), el("td", {}, title),
+      el("td", { class: "actions" }, play, here, del));
+  }));
+  drawWave();
+}
+
+function currentTrackIndex() {
+  if (!album) return -1;
+  let idx = -1;
+  album.tracks.forEach((t, i) => { if (audio.currentTime >= t.start) idx = i; });
+  return idx;
+}
+
+function drawWave() {
+  if (!album) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = wave.clientWidth, h = wave.clientHeight;
+  wave.width = w * dpr; wave.height = h * dpr;
+  const ctx = wave.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue("--accent").trim();
+  const muted = css.getPropertyValue("--muted").trim();
+  const text = css.getPropertyValue("--text").trim();
+
+  ctx.fillStyle = muted;
+  const n = album.peaks.length;
+  for (let x = 0; x < w; x++) {
+    const v = album.peaks[Math.floor((x / w) * n)] || 0;
+    const bar = Math.max(1, v * (h - 22));
+    ctx.fillRect(x, (h + 14 - bar) / 2, 1, bar);
+  }
+  ctx.font = "11px system-ui, sans-serif";
+  album.tracks.forEach((t, i) => {
+    const x = (t.start / album.duration) * w;
+    ctx.fillStyle = accent;
+    ctx.fillRect(x - 1, 0, 2, h);
+    ctx.fillText(String(i + 1), x + 3, 11);
+  });
+  const px = (audio.currentTime / album.duration) * w;
+  ctx.fillStyle = text;
+  ctx.fillRect(px - 0.5, 0, 1, h);
+}
+
+let dragging = null;
+function waveTime(event) {
+  const rect = wave.getBoundingClientRect();
+  return Math.min(album.duration, Math.max(0, ((event.clientX - rect.left) / rect.width) * album.duration));
+}
+wave.addEventListener("pointerdown", (event) => {
+  if (!album) return;
+  const rect = wave.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const hit = album.tracks.findIndex((t, i) => i > 0 && Math.abs((t.start / album.duration) * rect.width - x) < 6);
+  if (hit > 0) {
+    dragging = album.tracks[hit];
+    wave.setPointerCapture(event.pointerId);
+  } else {
+    audio.currentTime = waveTime(event);
+    drawWave();
+  }
+});
+wave.addEventListener("pointermove", (event) => {
+  if (!dragging) return;
+  dragging.start = waveTime(event);
+  drawWave();
+});
+wave.addEventListener("pointerup", () => {
+  if (!dragging) return;
+  audio.currentTime = Math.max(0, dragging.start - 3);
+  dragging = null;
+  renderAlbum();
+});
+
+let lastPlaying = -1;
+audio.addEventListener("timeupdate", () => {
+  drawWave();
+  const idx = currentTrackIndex();
+  if (idx !== lastPlaying) {
+    lastPlaying = idx;
+    document.querySelectorAll("#album-tracks tr").forEach((tr, i) => tr.classList.toggle("playing", i === idx));
+  }
+});
+window.addEventListener("resize", drawWave);
+
+$("#album-add").addEventListener("click", () => {
+  const artist = $("#album-artist").value;
+  album.tracks.push({ start: audio.currentTime, artist, title: "" });
+  renderAlbum();
+});
+
+async function albumAction(path, body, message) {
+  albumBusy(message);
+  try {
+    setTracks(await api(`/api/album/${album.id}/${path}`, { ...body, artist: $("#album-artist").value }));
+  } catch (err) {
+    albumError(err);
+  } finally {
+    albumBusy("");
+  }
+}
+
+$("#det-run").addEventListener("click", () => {
+  const count = $("#det-count").value ? Number($("#det-count").value) : null;
+  albumAction("detect", { count, min_pause: Number($("#det-pause").value), sensitivity: Number($("#det-sens").value) },
+    "Suche Pausen …");
+});
+$("#det-text-run").addEventListener("click", () =>
+  albumAction("text", { text: $("#det-text").value }, "Übernehme Trackliste …"));
+$("#det-scan").addEventListener("click", () =>
+  albumAction("scan", {}, "Lade Video und lese Titeleinblendungen – das dauert einige Minuten …"));
+
+$("#album-cut").addEventListener("click", async () => {
+  albumBusy("Starte Schnitt …");
+  try {
+    await api(`/api/album/${album.id}/jobs`, {
+      album: $("#album-name").value, album_artist: $("#album-artist").value,
+      year: $("#album-year").value, genre: $("#album-genre").value,
+      tracks: album.tracks,
+    });
+    audio.pause();
+    $("#album").hidden = true;
+    $("#url").value = "";
+    startPolling();
+  } catch (err) {
+    albumError(err);
+  } finally {
+    albumBusy("");
+  }
+});
 
 loadConfig();
 startPolling();

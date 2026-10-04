@@ -11,6 +11,9 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "python-dotenv>=1.0",
+    "numpy>=2.5.3",
+    "rapidocr>=3.9.2",
+    "onnxruntime>=1.30.0",
 ]
 
 [project.scripts]

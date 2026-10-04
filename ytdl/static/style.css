@@ -64,3 +64,26 @@ tr.already td { opacity: .6; }
 .task.fertig .bar > div { background: var(--ok); }
 .path { font-size: .78rem; color: var(--muted); word-break: break-all; margin-top: 3px; }
 .task .err { font-size: .8rem; color: var(--err); margin-top: 3px; }
+
+.hint { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  background: var(--warn-bg); padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; }
+.busy { color: var(--muted); }
+.busy::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px;
+  border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.small { font-size: .8rem; margin: 4px 0 12px; }
+#album-audio { width: 100%; margin-top: 6px; }
+#wave { width: 100%; height: 110px; display: block; margin-top: 8px; cursor: crosshair;
+  background: var(--track); border-radius: 8px; touch-action: none; }
+td.time input { width: 92px; min-width: 0; font-variant-numeric: tabular-nums; }
+td.dur { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 10px; }
+td.actions { white-space: nowrap; }
+td.actions button { padding: 5px 9px; margin-left: 2px; }
+tr.playing td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tools { margin-top: 10px; }
+.redetect { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.redetect summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
+textarea { font: inherit; color: var(--text); background: var(--input); border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 9px; width: 100%; margin-top: 6px; }
+.chip { font: inherit; font-size: .8rem; padding: 2px 8px; margin: 0 4px; border-radius: 99px;
+  background: var(--track); color: var(--text); }

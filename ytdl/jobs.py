@@ -9,6 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from .config import Config
+from .albumvideo import cut_track
 from .downloader import download
 from .metadata import Item
 
@@ -18,7 +19,7 @@ MAX_JOBS_KEPT = 50
 @dataclass
 class Task:
     item: Item
-    status: str = "wartet"  # wartet | lädt | konvertiert | taggt | fertig | fehler
+    status: str = "wartet"  # wartet | lädt | konvertiert | schneidet | taggt | fertig | fehler
     progress: float = 0.0
     path: str = ""
     error: str = ""
@@ -84,7 +85,8 @@ class JobManager:
                 task.status, task.progress = status, pct
 
             try:
-                task.path = str(download(task.item, self.cfg, report))
+                run = cut_track if task.item.start is not None else download
+                task.path = str(run(task.item, self.cfg, report))
             except Exception as exc:  # Fehler eines Titels soll die Warteschlange nicht stoppen
                 task.status, task.error = "fehler", str(exc).removeprefix("ERROR: ")
             finally:

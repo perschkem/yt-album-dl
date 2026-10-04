@@ -46,6 +46,26 @@ Hinweis: Bei einer Video-URL mit `&list=…` (z.B. aus einem Mix) wird nur das V
 Playlist bitte die Playlist-URL (`…/playlist?list=…`) verwenden. YouTube-Music-Alben (`OLAK5uy_…`) werden
 automatisch als Album mit Tracknummern erkannt.
 
+## Album in einem Video
+
+Ist ein Musikvideo sehr lang (ab 20 Min.) oder hat es Kapitel, bietet die Vorschau **„Als Album aufteilen“** an.
+Das Programm lädt die Audiospur (Zwischenspeicher in `data/cache/`, wird nach 7 Tagen gelöscht) und sucht die
+Trackgrenzen in dieser Reihenfolge:
+
+1. YouTube-Kapitel
+2. Zeitstempel in der Videobeschreibung
+3. **Trackliste im Videobild** – einige Standbilder werden per OCR (RapidOCR) gelesen
+4. Zeitstempel in den Top-Kommentaren
+5. Pausenerkennung im Audio
+
+Zeitstempel (2–4) werden automatisch auf die leiseste Stelle in ±3 s gerückt, damit die Schnitte in der Pause liegen.
+
+Im Editor kontrollierst du das Ergebnis: Wellenform mit verschiebbaren Markierungen, Player, ▶ pro Titel,
+„⇤ hier“ setzt den Start auf die aktuelle Abspielposition. Unter **„Grenzen neu suchen“** kannst du
+die Pausenerkennung mit fester Titelanzahl wiederholen (hilft bei Überblendungen), eine Trackliste einfügen
+(mit Zeitstempeln oder nur Titel) oder wechselnde **Titeleinblendungen** im Video scannen lassen (langsamer).
+**„Schneiden & speichern“** legt die Titel als Album ab: `Musik/<Interpret>/<Album>/01 - <Interpret> - <Titel>.mp3`.
+
 ## Konfiguration (`.env`)
 
 | Variable          | Standard                    | Bedeutung                                  |

@@ -6,9 +6,11 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import albumvideo
 from .config import load_config
 from .downloader import ffmpeg_available, probe
 from .jobs import JobManager
@@ -30,6 +32,41 @@ class JobRequest(BaseModel):
     title: str = ""
     mode: str = MUSIK
     items: list[dict]
+
+
+class AlbumAnalyzeRequest(BaseModel):
+    url: str
+
+
+class AlbumDetectRequest(BaseModel):
+    count: int | None = None
+    min_pause: float = 1.0
+    sensitivity: float = 25.0
+    artist: str = ""
+
+
+class AlbumTextRequest(BaseModel):
+    text: str
+    artist: str = ""
+
+
+class AlbumScanRequest(BaseModel):
+    artist: str = ""
+
+
+class AlbumJobRequest(BaseModel):
+    album: str
+    album_artist: str
+    year: str = ""
+    genre: str = ""
+    tracks: list[dict]
+
+
+def _album_call(func, *args):
+    try:
+        return func(*args)
+    except Exception as exc:
+        raise HTTPException(400, str(exc).removeprefix("ERROR: ")) from exc
 
 
 def _check_mode(mode: str) -> None:
@@ -70,6 +107,43 @@ def post_job(req: JobRequest) -> dict:
 @app.get("/api/jobs")
 def get_jobs() -> list[dict]:
     return manager.snapshot()
+
+
+@app.post("/api/album/analyze")
+def album_analyze(req: AlbumAnalyzeRequest) -> dict:
+    return _album_call(albumvideo.analyze, req.url.strip(), cfg)
+
+
+@app.post("/api/album/{video_id}/detect")
+def album_detect(video_id: str, req: AlbumDetectRequest) -> dict:
+    return _album_call(albumvideo.redetect, cfg, video_id, req.count, req.min_pause, req.sensitivity, req.artist)
+
+
+@app.post("/api/album/{video_id}/text")
+def album_text(video_id: str, req: AlbumTextRequest) -> dict:
+    return _album_call(albumvideo.from_text, cfg, video_id, req.text, req.artist)
+
+
+@app.post("/api/album/{video_id}/scan")
+def album_scan(video_id: str, req: AlbumScanRequest) -> dict:
+    return _album_call(albumvideo.scan_overlays, cfg, video_id, req.artist)
+
+
+@app.get("/api/album/{video_id}/audio")
+def album_audio(video_id: str) -> FileResponse:
+    path = _album_call(albumvideo.audio_path, cfg, video_id)
+    if not path:
+        raise HTTPException(404, "Audio nicht im Zwischenspeicher")
+    return FileResponse(path)
+
+
+@app.post("/api/album/{video_id}/jobs")
+def album_job(video_id: str, req: AlbumJobRequest) -> dict:
+    if not req.tracks:
+        raise HTTPException(400, "Keine Titel")
+    items = _album_call(albumvideo.build_items, cfg, video_id, req.album, req.album_artist, req.year,
+                        req.genre, req.tracks)
+    return manager.submit(req.album or video_id, MUSIK, items).to_dict()
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
