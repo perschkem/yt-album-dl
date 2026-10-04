@@ -69,3 +69,10 @@ test("primaryArtist", () => {
   assert.equal(primaryArtist("A, B"), "A");
   assert.equal(primaryArtist("AC/DC"), "AC/DC");
 });
+
+test("numberSelected", async () => {
+  const { numberSelected } = await import("../../ytdl/static/js/format.js");
+  const items = [{ selected: true }, { selected: false, track_no: 9 }, { selected: true }];
+  numberSelected(items);
+  assert.deepEqual(items.map((i) => [i.track_no, i.track_total]), [[1, 2], [null, null], [2, 2]]);
+});

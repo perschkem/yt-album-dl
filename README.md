@@ -389,7 +389,9 @@ ytdl/
   split.py        Tracklisten-Parser, Pausenerkennung, Schnitt per ffmpeg
   ocr.py          Text im Videobild lesen (RapidOCR)
   static/         Weboberfläche (HTML/CSS, ES-Module ohne Build-Schritt), Schrift, Schildkröten-Bilder
-    js/           gemeinsame Module (api, dom, format …)
+    app.js        Startseite (setzt die Module zusammen), historie.js: Historie-Seite
+    js/           ES-Module: preview, album, jobs, settings, conflicts, cover, editing, progress, config
+                  sowie gemeinsame Helfer (api, dom, format, summary – format/summary ohne DOM, getestet)
 tests/            pytest; tests/js/ mit node --test (läuft über pytest mit, falls Node installiert ist)
 ```
 

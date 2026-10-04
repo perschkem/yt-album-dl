@@ -52,5 +52,16 @@ export const snapshot = (obj, keys) => Object.fromEntries(keys.map((k) => [k, ob
 /** Wurde eins der Felder gegenüber `orig` geändert? Ohne `orig` (von Hand hinzugefügt) nie. */
 export const isChanged = (obj, orig, keys) => !!orig && keys.some((k) => !sameValue(obj[k], orig[k]));
 
+/** „Automatisch nummerieren“: ausgewählte Titel in Listenreihenfolge 1…n, abgewählte ohne Nummer. */
+export function numberSelected(items) {
+  const total = items.filter((i) => i.selected).length;
+  let n = 0;
+  for (const item of items) {
+    item.track_no = item.selected ? ++n : null;
+    item.track_total = item.selected ? total : null;
+  }
+  return items;
+}
+
 /** Hauptinterpret wie im Backend: „A feat. B“ / „A, B“ → „A“. */
 export const primaryArtist = (artist) => artist.split(/ feat\. |, /)[0];
