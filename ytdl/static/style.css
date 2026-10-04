@@ -261,6 +261,32 @@ tr.playing td { background: color-mix(in srgb, var(--primary) 16%, transparent);
 .chip { font-size: .8rem; padding: 2px 8px; margin: 2px 4px; }
 .error { color: var(--err); margin: 10px 0 0; }
 
+/* Navigation im Kopf */
+.nav-link { display: inline-block; padding: 8px 14px; margin: 2px; color: var(--text); text-decoration: none;
+  font-family: var(--font-pixel); background: var(--panel-hi);
+  box-shadow: 0 -2px 0 var(--frame-soft), 0 2px 0 var(--frame-soft), -2px 0 0 var(--frame-soft), 2px 0 0 var(--frame-soft); }
+.nav-link:hover { filter: brightness(1.12); }
+
+/* Historie */
+.hist-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.hist-filter > label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+.hist-filter > label.grow { flex: 1 1 260px; }
+.hist-filter select { font: inherit; color: var(--text); background: var(--input); border: 2px solid var(--frame-soft); padding: 6px 8px; }
+.hist-actions { margin-left: auto; }
+.hist { padding: 10px 16px; margin: 0 0 14px; }
+.hist summary { display: grid; grid-template-columns: 150px 110px 1fr auto; gap: 12px; align-items: baseline; cursor: pointer; }
+.hist summary::-webkit-details-marker { display: none; }
+.hist[open] summary { margin-bottom: 8px; }
+.hist-label { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.status.überschrieben { color: var(--warn); }
+.status.übersprungen { color: var(--muted); }
+.hist-tags { width: auto; margin-top: 8px; font-size: .88rem; }
+.hist-tags th { border: 0; padding: 2px 16px 2px 0; color: var(--muted); font-weight: 600; }
+.hist-tags td { border: 0; padding: 2px 0; }
+.hist-more { justify-content: center; }
+.hist-filter + .downloads { margin-top: 30px; }
+.hist .task-actions a { color: var(--primary); align-self: center; font-size: .88rem; }
+
 /* Konflikt-Dialog */
 dialog { color: var(--text); border: 0; padding: 0; max-width: min(720px, calc(100vw - 32px)); width: 100%; }
 dialog::backdrop { background: rgba(5, 8, 15, .7); }
@@ -282,6 +308,8 @@ dialog::backdrop { background: rgba(5, 8, 15, .7); }
   .conflict { grid-template-columns: 1fr; }
   .conflict select { grid-row: auto; grid-column: 1; }
   .settings-grid { grid-template-columns: 1fr; }
+  .hist summary { grid-template-columns: 1fr auto; }
+  .hist-when, .hist-album { grid-column: 1 / -1; }
   .masthead { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {

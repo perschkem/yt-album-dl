@@ -70,6 +70,10 @@ class Item:
     cover_crop: bool = False
     # Zielordner zum Zeitpunkt des Auftrags – spätere Änderungen in den Einstellungen betreffen laufende Jobs nicht
     target_root: str = ""
+    # Album-Schnitte: woher die Trackgrenzen kamen (für die Historie)
+    boundary_source: str = ""
+    # wird beim Ablegen gesetzt, wenn eine vorhandene Datei ersetzt wurde
+    overwritten: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)

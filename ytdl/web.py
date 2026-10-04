@@ -20,6 +20,7 @@ from .config import MissingFolder, load_config, to_local_path, update_env_file
 from .covers import CoverError, check_cover, thumbnail_preview
 from .downloader import conflicts, ffmpeg_available, probe
 from .explorer import is_allowed, open_in_file_manager
+from .history import History
 from .jobs import JobManager
 from .metadata import MUSIK, PODCAST, Item
 from .paths import to_windows_path
@@ -27,7 +28,8 @@ from .paths import to_windows_path
 STATIC_DIR = Path(__file__).parent / "static"
 
 cfg = load_config()
-manager = JobManager(cfg)
+history = History(cfg.data_dir)
+manager = JobManager(cfg, history=history)
 activities = ActivityManager()
 app = FastAPI(title="yt-album-dl")
 
@@ -78,6 +80,7 @@ class AlbumJobRequest(BaseModel):
     audio_format: str = ""
     cover_url: str = ""
     cover_crop: bool = False
+    boundary_source: str = ""
     tracks: list[dict]
 
 
@@ -313,7 +316,7 @@ class OpenRequest(BaseModel):
 @app.post("/api/open")
 def open_path(req: OpenRequest) -> dict:
     path = Path(req.path)
-    if not is_allowed(path, cfg.roots() + manager.known_roots()):
+    if not (is_allowed(path, cfg.roots() + manager.known_roots()) or history.knows_path(path)):
         raise HTTPException(403, "Nur Dateien in den Musik-/Podcast-Ordnern können geöffnet werden")
     try:
         return {"opened": open_in_file_manager(path)}
@@ -370,7 +373,8 @@ def _album_items(video_id: str, req: AlbumJobRequest) -> list[Item]:
     if not req.tracks:
         raise HTTPException(400, "Keine Titel")
     return _album_call(albumvideo.build_items, cfg, video_id, req.album, req.album_artist, req.year,
-                       req.genre, req.tracks, req.audio_format, req.cover_url, req.cover_crop)
+                       req.genre, req.tracks, req.audio_format, req.cover_url, req.cover_crop,
+                       req.boundary_source)
 
 
 @app.post("/api/album/{video_id}/conflicts")
@@ -384,6 +388,37 @@ def album_job(video_id: str, req: AlbumJobRequest) -> dict:
     if not items:
         raise HTTPException(400, "Alle Titel übersprungen")
     return manager.submit(req.album or video_id, MUSIK, items).to_dict()
+
+
+# ---------- Historie ----------
+
+def _history_filters(q: str, mode: str, result: str, days: int | None) -> dict:
+    import time as _time
+    return {"q": q, "mode": mode, "result": result, "since": _time.time() - days * 86400 if days else None}
+
+
+@app.get("/api/history")
+def get_history(q: str = "", mode: str = "", result: str = "", days: int | None = None,
+                limit: int = 50, offset: int = 0) -> dict:
+    return history.query(limit=max(1, min(limit, 500)), offset=max(0, offset),
+                         **_history_filters(q, mode, result, days))
+
+
+@app.get("/api/history.csv")
+def get_history_csv(q: str = "", mode: str = "", result: str = "", days: int | None = None) -> Response:
+    csv_text = history.to_csv(**_history_filters(q, mode, result, days))
+    return Response("\ufeff" + csv_text, media_type="text/csv; charset=utf-8",  # BOM, damit Excel Umlaute erkennt
+                    headers={"Content-Disposition": 'attachment; filename="yt-album-dl-historie.csv"'})
+
+
+@app.delete("/api/history")
+def clear_history() -> dict:
+    return {"removed": history.clear()}
+
+
+@app.get("/historie", include_in_schema=False)
+def history_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "historie.html")
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

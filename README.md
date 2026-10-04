@@ -29,6 +29,7 @@ in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, n
 - 🔄 **Robust** – automatische neue Versuche mit exponentiellem Backoff pro Titel, „Erneut versuchen“-Button
 - 📋 **Nachvollziehbar** – jeder Vorgang zeigt Schritt für Schritt, was gerade passiert und was gefunden wurde
 - 📂 **Im Ordner öffnen** – fertige Titel direkt im Windows-Explorer anzeigen
+- 📜 **Historie** – was wann von welcher URL wohin geladen wurde, mit allen Tags; durchsuchbar, CSV-Export
 - 🔁 **Keine Duplikate** – bereits geladene Titel werden erkannt, vorhandene Dateien nie überschrieben
 - 🪟 **WSL-freundlich** – Windows-Pfade wie `D:\Musik` funktionieren direkt
 - ⚙ **Einstellungen in der Oberfläche** – Zielordner, Format, Bitrate, Parallelität; gespeichert in `.env`
@@ -77,6 +78,10 @@ Dann im Browser **http://localhost:8000** öffnen (unter WSL auch im Windows-Bro
 Neben dem Modus wählst du das Format: **MP3** (läuft überall) oder **M4A** (ohne Umkodieren, schneller,
 Originalqualität). Liegt eine Zieldatei schon vor, fragt ein Dialog pro Titel: **Überschreiben**,
 **Überspringen** oder **Beide behalten** (neue Datei als „… (2)“).
+
+Über **📜 Historie** im Kopfbereich siehst du jeden geladenen Titel: Zeitpunkt, Quell-URL, Zielpfad, alle Tags,
+Cover-Quelle, Ergebnis (fertig/überschrieben/übersprungen/Fehler) und bei Album-Schnitten Ausschnitt und Herkunft
+der Trackgrenzen. Gespeichert wird sie in `data/history.jsonl` (nicht im Repo).
 
 Schlägt ein Titel vorübergehend fehl (Verbindungsabbruch, YouTube-Drosselung), versucht das Programm es
 automatisch erneut: nach 2 s, 4 s, 8 s … (max. 2 Min.). Andere Titel laufen in der Zwischenzeit weiter.
@@ -139,6 +144,8 @@ ytdl/
   jobs.py         Warteschlange: parallele Worker, Backoff, Retry
   activity.py     Hintergrund-Vorgänge mit Schrittprotokoll
   explorer.py     „Im Ordner öffnen“ (Windows-Explorer / xdg-open)
+  history.py      Download-Historie (data/history.jsonl)
+  covers.py       Eigenes Cover per URL
   albumvideo.py   Album in einem Video: Analyse, Zwischenspeicher, Schnitt
   split.py        Tracklisten-Parser, Pausenerkennung, Schnitt per ffmpeg
   ocr.py          Text im Videobild lesen (RapidOCR)

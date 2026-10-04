@@ -384,7 +384,8 @@ def audio_path(cfg: Config, video_id: str) -> Path | None:
 
 
 def build_items(cfg: Config, video_id: str, album: str, album_artist: str, year: str, genre: str,
-                tracks: list[dict], fmt: str = "", cover_url: str = "", cover_crop: bool = False) -> list[Item]:
+                tracks: list[dict], fmt: str = "", cover_url: str = "", cover_crop: bool = False,
+                boundary_source: str = "") -> list[Item]:
     meta = load_meta(cfg, video_id)
     ordered = sorted(tracks, key=lambda t: float(t["start"]))
     items = []
@@ -398,7 +399,8 @@ def build_items(cfg: Config, video_id: str, album: str, album_artist: str, year:
             track_no=n, track_total=len(ordered), year=year.strip(), genre=genre.strip(),
             start=float(track["start"]), end=float(end), source_id=video_id,
             audio_format=fmt, on_conflict=track.get("on_conflict") or "keep_both",
-            cover_url=cover_url.strip(), cover_crop=cover_crop,
+            cover_url=cover_url.strip(), cover_crop=cover_crop, boundary_source=boundary_source,
+            source_title=meta.get("title", ""),
         ))
     return items
 

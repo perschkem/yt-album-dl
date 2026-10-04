@@ -13,7 +13,8 @@ from pathlib import Path
 
 from .albumvideo import cut_track
 from .config import Config
-from .downloader import Skipped, convert, fetch
+from .downloader import Skipped, audio_format, convert, fetch
+from .history import FAILED, FINISHED as DONE, OVERWRITTEN, SKIPPED, History
 from .metadata import Item
 from .paths import to_windows_path
 
@@ -141,8 +142,9 @@ class Job:
 
 
 class JobManager:
-    def __init__(self, cfg: Config, runners: dict | None = None):
+    def __init__(self, cfg: Config, runners: dict | None = None, history: History | None = None):
         self.cfg = cfg
+        self.history = history
         self.jobs: list[Job] = []
         self._runners = runners or {FETCH: fetch, CONVERT: convert, CUT: cut_track}
         self._pending: list[Task] = []
@@ -241,10 +243,15 @@ class JobManager:
 
             try:
                 self._run(task, report)
+                if task.status == "fertig":
+                    self._record(task, OVERWRITTEN if task.item.overwritten else DONE)
             except Skipped as exc:
                 task.status, task.detail, task.progress = "übersprungen", str(exc), 100.0
+                self._record(task, SKIPPED)
             except Exception as exc:  # ein Fehler soll die Warteschlange nie stoppen
                 self._failed(task, str(exc).removeprefix("ERROR: ").strip())
+                if task.status == "fehler":
+                    self._record(task, FAILED)
             finally:
                 with self._cond:
                     self._active[pool] -= 1
@@ -266,6 +273,17 @@ class JobManager:
         else:
             task.path = str(runner(task.item, self.cfg, report))
         task.detail = ""
+
+    def _record(self, task: Task, result: str) -> None:
+        """Abgeschlossenen Titel in die Historie schreiben – Fehler dabei dürfen den Download nicht stören."""
+        if self.history is None:
+            return
+        try:
+            fmt = audio_format(task.item, self.cfg)
+            self.history.record(task.item, result, path=task.path, error=task.error, attempts=task.attempt,
+                                audio_format=fmt, bitrate=self.cfg.bitrate)
+        except Exception:
+            pass
 
     def _failed(self, task: Task, message: str) -> None:
         with self._cond:

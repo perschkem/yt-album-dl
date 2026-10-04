@@ -176,6 +176,7 @@ def place(src: Path, item: Item, cfg: Config) -> Path:
                 staging = target.with_name(f".{target.stem}.neu{target.suffix}")
                 shutil.move(str(src), staging)
                 staging.replace(target)
+                item.overwritten = True
                 return target
             target = _unique(target)
         shutil.move(str(src), target)

@@ -606,6 +606,7 @@ function setTracks(result, steps) {
   // Jede neue Erkennung (Analyse, Pausen, Trackliste, Scan) ist der neue Ausgangszustand für „Zurücksetzen“
   album.original.tracks = result.tracks.map(trackCopy);
   album.tracks = result.tracks.map((t) => ({ ...trackCopy(t), orig: trackCopy(t) }));
+  album.source = result.source_label;
   $("#album-source").textContent = `Grenzen aus: ${result.source_label} · bitte kontrollieren`;
   if (steps) renderSteps($("#album-log-steps"), steps);
   renderAlbum();
@@ -880,7 +881,8 @@ $("#album-cut").addEventListener("click", async () => {
     const body = {
       album: $("#album-name").value, album_artist: $("#album-artist").value,
       year: $("#album-year").value, genre: $("#album-genre").value,
-      audio_format: selectedFormat(), ...albumCover.value(), tracks: album.tracks.map(({ orig, ...t }) => t),
+      audio_format: selectedFormat(), ...albumCover.value(), boundary_source: album.source || "",
+      tracks: album.tracks.map(({ orig, ...t }) => t),
     };
     const decisions = await resolveConflicts(await api(`/api/album/${album.id}/conflicts`, body));
     if (decisions === null) return;
