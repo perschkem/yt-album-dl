@@ -22,6 +22,13 @@ Beim Album-Aufteilen gilt dasselbe für jeden Schnitt.
 **Worauf man achten muss:**
 - Zu viele gleichzeitige Anfragen können YouTube-Drosselung oder 429-Fehler auslösen. Deshalb mit einem
   moderaten Standardwert anfangen.
+- **Exponentieller Backoff pro Einheit:** Jeder Titel bzw. Schnitt (jede „Unit“) hat einen eigenen Retry-Zähler
+  und eigene Wartezeit: 2 s → 4 s → 8 s → 16 s … bis zu einem Maximum (z.B. 5 Versuche, max. 2 Min.), mit
+  zufälligem Jitter (±20 %), damit parallele Worker nicht alle gleichzeitig erneut anfragen. Eine wartende
+  Unit blockiert dabei keinen Worker. Sie wird mit einem „nicht vor“-Zeitpunkt zurück in die Warteschlange
+  gelegt, damit der Worker solange andere Titel bearbeitet. In der Oberfläche: Status „wartet (Versuch 2/5,
+  in 8 s)“. Bei 429 zusätzlich global drosseln, also kurz weniger parallele Downloads zulassen.
+  Siehe auch [Download-Retry](#download-retry).
 - Das `Archive` (`ytdl/downloader.py`) ist schon per Lock geschützt. `_unique()` in `downloader.py` kann bei
   gleichzeitigen Titeln mit gleichem Namen kollidieren und braucht deshalb einen Lock um „Zielpfad wählen + verschieben“.
 - Die Fortschrittsanzeige in der Oberfläche funktioniert bereits pro Titel. Es müssten nur mehrere Titel
