@@ -34,6 +34,35 @@ in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, n
 - 🪟 **WSL-freundlich** – Windows-Pfade wie `D:\Musik` funktionieren direkt
 - ⚙ **Einstellungen in der Oberfläche** – Zielordner, Format, Bitrate, Parallelität; gespeichert in `.env`
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/uebersicht.png" alt="Übersicht: Playlist-Vorschau mit Tags und laufende Downloads" width="820">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/album-editor.png" alt="Album-Editor mit Wellenform und Trackgrenzen"><br>
+      <sub><b>Album in einem Video aufteilen</b> – Grenzen per Bild-OCR gefunden, mit Wellenform und Player kontrollieren</sub></td>
+    <td width="50%"><img src="docs/screenshots/historie.png" alt="Historie, nach Downloads gruppiert"><br>
+      <sub><b>Historie</b> – nach Downloads gruppiert, pro Titel alle Tags, Pfad und Herkunft</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/konflikt-dialog.png" alt="Dialog bei bereits vorhandenen Dateien"><br>
+      <sub><b>Schon vorhanden?</b> – überschreiben, überspringen oder beide behalten</sub></td>
+    <td width="50%"><img src="docs/screenshots/einstellungen.png" alt="Einstellungen"><br>
+      <sub><b>Einstellungen</b> – Zielordner, Format, Parallelität, YouTube-Anmeldung</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/downloads.png" alt="Download-Liste mit Fortschritt"><br>
+      <sub><b>Downloads</b> – ein Balken pro Titel, die Schildkröte läuft mit</sub></td>
+    <td width="50%"><img src="docs/screenshots/hell.png" alt="Helle Variante"><br>
+      <sub><b>Helle Variante</b> – folgt der Systemeinstellung</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots mit Beispieldaten.</sub>
+
 ## Ablage
 
 ```
