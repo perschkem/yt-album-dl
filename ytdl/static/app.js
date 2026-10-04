@@ -330,7 +330,7 @@ function renderJobs(jobs) {
   $("#clear-jobs").hidden = !jobs.some((j) => j.done === j.total);
   if (!jobs.length) {
     $("#jobs").replaceChildren(el("div", { class: "empty" }, turtle("leer", { size: 72 }),
-      el("span", {}, "Noch keine Downloads. Die Schildkröte wartet geduldig auf die erste URL.")));
+      el("span", {}, "Noch keine Downloads.")));
     return;
   }
   $("#jobs").replaceChildren(...jobs.map((job) => {
