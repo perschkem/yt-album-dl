@@ -42,3 +42,27 @@ def test_windows_path_conversion():
     assert to_local_path(r"D:\Musik") == Path("/mnt/d/Musik/Musik")
     assert to_local_path("D:/Musik/") == Path("/mnt/d/Musik")
     assert to_local_path("/srv/musik") == Path("/srv/musik")
+
+
+def test_music_path_various_artists():
+    item = Item(id="1", url="", mode=MUSIK, title="Song", artist="Interpret B", album="Sampler 2026",
+                album_artist="Various Artists", track_no=3, track_total=12)
+    assert music_path(item, ROOT) == ROOT / "Various Artists/Sampler 2026/03 - Interpret B - Song.mp3"
+
+
+def test_va_tags(tmp_path):
+    import shutil
+    import subprocess
+
+    from mutagen.id3 import ID3
+
+    from ytdl.tagger import write_tags
+
+    if not shutil.which("ffmpeg"):
+        return
+    mp3 = tmp_path / "x.mp3"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc", "-t", "0.2", str(mp3)], check=True)
+    item = Item(id="1", url="", mode=MUSIK, title="Song", artist="B", album="S", album_artist="Various Artists")
+    write_tags(mp3, item)
+    tags = ID3(mp3)
+    assert str(tags["TPE2"]) == "Various Artists" and str(tags["TCMP"]) == "1" and str(tags["TPE1"]) == "B"

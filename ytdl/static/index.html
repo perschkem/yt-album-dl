@@ -46,7 +46,11 @@
       <label>Album für alle <input id="bulk-album" placeholder="leer = Singles"></label>
       <label>Albuminterpret <input id="bulk-album-artist"></label>
       <label>Jahr <input id="bulk-year" inputmode="numeric" size="4"></label>
-      <button type="button" id="bulk-apply" class="secondary">Übernehmen</button>
+      <button type="button" id="bulk-apply" class="secondary">Für alle übernehmen</button>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="bulk-va"> Verschiedene Interpreten (Sampler)</label>
+        <label class="check"><input type="checkbox" id="bulk-same-artist"> Interpret aller Titel = Albuminterpret</label>
+      </div>
     </div>
 
     <div class="table-wrap">
@@ -76,6 +80,11 @@
         <label>Albuminterpret <input id="album-artist"></label>
         <label>Jahr <input id="album-year" inputmode="numeric" size="4"></label>
         <label>Genre <input id="album-genre"></label>
+        <button type="button" class="secondary" id="album-apply" title="Albuminterpret als Interpret aller Titel setzen">Interpret für alle übernehmen</button>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="album-va"> Verschiedene Interpreten (Sampler)</label>
+          <button type="button" class="link" id="album-artist-col">Interpret pro Titel bearbeiten</button>
+        </div>
       </div>
       <p id="album-hints" class="muted" hidden></p>
       <details class="album-log">
@@ -88,7 +97,7 @@
       <p class="muted small">Klick in die Wellenform springt dorthin, Markierungen lassen sich mit der Maus verschieben.</p>
 
       <div class="table-wrap">
-        <table>
+        <table id="album-table">
           <thead><tr><th>Nr.</th><th>Start</th><th>Dauer</th><th>Interpret</th><th>Titel</th><th></th></tr></thead>
           <tbody id="album-tracks"></tbody>
         </table>

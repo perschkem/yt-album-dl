@@ -5,12 +5,13 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-from mutagen.id3 import APIC, COMM, ID3, TALB, TCON, TDRC, TIT2, TPE1, TPE2, TRCK, WOAS
+from mutagen.id3 import APIC, COMM, ID3, TALB, TCMP, TCON, TDRC, TIT2, TPE1, TPE2, TRCK, WOAS
 from PIL import Image
 
 from .metadata import MUSIK, Item
 
 COVER_SIZE = 1000
+VARIOUS_ARTISTS = "Various Artists"
 
 
 def square_cover(image_path: Path) -> bytes:
@@ -35,6 +36,8 @@ def write_tags(mp3: Path, item: Item, cover: Path | None = None) -> None:
     tags.add(TPE2(encoding=3, text=item.album_artist or item.artist))
     if item.album:
         tags.add(TALB(encoding=3, text=item.album))
+    if item.album_artist == VARIOUS_ARTISTS:
+        tags.add(TCMP(encoding=3, text="1"))  # Sampler/Compilation – Player gruppieren das Album dann richtig
     if item.track_no:
         track = f"{item.track_no}/{item.track_total}" if item.track_total else str(item.track_no)
         tags.add(TRCK(encoding=3, text=track))

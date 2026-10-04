@@ -144,14 +144,33 @@ function renderRows() {
   }));
 }
 
+const VA = "Various Artists";
+const primaryArtist = (artist) => artist.split(/ feat\. |, /)[0];
+
+let bulkArtistBeforeVa = "";
+$("#bulk-va").addEventListener("change", () => {
+  const field = $("#bulk-album-artist");
+  if ($("#bulk-va").checked) {
+    bulkArtistBeforeVa = field.value;
+    field.value = VA;
+    $("#bulk-same-artist").checked = false;
+  } else {
+    field.value = bulkArtistBeforeVa;
+  }
+  field.disabled = $("#bulk-va").checked;
+  $("#bulk-same-artist").disabled = $("#bulk-va").checked;
+});
+
 $("#bulk-apply").addEventListener("click", () => {
   const album = $("#bulk-album").value.trim();
   const albumArtist = $("#bulk-album-artist").value.trim();
   const year = $("#bulk-year").value.trim();
+  const sameArtist = $("#bulk-same-artist").checked && albumArtist;
   const total = preview.items.length;
   preview.items.forEach((item, index) => {
+    if (sameArtist) item.artist = albumArtist;
     item.album = album;
-    item.album_artist = album ? (albumArtist || item.album_artist) : item.artist.split(/ feat\. |, /)[0];
+    item.album_artist = album ? (albumArtist || item.album_artist) : primaryArtist(item.artist);
     item.track_no = album ? index + 1 : null;
     item.track_total = album ? total : null;
     if (year) item.year = year;
@@ -300,7 +319,10 @@ $("#album-open").addEventListener("click", async () => {
   albumBusy(true);
   try {
     const data = await runActivity("/api/album/analyze", { url: preview.url }, $("#album-steps"));
-    album = { id: data.id, duration: data.duration, peaks: data.peaks, tracks: [] };
+    album = { id: data.id, duration: data.duration, peaks: data.peaks, tracks: [], albumArtist: data.artist };
+    showArtistCol = false;
+    $("#album-va").checked = false;
+    $("#album-artist").disabled = false;
     $("#album-name").value = data.album;
     $("#album-artist").value = data.artist;
     $("#album-year").value = data.year || "";
@@ -323,17 +345,67 @@ function renderHints(hints) {
     ...hints.map((h) => {
       const chip = el("button", { type: "button", class: "chip" }, h);
       chip.addEventListener("click", () => {
-        const old = $("#album-artist").value;
+        if ($("#album-va").checked) return;
         $("#album-artist").value = h;
-        album.tracks.forEach((t) => { if (!t.artist || t.artist === old) t.artist = h; });
-        renderAlbum();
+        setAlbumArtist(h);
       });
       return chip;
     }));
 }
 
+let showArtistCol = false;
+let albumArtistBeforeVa = "";
+
+/** Neuer Albuminterpret: Titel, die noch den alten Interpreten hatten, ziehen mit; abweichende bleiben. */
+function setAlbumArtist(next) {
+  const old = album.albumArtist;
+  album.tracks.forEach((t) => { if (!t.artist || t.artist === old) t.artist = next; });
+  album.albumArtist = next;
+  renderAlbum();
+}
+
+$("#album-artist").addEventListener("change", () => setAlbumArtist($("#album-artist").value.trim()));
+
+$("#album-apply").addEventListener("click", () => {
+  const artist = $("#album-artist").value.trim();
+  album.tracks.forEach((t) => (t.artist = artist));
+  album.albumArtist = artist;
+  renderAlbum();
+});
+
+$("#album-va").addEventListener("change", () => {
+  const field = $("#album-artist");
+  if ($("#album-va").checked) {
+    albumArtistBeforeVa = field.value;
+    field.value = VA;
+    album.albumArtist = VA; // Interpreten der Titel bleiben einzeln erhalten
+  } else {
+    field.value = albumArtistBeforeVa;
+    album.albumArtist = albumArtistBeforeVa;
+  }
+  field.disabled = $("#album-va").checked;
+  $("#album-apply").disabled = $("#album-va").checked;
+  renderAlbum();
+});
+
+$("#album-artist-col").addEventListener("click", () => {
+  showArtistCol = !showArtistCol;
+  renderAlbum();
+});
+
+function updateArtistColumn() {
+  const va = $("#album-va").checked;
+  const uniform = album.tracks.every((t) => t.artist === album.albumArtist);
+  const hide = !va && !showArtistCol && uniform;
+  $("#album-table").classList.toggle("hide-artist", hide);
+  const toggle = $("#album-artist-col");
+  toggle.hidden = va || !uniform;
+  toggle.textContent = showArtistCol ? "Interpret-Spalte ausblenden" : "Interpret pro Titel bearbeiten";
+}
+
 function renderAlbum() {
   sortTracks();
+  updateArtistColumn();
   const playing = currentTrackIndex();
   $("#album-tracks").replaceChildren(...album.tracks.map((t, i) => {
     const start = el("input", { value: fmt(t.start) });
@@ -444,7 +516,7 @@ audio.addEventListener("timeupdate", () => {
 window.addEventListener("resize", drawWave);
 
 $("#album-add").addEventListener("click", () => {
-  const artist = $("#album-artist").value;
+  const artist = $("#album-va").checked ? "" : $("#album-artist").value;
   album.tracks.push({ start: audio.currentTime, artist, title: "" });
   renderAlbum();
 });
