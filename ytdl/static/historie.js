@@ -1,7 +1,7 @@
 import { api } from "./js/api.js";
 import { $, button, el, emptyState } from "./js/dom.js";
 import { cssName, formatSize, formatTime, plural } from "./js/format.js";
-import { t } from "./js/i18n.js";
+import { has, t } from "./js/i18n.js";
 
 const PAGE = 20; // Downloads pro Seite
 let offset = 0;
@@ -24,14 +24,17 @@ function videoLink(entry) {
   return el("a", { href: url, target: "_blank", rel: "noopener" }, entry.start ? `Video ab ${formatTime(entry.start)} öffnen` : "Video öffnen");
 }
 
+/** Übersetzter Code – ältere Einträge enthalten noch den deutschen Klartext, der dann so erscheint. */
+const label = (section, value) => (has(`${section}.${value}`) ? t(`${section}.${value}`) : value);
+
 function tagRows(e) {
   const tags = e.tags || {};
   const rows = Object.entries(TAG_LABELS).filter(([k]) => tags[k] != null && tags[k] !== "")
     .map(([k, name]) => el("tr", {}, el("th", {}, name), el("td", {}, String(tags[k]))));
-  rows.push(el("tr", {}, el("th", {}, "Cover"), el("td", {}, e.cover + (e.cover_url ? ` (${e.cover_url})` : ""))));
+  rows.push(el("tr", {}, el("th", {}, "Cover"), el("td", {}, t(`cover.${e.cover}`) + (e.cover_url ? ` (${e.cover_url})` : ""))));
   rows.push(el("tr", {}, el("th", {}, "Format"), el("td", {}, `${(e.format || "").toUpperCase()}${e.bitrate ? ` · ${e.bitrate} kbit/s` : ""}`)));
   if (e.start != null) rows.push(el("tr", {}, el("th", {}, "Ausschnitt"), el("td", {}, `${formatTime(e.start)} – ${formatTime(e.end)}`)));
-  if (e.boundary_source) rows.push(el("tr", {}, el("th", {}, "Grenzen aus"), el("td", {}, e.boundary_source)));
+  if (e.boundary_source) rows.push(el("tr", {}, el("th", {}, "Grenzen aus"), el("td", {}, label("source", e.boundary_source))));
   if (e.source_title) rows.push(el("tr", {}, el("th", {}, "Originaltitel"), el("td", {}, e.source_title)));
   rows.push(el("tr", {}, el("th", {}, "Versuche"), el("td", {}, String(e.attempts || 1))));
   if (e.with_cookies) rows.push(el("tr", {}, el("th", {}, "Anmeldung"),

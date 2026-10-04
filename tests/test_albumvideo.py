@@ -147,7 +147,7 @@ def test_analyze_uses_description_and_skips_later_sources(cfg, offline):
     offline["info"]["description"] = "0:00 Eins\n1:39 Zwei\n3:21 Band - Drei"
     act = Activity(id="a", kind="test")
     result = albumvideo.analyze("https://youtu.be/vid", cfg, act)
-    assert result["source"] == "beschreibung" and result["source_label"] == "Zeitstempel in der Beschreibung"
+    assert result["source"] == "description" and result["source_label"] == "Zeitstempel in der Beschreibung"
     assert [t["title"] for t in result["tracks"]] == ["Eins", "Zwei", "Drei"]
     assert result["tracks"][1]["start"] == pytest.approx(100, abs=1)  # auf die Pause gerückt
     assert offline["frames"] == offline["comments"] == 0
@@ -164,7 +164,7 @@ def test_analyze_chapters_are_not_snapped(cfg, offline):
                                    {"start_time": 150, "end_time": DURATION, "title": "B"}]
     act = Activity(id="a", kind="test")
     result = albumvideo.analyze("https://youtu.be/vid", cfg, act)
-    assert result["source"] == "kapitel" and [t["start"] for t in result["tracks"]] == [0, 150]
+    assert result["source"] == "chapters" and [t["start"] for t in result["tracks"]] == [0, 150]
     assert "Grenzen auf Pausen ausrichten" not in [label for label, _ in steps(act)]
 
 
@@ -172,7 +172,7 @@ def test_analyze_falls_back_to_silence_and_artist_from_image(cfg, offline):
     offline["frame_result"] = ([], ["DIRE STRAITS", "Brothers in Arms"])
     act = Activity(id="a", kind="test")
     result = albumvideo.analyze("https://youtu.be/vid", cfg, act)
-    assert result["source"] == "stille" and len(result["tracks"]) == 3
+    assert result["source"] == "silence" and len(result["tracks"]) == 3
     assert result["artist"] == "Dire Straits" and result["hints"] == ["DIRE STRAITS", "Brothers in Arms"]
     assert offline["frames"] == offline["comments"] == 1
     assert ("Pausenerkennung im Audio", Status.DONE) in steps(act)
@@ -180,13 +180,13 @@ def test_analyze_falls_back_to_silence_and_artist_from_image(cfg, offline):
 
 def test_redetect_with_count(cfg, cached):
     result = albumvideo.redetect(cfg, "vid", 3, 1.0, 25.0, "Band")
-    assert result["source"] == "stille" and len(result["tracks"]) == 3
+    assert result["source"] == "silence" and len(result["tracks"]) == 3
     assert all(t["artist"] == "Band" for t in result["tracks"])
 
 
 def test_from_text_titles_only(cfg, cached):
     result = albumvideo.from_text(cfg, "vid", "1. Eins\n2. Zwei\n3. Gast - Drei", "Band")
-    assert result["source"] == "eingabe"
+    assert result["source"] == "text"
     assert [(t["artist"], t["title"]) for t in result["tracks"]] == [("Band", "Eins"), ("Band", "Zwei"),
                                                                       ("Gast", "Drei")]
     with pytest.raises(ValueError, match="Keine Titel"):
@@ -202,7 +202,7 @@ def test_scan_overlays_uses_cached_video(cfg, cached, monkeypatch):
                         lambda video, duration, on_progress: [Segment(0, 105, "Eins"), Segment(105, DURATION, "Zwei")])
     act = Activity(id="a", kind="test")
     result = albumvideo.scan_overlays(cfg, "vid", "Band", act)
-    assert result["source"] == "einblendung" and result["tracks"][1]["start"] == pytest.approx(100, abs=1)
+    assert result["source"] == "overlay" and result["tracks"][1]["start"] == pytest.approx(100, abs=1)
     assert act.steps[0].detail == "aus dem Zwischenspeicher"
 
 
@@ -225,3 +225,27 @@ def test_cut_track_needs_cached_audio(cfg):
 def test_meta_is_utf8_json(cached):
     cached.save_meta({"title": "Schildkröte"})
     assert json.loads((cached.folder / "meta.json").read_text(encoding="utf-8")) == {"title": "Schildkröte"}
+
+
+def test_analyze_in_english(cfg, offline):
+    from ytdl import i18n
+
+    offline["info"]["description"] = "0:00 One\n1:39 Two\n3:21 Three"
+    act = Activity(id="a", kind="test")
+    i18n.configure("en")
+    try:
+        result = albumvideo.analyze("https://youtu.be/vid", cfg, act)
+    finally:
+        i18n.configure("de")
+    assert result["source_label"] == "Timestamps in the description"
+    assert steps(act)[3:6] == [("YouTube chapters", Status.NOTHING), ("Timestamps in the description", Status.DONE),
+                               ("Track list in the video image (OCR)", Status.SKIPPED)]
+    assert act.steps[4].detail == "3 tracks found" and act.steps[5].detail == "not needed"
+
+
+def test_missing_cached_audio_is_permanent(cfg):
+    from ytdl.errors import PermanentError
+
+    item = Item(id="vid-01", url="", mode=MUSIK, title="T", artist="A", source_id="weg", start=0.0, end=1.0)
+    with pytest.raises(PermanentError):
+        albumvideo.cut_track(item, cfg, lambda *a: None)

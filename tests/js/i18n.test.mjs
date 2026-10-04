@@ -18,3 +18,10 @@ test("english plural rules", () => {
   assert.equal(t("files", { count: 1 }), "1 file");
   assert.equal(t("files", { count: 0 }), "0 files");
 });
+
+test("has", async () => {
+  const { has } = await import("../../ytdl/static/js/i18n.js");
+  setMessages("de", { "source.text": "eingefügte Trackliste" });
+  assert.ok(has("source.text"));
+  assert.ok(!has("source.Trackliste im Videobild (OCR)"));
+});

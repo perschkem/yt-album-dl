@@ -248,3 +248,13 @@ def test_album_job_needs_ffmpeg(client, monkeypatch):
     res = client.post("/api/album/vid123/jobs", json={"album": "Al", "album_artist": "A",
                                                       "tracks": [{"start": 0, "title": "Eins"}]})
     assert res.status_code == 400 and "ffmpeg" in res.json()["detail"]
+
+
+def test_api_messages_follow_the_language(client, english):
+    assert client.post("/api/jobs", json={"mode": "x", "items": []}).json()["detail"] == "Unknown mode: x"
+    assert client.get("/api/activities/nope").json()["detail"] == "Task not found"
+    assert client.get("/api/i18n").json()["messages"]["status.done"] == "done"
+    res = client.post("/api/jobs", json={"mode": "musik", "items": [{**item(1), "on_conflict": "skip"}]})
+    assert res.json()["detail"] == "No tracks selected"
+    res = client.get("/api/history.csv")
+    assert 'filename="yt-album-dl-history.csv"' in res.headers["content-disposition"]

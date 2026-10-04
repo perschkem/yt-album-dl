@@ -15,6 +15,8 @@ import numpy as np
 
 from .activity import Activity, NullActivity, Step
 from .config import Config
+from .errors import InvalidVideoId, PermanentError
+from .i18n import t
 from .library import ProgressCallback, audio_format, downloaded_file, finish_track
 from .metadata import MUSIK, Item, clean_title, music_item, normalize_feat, split_artist_title
 from .ocr import overlay_titles, tracklist_from_frames
@@ -35,15 +37,9 @@ from .status import Status
 from .ytdlp import download as ytdlp_download, extract_info, mb
 
 CACHE_DAYS = 7
-SOURCE_LABELS = {
-    "kapitel": "YouTube-Kapitel",
-    "beschreibung": "Zeitstempel in der Beschreibung",
-    "bild": "Trackliste im Videobild (OCR)",
-    "kommentar": "Zeitstempel in einem Kommentar",
-    "einblendung": "Titeleinblendungen im Video (OCR)",
-    "eingabe": "eingefügte Trackliste",
-    "stille": "Pausenerkennung im Audio",
-}
+# Woher die Trackgrenzen stammen – Codes (auch in der Historie), angezeigt als source.<code>
+CHAPTERS, DESCRIPTION, IMAGE, COMMENT = "chapters", "description", "image", "comment"
+OVERLAY, TEXT, SILENCE = "overlay", "text", "silence"
 _ALBUM_NOISE = re.compile(
     r"\b(full\s+(album|playlist)|playlist|greatest\s+hits\s+full|best\s+songs?\s+of|all\s+time|"
     r"(19|20)\d{2}|top\s+\d+|hq|hd)\b",
@@ -60,7 +56,7 @@ class AlbumCache:
 
     def __init__(self, cfg: Config, video_id: str):
         if not _VIDEO_ID.fullmatch(video_id):
-            raise ValueError("Ungültige Video-ID")
+            raise InvalidVideoId(t("errors.invalid_video_id"))
         self.video_id = video_id
         self.folder = cfg.data_dir / "cache" / video_id
 
@@ -91,7 +87,7 @@ class AlbumCache:
     def require_audio(self) -> Path:
         if audio := self.audio:
             return audio
-        raise RuntimeError("Zwischengespeichertes Audio fehlt – bitte Video erneut analysieren")
+        raise PermanentError(t("errors.cached_audio_missing"))
 
     def fetch_audio(self, url: str, step: Step | None = None) -> Path:
         """Lädt die Audiospur einmal (m4a/webm spielen alle Browser ab)."""
@@ -102,7 +98,7 @@ class AlbumCache:
                        step.update if step else None, writethumbnail=True)
         if audio := self.audio:
             return audio
-        raise RuntimeError("Audio konnte nicht geladen werden")
+        raise RuntimeError(t("errors.audio_download_failed"))
 
     def fetch_video(self, url: str, step: Step | None = None) -> Path:
         """Lädt das Video in 480p (nur für das Lesen der Einblendungen)."""
@@ -112,7 +108,7 @@ class AlbumCache:
                        step.update if step else None)
         if video := self.video:
             return video
-        raise RuntimeError("Video konnte nicht geladen werden")
+        raise RuntimeError(t("errors.video_download_failed"))
 
     @property
     def _envelope_path(self) -> Path:
@@ -129,7 +125,7 @@ class AlbumCache:
         on_progress = None
         if step and duration:
             def on_progress(sec: float) -> None:
-                step.update(f"{int(sec // 60)} von {int(duration // 60)} Min.", sec / duration * 100)
+                step.update(t("progress.minutes_of", done=int(sec // 60), total=int(duration // 60)), sec / duration * 100)
         env = envelope(self.require_audio(), on_progress)
         np.save(self._envelope_path, env)
         return env
@@ -141,7 +137,7 @@ class AlbumCache:
     def meta(self) -> dict:
         path = self.folder / "meta.json"
         if not path.exists():
-            raise ValueError("Video nicht analysiert – bitte erneut prüfen")
+            raise ValueError(t("errors.not_analyzed"))
         return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -174,13 +170,13 @@ def _tracks(segments: list[Segment], default_artist: str) -> list[dict]:
 
 def _result(source: str, segments: list[Segment], artist: str) -> dict:
     """Ergebnis einer Erkennung für die Oberfläche: Quelle + Trackzeilen."""
-    return {"source": source, "source_label": SOURCE_LABELS[source], "tracks": _tracks(segments, artist)}
+    return {"source": source, "source_label": t(f"source.{source}"), "tracks": _tracks(segments, artist)}
 
 
 def _snap_step(act: Activity, segments: list[Segment], env: np.ndarray, window: float = 3.0) -> list[Segment]:
-    step = act.step("Grenzen auf Pausen ausrichten")
+    step = act.step(t("steps.snap"))
     segments = snap(segments, env, window=window)
-    step.done(f"auf die leiseste Stelle in ±{window:g} s gerückt")
+    step.done(t("steps.snap_done", seconds=f"{window:g}"))
     return segments
 
 
@@ -195,26 +191,26 @@ class Found(NamedTuple):
 def _from_chapters(info: dict, duration: float, step: Step) -> Found:
     if len(info.get("chapters") or []) >= 2:
         segments = segments_from_chapters(info["chapters"], duration)
-        return Found(segments, f"{len(segments)} Kapitel gefunden")
-    return Found([], "keine Kapitel")
+        return Found(segments, t("steps.chapters_found", count=len(segments)))
+    return Found([], t("steps.no_chapters"))
 
 
 def _from_description(info: dict, duration: float, step: Step) -> Found:
     description = info.get("description") or ""
     if segments := parse_tracklist(description, duration):
-        return Found(segments, f"{len(segments)} Titel gefunden")
-    return Found([], "Beschreibung ist leer" if not description.strip() else "keine Trackliste mit Zeitstempeln")
+        return Found(segments, t("steps.titles_found", count=len(segments)))
+    return Found([], t("steps.description_empty") if not description.strip() else t("steps.no_timestamps"))
 
 
 def _from_frames(info: dict, duration: float, step: Step) -> Found:
     def on_progress(n: int, total: int, lines: int) -> None:
-        step.update(f"Bild {n}/{total} gelesen" + (f" · {lines} Textzeilen" if lines else " · kein Text"),
-                    n / total * 100)
+        found = t("steps.frame_lines", count=lines) if lines else t("steps.frame_no_text")
+        step.update(f"{t('steps.frame_read', n=n, total=total)} · {found}", n / total * 100)
 
     segments, hints = tracklist_from_frames(info, duration, on_progress=on_progress)
     if segments:
-        return Found(segments, f"{len(segments)} Titel mit Zeitstempeln im Bild gefunden", tuple(hints))
-    return Found([], "kein Text mit Zeitstempeln in den Standbildern", tuple(hints))
+        return Found(segments, t("steps.image_found", count=len(segments)), tuple(hints))
+    return Found([], t("steps.image_nothing"), tuple(hints))
 
 
 def _from_comments(info: dict, duration: float, step: Step) -> Found:
@@ -230,17 +226,17 @@ def _from_comments(info: dict, duration: float, step: Step) -> Found:
         if len(segments) > len(best):
             best = segments
     if best:
-        return Found(best, f"{len(best)} Titel in einem von {len(comments)} Kommentaren gefunden")
-    return Found([], f"{len(comments)} Kommentare durchsucht, keine Trackliste")
+        return Found(best, t("steps.comments_found", count=len(best), comments=len(comments)))
+    return Found([], t("steps.comments_nothing", count=len(comments)))
 
 
 Finder = Callable[[dict, float, Step], Found]
-# (Quelle, Schritt, Text beim Start, Suche)
+# (Quelle, Schlüssel des Schritts, Schlüssel für den Text beim Start, Suche)
 SOURCES: list[tuple[str, str, str, Finder]] = [
-    ("kapitel", "YouTube-Kapitel", "", _from_chapters),
-    ("beschreibung", "Zeitstempel in der Beschreibung", "", _from_description),
-    ("bild", "Trackliste im Videobild (OCR)", "Standbilder holen …", _from_frames),
-    ("kommentar", "Zeitstempel in Kommentaren", "Kommentare laden …", _from_comments),
+    (CHAPTERS, "steps.chapters", "", _from_chapters),
+    (DESCRIPTION, "steps.description", "", _from_description),
+    (IMAGE, "steps.image", "steps.image_start", _from_frames),
+    (COMMENT, "steps.comments", "steps.comments_start", _from_comments),
 ]
 
 
@@ -248,16 +244,16 @@ def _find_segments(act: Activity, info: dict, duration: float) -> tuple[str, lis
     """Probiert die Quellen der Reihe nach; nach dem ersten Treffer werden die übrigen übersprungen."""
     hints: list[str] = []
     for i, (source, label, detail, find) in enumerate(SOURCES):
-        step = act.step(label, detail)
+        step = act.step(t(label), t(detail) if detail else "")
         found = find(info, duration, step)
         hints = hints or list(found.hints)
         if found.segments:
             step.done(found.message)
             for _, later, _, _ in SOURCES[i + 1:]:
-                act.skip(later, "nicht nötig")
+                act.skip(t(later), t("steps.not_needed"))
             return source, found.segments, hints
         step.nothing(found.message)
-    return "stille", [], hints
+    return SILENCE, [], hints
 
 
 # ---------- Vorgänge ----------
@@ -267,39 +263,39 @@ def analyze(url: str, cfg: Config, activity: Activity | None = None) -> dict:
     act = activity or NullActivity()
     AlbumCache.cleanup(cfg)
 
-    step = act.step("Video-Infos laden")
+    step = act.step(t("steps.video_info"))
     info = extract_info(url)
     if not info:
-        raise ValueError("Keine Informationen gefunden – ist die URL korrekt?")
+        raise ValueError(t("errors.no_info_url"))
     duration = float(info.get("duration") or 0)
-    step.done(f"„{info.get('title') or ''}“ · {int(duration // 60)} Min.")
+    step.done(t("steps.video_title", title=info.get("title") or "", minutes=int(duration // 60)))
 
     cache = AlbumCache(cfg, info["id"])
     cached = cache.audio is not None
-    step = act.step("Audiospur laden")
+    step = act.step(t("steps.audio"))
     audio = cache.fetch_audio(info["webpage_url"], step)
-    step.done(f"{'aus dem Zwischenspeicher' if cached else 'geladen'} · {mb(audio.stat().st_size)} MB")
+    step.done(t("steps.audio_cached" if cached else "steps.audio_downloaded", mb=mb(audio.stat().st_size)))
 
     cached = cache.has_envelope
-    step = act.step("Lautstärkeverlauf berechnen")
+    step = act.step(t("steps.envelope"))
     env = cache.envelope(step, duration)
     duration = duration or len(env) / FPS
-    step.done("aus dem Zwischenspeicher" if cached else f"{int(duration // 60)} Min. analysiert")
+    step.done(t("steps.from_cache") if cached else t("steps.envelope_done", minutes=int(duration // 60)))
 
     source, segments, hints = _find_segments(act, info, duration)
-    if segments and source != "kapitel":
+    if segments and source != CHAPTERS:
         segments = _snap_step(act, segments, env)
     if not segments:
-        step = act.step("Pausenerkennung im Audio")
+        step = act.step(t("steps.silence"))
         segments = segments_from_boundaries(detect_boundaries(env), duration)
-        step.done(f"{len(segments) - 1} Pausen → {len(segments)} Titel – bitte besonders genau kontrollieren")
+        step.done(t("steps.silence_done", pauses=len(segments) - 1, count=len(segments)))
 
     base = music_item(info)
     artist = base.artist
     # Interpret im Bild (z.B. "DIRE STRAITS" über der Trackliste) ist meist zuverlässiger als der Videotitel
     if big := [h for h in hints if len(h) > 3 and h.isupper()]:
         artist = big[0].title()
-        act.step("Interpret im Bild erkannt").done(artist)
+        act.step(t("steps.artist_in_image")).done(artist)
 
     meta = {
         "id": info["id"],
@@ -327,17 +323,17 @@ def redetect(cfg: Config, video_id: str, count: int | None, min_pause: float, se
     act = activity or NullActivity()
     cache = AlbumCache(cfg, video_id)
     meta, env = cache.meta(), cache.envelope()
-    step = act.step("Pausen suchen", f"genau {count} Titel" if count else
-                    f"Pausen ab {min_pause:g} s, {sensitivity:g} dB unter dem Durchschnitt")
+    step = act.step(t("steps.find_pauses"), t("steps.find_pauses_count", count=count) if count else
+                    t("steps.find_pauses_auto", seconds=f"{min_pause:g}", db=f"{sensitivity:g}"))
     cuts = detect_boundaries(env, count=count, min_pause=min_pause, sensitivity_db=sensitivity)
     segments = segments_from_boundaries(cuts, meta["duration"])
     if count and len(segments) < count:
-        step.done(f"nur {len(segments)} von {count} Titeln möglich (Titel müssen mind. 30 s lang sein)")
+        step.done(t("steps.pauses_too_few", found=len(segments), count=count))
     elif not cuts:
-        step.nothing("keine Pausen gefunden – Empfindlichkeit verringern oder Anzahl Titel angeben")
+        step.nothing(t("steps.no_pauses"))
     else:
-        step.done(f"{len(cuts)} Pausen → {len(segments)} Titel")
-    return _result("stille", segments, artist)
+        step.done(t("steps.pauses_found", pauses=len(cuts), count=len(segments)))
+    return _result(SILENCE, segments, artist)
 
 
 def from_text(cfg: Config, video_id: str, text: str, artist: str, activity: Activity | None = None) -> dict:
@@ -345,22 +341,22 @@ def from_text(cfg: Config, video_id: str, text: str, artist: str, activity: Acti
     act = activity or NullActivity()
     cache = AlbumCache(cfg, video_id)
     meta, env = cache.meta(), cache.envelope()
-    step = act.step("Trackliste lesen")
+    step = act.step(t("steps.read_tracklist"))
     if segments := parse_tracklist(text, meta["duration"]):
-        step.done(f"{len(segments)} Titel mit Zeitstempeln")
+        step.done(t("steps.tracklist_timestamps", count=len(segments)))
         segments = _snap_step(act, segments, env)
     else:
         titles = parse_titles(text)
         if not titles:
-            raise ValueError("Keine Titel im Text gefunden")
-        step.done(f"{len(titles)} Titel ohne Zeitstempel")
-        step = act.step("Passende Pausen suchen", f"{len(titles) - 1} Grenzen")
+            raise ValueError(t("errors.no_titles_in_text"))
+        step.done(t("steps.tracklist_titles", count=len(titles)))
+        step = act.step(t("steps.matching_pauses"), t("steps.boundaries", count=len(titles) - 1))
         cuts = detect_boundaries(env, count=len(titles)) if len(titles) > 1 else []
         segments = segments_from_boundaries(cuts, meta["duration"])
         for seg, title in zip(segments, titles):
             seg.title = title
-        step.done(f"{len(cuts)} Grenzen gefunden")
-    return _result("eingabe", segments, artist)
+        step.done(t("steps.boundaries_found", count=len(cuts)))
+    return _result(TEXT, segments, artist)
 
 
 def scan_overlays(cfg: Config, video_id: str, artist: str, activity: Activity | None = None) -> dict:
@@ -368,19 +364,19 @@ def scan_overlays(cfg: Config, video_id: str, artist: str, activity: Activity | 
     act = activity or NullActivity()
     cache = AlbumCache(cfg, video_id)
     meta = cache.meta()
-    step = act.step("Video in 480p laden")
+    step = act.step(t("steps.video_480"))
     cached = cache.video is not None
     video = cache.fetch_video(meta["url"], step)
-    step.done("aus dem Zwischenspeicher" if cached else f"{mb(video.stat().st_size)} MB")
-    step = act.step("Einblendungen lesen (alle 10 s ein Bild)")
+    step.done(t("steps.from_cache") if cached else t("progress.mb", mb=mb(video.stat().st_size)))
+    step = act.step(t("steps.read_overlays"))
     segments = overlay_titles(video, meta["duration"],
-                              on_progress=lambda n, total: step.update(f"Bild {n}/{total}", n / total * 100))
+                              on_progress=lambda n, total: step.update(t("steps.frame", n=n, total=total), n / total * 100))
     if not segments:
-        step.nothing("keine wechselnden Titeleinblendungen gefunden")
-        raise ValueError("Keine wechselnden Titeleinblendungen gefunden")
-    step.done(f"{len(segments)} verschiedene Einblendungen")
+        step.nothing(t("steps.no_overlays"))
+        raise ValueError(t("errors.no_overlays"))
+    step.done(t("steps.overlays_found", count=len(segments)))
     segments = _snap_step(act, segments, cache.envelope(), window=8.0)
-    return _result("einblendung", segments, artist)
+    return _result(OVERLAY, segments, artist)
 
 
 # ---------- Schneiden ----------

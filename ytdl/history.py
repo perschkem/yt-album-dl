@@ -10,10 +10,13 @@ import time
 from collections import Counter
 from pathlib import Path
 
-from . import i18n
+from .i18n import t
 from .metadata import Item
 from .paths import common_folder, win_path
 from .status import LEGACY_RESULTS
+
+COVER_CUSTOM, COVER_THUMBNAIL = "custom", "thumbnail"  # angezeigt als cover.<code>
+_LEGACY_COVERS = {"eigene URL": COVER_CUSTOM, "YouTube-Vorschaubild": COVER_THUMBNAIL}
 
 _TAG_KEYS = ("artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date", "genre")
 
@@ -46,7 +49,7 @@ class History:
             "win_path": win_path(file),
             "size": file.stat().st_size if file and file.exists() else None,
             "tags": {k: getattr(item, k) for k in _TAG_KEYS if getattr(item, k) not in (None, "")},
-            "cover": "eigene URL" if item.cover_url else "YouTube-Vorschaubild",
+            "cover": COVER_CUSTOM if item.cover_url else COVER_THUMBNAIL,
             "cover_url": item.cover_url,
             "error": error,
             "attempts": attempts,
@@ -82,7 +85,9 @@ class History:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue  # kaputte Zeile (z.B. nach Absturz beim Schreiben) überspringen
+            # ältere Einträge speicherten deutsche Anzeigetexte statt Codes
             entry["result"] = LEGACY_RESULTS.get(entry.get("result"), entry.get("result"))
+            entry["cover"] = _LEGACY_COVERS.get(entry.get("cover"), entry.get("cover"))
             entries.append(entry)
         entries.reverse()  # neueste zuerst
         return entries
@@ -157,7 +162,7 @@ class History:
     def to_csv(self, **filters) -> str:
         out = io.StringIO()
         writer = csv.writer(out, delimiter=";")
-        writer.writerow([header for header, _ in CSV_COLUMNS])
+        writer.writerow([t(header) for header, _ in CSV_COLUMNS])
         for entry in self._matching(**filters):
             tags = entry.get("tags", {})
             writer.writerow([value(entry, tags) for _, value in CSV_COLUMNS])
@@ -165,26 +170,26 @@ class History:
 
 
 def _tag(key: str):
-    return lambda e, t: t.get(key, "")
+    return lambda entry, tags: tags.get(key, "")
 
 
-# (Spaltenkopf, Wert aus Eintrag und Tags) – Kopf und Wert stehen zusammen, damit nichts verrutscht
+# (Schlüssel des Spaltenkopfs, Wert aus Eintrag und Tags) – Kopf und Wert stehen zusammen, damit nichts verrutscht
 CSV_COLUMNS = [
-    ("Zeit", lambda e, t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(e.get("ts", 0)))),
-    ("Ergebnis", lambda e, t: i18n.t(f"status.{e.get('result')}")),
-    ("Modus", lambda e, t: e.get("mode")),
-    ("Format", lambda e, t: e.get("format")),
-    ("Interpret", _tag("artist")),
-    ("Titel", _tag("title")),
-    ("Album", _tag("album")),
-    ("Albuminterpret", _tag("album_artist")),
-    ("Nr.", _tag("track_no")),
-    ("Jahr", lambda e, t: t.get("year", "") or t.get("date", "")),
-    ("Genre", _tag("genre")),
-    ("Cover", lambda e, t: e.get("cover")),
-    ("URL", lambda e, t: e.get("url")),
-    ("Start", lambda e, t: e.get("start") or ""),
-    ("Ende", lambda e, t: e.get("end") or ""),
-    ("Pfad", lambda e, t: e.get("win_path") or e.get("path")),
-    ("Fehler", lambda e, t: e.get("error")),
+    ("csv.time", lambda entry, tags: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry.get("ts", 0)))),
+    ("csv.result", lambda entry, tags: t(f"status.{entry.get('result')}")),
+    ("csv.mode", lambda entry, tags: t(f"mode.{entry.get('mode')}")),
+    ("csv.format", lambda entry, tags: entry.get("format")),
+    ("csv.artist", _tag("artist")),
+    ("csv.title", _tag("title")),
+    ("csv.album", _tag("album")),
+    ("csv.album_artist", _tag("album_artist")),
+    ("csv.track_no", _tag("track_no")),
+    ("csv.year", lambda entry, tags: tags.get("year", "") or tags.get("date", "")),
+    ("csv.genre", _tag("genre")),
+    ("csv.cover", lambda entry, tags: t(f"cover.{entry.get('cover')}")),
+    ("csv.url", lambda entry, tags: entry.get("url")),
+    ("csv.start", lambda entry, tags: entry.get("start") or ""),
+    ("csv.end", lambda entry, tags: entry.get("end") or ""),
+    ("csv.path", lambda entry, tags: entry.get("win_path") or entry.get("path")),
+    ("csv.error", lambda entry, tags: entry.get("error")),
 ]

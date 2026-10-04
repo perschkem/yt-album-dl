@@ -44,3 +44,11 @@ def test_current_and_limits(tmp_path, monkeypatch):
     assert current["musik_dir"] == r"D:\Musik" and current["sleep_seconds"] == 7 and current["max_retries"] == 3
     assert settings.limits() == {"parallel_downloads": [1, 16], "parallel_cuts": [1, 32], "max_retries": [0, 10],
                                  "sleep_seconds": [0, 120]}
+
+
+def test_messages_in_english(english, tmp_path):
+    with pytest.raises(InvalidSettings) as err:
+        validate({"bitrate": 1, "max_retries": 99, "audio_format": "ogg", "cookies_file": str(tmp_path / "x.txt")})
+    assert str(err.value) == "Settings not saved"
+    assert err.value.fields == {"bitrate": "Allowed: 128, 160, 192, 256, 320", "max_retries": "Allowed: 0–10",
+                                "audio_format": "mp3 or m4a", "cookies_file": "File not found"}

@@ -12,11 +12,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .albumvideo import cut_track
-from .auth import BOT_CHECK_HINT, is_bot_check, youtube
+from .auth import bot_check_hint, is_bot_check, youtube
 from .config import Config
 from .downloader import convert, fetch
-from .errors import clean_error
+from .errors import PermanentError, clean_error
 from .history import History
+from .i18n import t
 from .library import Skipped, audio_format
 from .metadata import Item
 from .paths import common_folder, win_path
@@ -54,8 +55,8 @@ def overall_progress(stage: str, pct: float) -> float:
 _PERMANENT = (
     "private video", "video unavailable", "has been removed", "been terminated", "sign in to confirm your age",
     "age-restricted", "members-only", "join this channel", "not available in your country", "copyright",
-    "is not a valid url", "unsupported url", "zwischengespeichertes audio fehlt", "ungültige",
-)
+    "is not a valid url", "unsupported url",
+)  # yt-dlp-Meldungen (englisch); eigene dauerhafte Fehler sind PermanentError
 _THROTTLED = ("429", "too many requests", "rate limit", "rate-limit")
 
 
@@ -306,7 +307,7 @@ class JobManager:
                 task.skip(str(exc))
                 self._record(task, Status.SKIPPED)
             except Exception as exc:  # noqa: BLE001 – ein Fehler soll die Warteschlange nie stoppen
-                self._failed(task, clean_error(exc))
+                self._failed(task, clean_error(exc), permanent=isinstance(exc, PermanentError))
                 if task.status == Status.FAILED:
                     self._record(task, Status.FAILED)
             finally:
@@ -339,30 +340,31 @@ class JobManager:
         except Exception:
             log.exception("Historie: Eintrag für %s nicht geschrieben", task.item.id)
 
-    def _failed(self, task: Task, message: str) -> None:
+    def _failed(self, task: Task, message: str, permanent: bool = False) -> None:
         with self._cond:
             if task.pool == NET and is_bot_check(message):
                 youtube.note_bot_check()
                 task.bot_pauses += 1
                 if task.bot_pauses >= MAX_BOT_PAUSES:
-                    task.fail(BOT_CHECK_HINT)
+                    task.fail(bot_check_hint())
                     return
                 # Alle Downloads anhalten statt sofort weiter anzufragen – das würde die Sperre nur verlängern.
                 # Kein Versuch wird verbraucht; „Jetzt fortsetzen“ hebt die Pause auf.
                 self.paused_until = max(self.paused_until, time.time() + BOT_PAUSE_SECONDS)
                 until = time.strftime("%H:%M", time.localtime(self.paused_until))
-                task.requeue(Status.PAUSED, self.paused_until, f"YouTube-Bot-Prüfung – Downloads pausieren bis {until}")
+                task.requeue(Status.PAUSED, self.paused_until, t("jobs.paused_detail", time=until))
                 self._enqueue(task)
                 return
             if task.pool == NET and is_throttled(message):
                 self._throttle_until = time.time() + THROTTLE_SECONDS
-            permanent = is_permanent(message)
+            permanent = permanent or is_permanent(message)
             if permanent or task.attempt >= self.max_attempts:
-                task.fail(message if permanent or task.attempt == 1 else f"{message} (nach {task.attempt} Versuchen)")
+                task.fail(message if permanent or task.attempt == 1
+                          else t("jobs.failed_after", message=message, count=task.attempt))
                 return
             task.restart_stage()
             delay = backoff_delay(task.attempt)
             task.attempt += 1
             task.requeue(Status.RETRYING, time.time() + delay,
-                         f"Versuch {task.attempt}/{self.max_attempts} – letzter Fehler: {message[:160]}")
+                         t("jobs.retry_detail", attempt=task.attempt, max=self.max_attempts, message=message[:160]))
             self._enqueue(task)

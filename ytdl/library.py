@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .config import AUDIO_FORMATS, Config
 from .covers import CoverError, fetch_cover
+from .i18n import t
 from .metadata import Item
 from .paths import target_path, win_path
 from .status import Status
@@ -91,7 +92,7 @@ def place(src: Path, item: Item, cfg: Config) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
             if item.on_conflict == SKIP:
-                raise Skipped(f"übersprungen – existiert bereits: {target.name}")
+                raise Skipped(t("library.skipped_exists", name=target.name))
             if item.on_conflict == OVERWRITE:
                 # erst neben das Ziel kopieren, dann atomar ersetzen – bei Fehlern bleibt die alte Datei
                 staging = target.with_name(f".{target.stem}.neu{target.suffix}")
@@ -122,7 +123,7 @@ def choose_cover(item: Item, cfg: Config, thumbnail: Path | None, report: Progre
         try:
             return fetch_cover(item.cover_url, cfg.data_dir / "covers"), item.cover_crop
         except CoverError as exc:
-            report(Status.TAGGING, 85.0, f"{exc} – nehme das YouTube-Vorschaubild")
+            report(Status.TAGGING, 85.0, t("library.cover_fallback", error=exc))
     return thumbnail, True
 
 

@@ -10,13 +10,14 @@ from typing import Any
 
 from .auth import parse_browser_spec
 from .config import AUDIO_FORMATS, Config, to_local_path
+from .i18n import t
 
 BITRATES = (128, 160, 192, 256, 320)
 
 
 class InvalidSettings(ValueError):
     def __init__(self, fields: dict[str, str]):
-        super().__init__("Einstellungen nicht gespeichert")
+        super().__init__(t("settings.not_saved"))
         self.fields = fields
 
 
@@ -28,9 +29,9 @@ def _folder(value: str) -> tuple[str, Path | None]:
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        raise ValueError(f"Ordner existiert nicht und lässt sich nicht anlegen ({exc.strerror or exc})") from exc
+        raise ValueError(t("settings.folder_create", error=exc.strerror or exc)) from exc
     if not os.access(path, os.W_OK):
-        raise ValueError("Ordner ist nicht beschreibbar")
+        raise ValueError(t("settings.folder_not_writable"))
     return value.strip(), path
 
 
@@ -39,14 +40,13 @@ def _cookie_file(value: str) -> tuple[str, Path | None]:
         return "", None
     path = to_local_path(value)
     if not path.is_file():
-        raise ValueError("Datei nicht gefunden")
+        raise ValueError(t("settings.file_not_found"))
     try:
         head = path.read_text(encoding="utf-8", errors="replace")[:4000]
     except OSError as exc:
-        raise ValueError(f"Datei nicht lesbar ({exc.strerror or exc})") from exc
+        raise ValueError(t("settings.file_unreadable", error=exc.strerror or exc)) from exc
     if "Netscape HTTP Cookie File" not in head and "\t" not in head:
-        raise ValueError("Keine cookies.txt im Netscape-Format (z.B. mit der Erweiterung „Get cookies.txt LOCALLY“ "
-                         "exportieren)")
+        raise ValueError(t("settings.not_netscape"))
     return value.strip(), path
 
 
@@ -54,20 +54,21 @@ def _browser(value: str) -> tuple[str, str]:
     spec = value.strip()
     parsed = parse_browser_spec(spec) if spec else None  # ValueError bei unbekanntem Browser
     if parsed and parsed[1] and not Path(parsed[1]).exists():
-        raise ValueError("Profilordner nicht gefunden")
+        raise ValueError(t("settings.profile_not_found"))
     return spec, spec
 
 
-def _one_of(options: tuple, message: str) -> Callable[[Any], tuple[str, Any]]:
+def _one_of(options: tuple, message: Callable[[], str]) -> Callable[[Any], tuple[str, Any]]:
+    """Prüfung auf erlaubte Werte; die Meldung wird erst beim Fehler erzeugt (in der dann eingestellten Sprache)."""
     def check(value: Any) -> tuple[str, Any]:
         if value not in options:
-            raise ValueError(message)
+            raise ValueError(message())
         return str(value), value
     return check
 
 
 def _between(low: int, high: int) -> Callable[[int], tuple[str, int]]:
-    return _one_of(tuple(range(low, high + 1)), f"Erlaubt: {low}–{high}")
+    return _one_of(tuple(range(low, high + 1)), lambda: t("settings.allowed_range", low=low, high=high))
 
 
 def _env(key: str) -> Callable[[Config], str]:
@@ -94,9 +95,10 @@ def _number(env_key: str, field: str, low: int, high: int) -> Setting:
 SETTINGS: dict[str, Setting] = {
     "musik_dir": Setting("MUSIK_DIR", _folder, _env("MUSIK_DIR")),
     "podcast_dir": Setting("PODCAST_DIR", _folder, _env("PODCAST_DIR")),
-    "audio_format": Setting("AUDIO_FORMAT", _one_of(AUDIO_FORMATS, " oder ".join(AUDIO_FORMATS)),
+    "audio_format": Setting("AUDIO_FORMAT", _one_of(AUDIO_FORMATS, lambda: t("settings.or").join(AUDIO_FORMATS)),
                             _attr("audio_format")),
-    "bitrate": Setting("BITRATE", _one_of(BITRATES, f"Erlaubt: {', '.join(map(str, BITRATES))}"), _attr("bitrate")),
+    "bitrate": Setting("BITRATE", _one_of(BITRATES, lambda: t("settings.allowed_values", values=", ".join(map(str, BITRATES)))),
+                       _attr("bitrate")),
     "parallel_downloads": _number("PARALLEL_DOWNLOADS", "parallel_downloads", 1, 16),
     "parallel_cuts": _number("PARALLEL_CUTS", "parallel_cuts", 1, 32),
     "max_retries": _number("MAX_RETRIES", "max_retries", 0, 10),

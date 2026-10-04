@@ -23,7 +23,7 @@ def test_record_and_query_newest_first(tmp_path):
     assert data["total"] == 2
     first, second = data["entries"]
     assert first["tags"]["title"] == "Titel 2" and first["result"] == FAILED and first["attempts"] == 3
-    assert first["cover"] == "eigene URL" and first["bitrate"] is None  # Bitrate nur bei MP3
+    assert first["cover"] == "custom" and first["bitrate"] is None  # Bitrate nur bei MP3
     assert second["size"] == 10 and second["exists"] is True and second["tags"]["album"] == "Platte"
 
 
@@ -157,3 +157,20 @@ def test_legacy_german_results_are_read_as_codes(tmp_path):
                                 enumerate(("fertig", "fehler", "übersprungen", "überschrieben"))) + "\n")
     assert [e["result"] for e in h.query()["entries"]] == ["overwritten", "skipped", "failed", "done"]
     assert h.query(result=FAILED)["total"] == 1
+
+
+def test_legacy_cover_labels_and_translated_csv(tmp_path):
+    from ytdl import i18n
+
+    h = History(tmp_path)
+    h.path.write_text(json.dumps({"ts": 0, "result": "fertig", "mode": "musik", "cover": "eigene URL", "tags": {}}) + "\n")
+    h.record(song(1), FAILED, error="kaputt")
+    assert [e["cover"] for e in h.query()["entries"]] == ["thumbnail", "custom"]
+    i18n.configure("en")
+    try:
+        lines = h.to_csv().splitlines()
+    finally:
+        i18n.configure("de")
+    assert lines[0].startswith("Time;Result;Mode;Format;Artist;Title")
+    assert ";failed;Music;" in lines[1] and "YouTube thumbnail" in lines[1]
+    assert ";done;Music;" in lines[2] and "custom URL" in lines[2]

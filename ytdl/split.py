@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 
 from . import ffmpeg
+from .i18n import t
 
 FPS = 10  # Lautstärke-Hüllkurve: 10 Werte pro Sekunde
 SAMPLE_RATE = 8000
@@ -118,7 +119,7 @@ def envelope(audio: Path, on_progress: Callable[[float], None] | None = None) ->
         if on_progress:
             on_progress(sum(len(v) for v in values) / FPS)
     if proc.wait() != 0:
-        raise RuntimeError("ffmpeg konnte das Audio nicht lesen")
+        raise RuntimeError(t("errors.ffmpeg_read"))
     rms = np.concatenate(values) if values else np.zeros(1)
     return 20 * np.log10(np.maximum(rms, 1e-5))
 
@@ -224,7 +225,8 @@ def cut(source: Path, start: float, end: float | None, target: Path, bitrate: in
     cmd += ["-i", str(source), "-vn", "-map_metadata", "-1", *codec, str(target)]
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg: {proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else 'unbekannter Fehler'}")
+        raise RuntimeError(t("errors.ffmpeg", message=proc.stderr.strip().splitlines()[-1] if proc.stderr.strip()
+                             else t("errors.unknown")))
 
 
 def encode(source: Path, target: Path, bitrate: int) -> None:

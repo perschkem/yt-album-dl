@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from .errors import clean_error
+from .i18n import t
 from .status import Status
 
 MAX_KEPT = 30
@@ -113,7 +114,7 @@ class ActivityManager:
             running = next((s for s in reversed(activity.steps) if s.state == Status.RUNNING), None)
             if running:
                 running.state, running.detail, running.progress, running.ended = Status.FAILED, message, None, time.time()
-                activity.error = f"Fehler bei „{running.label}“: {message}"
+                activity.error = t("errors.step_failed", step=running.label, message=message)
             else:
                 activity.error = message
             activity.status = Status.FAILED

@@ -94,9 +94,22 @@ def test_every_used_key_exists():
 
 
 def test_no_unused_keys():
-    static, prefixes = _used_keys()
-    unused = [k for k in i18n.messages("de") if k not in static and not any(k.startswith(p) for p in prefixes)]
+    """Benutzt ist ein Schlüssel, wenn er irgendwo im Code als Text steht – auch als Wert, der später an t() geht
+    (z.B. SOURCES in albumvideo oder t("a" if x else "b"))."""
+    _, prefixes = _used_keys()
+    mentioned = {k for text in _sources() for k in re.findall(r"""["'`]([a-z_]+\.[\w.]+)["'`]""", text)}
+    mentioned |= {k for text in _sources() for k in re.findall(r'data-i18n(?:-[a-z-]+)?="([\w.]+)"', text)}
+    unused = [k for k in i18n.messages("de") if k not in mentioned and not any(k.startswith(p) for p in prefixes)]
     assert unused == []
+
+
+def test_mentioned_keys_exist():
+    """Jeder Text, der wie ein Schlüssel eines vorhandenen Bereichs aussieht, steht auch im Wörterbuch."""
+    sections = {k.split(".")[0] for k in i18n.messages("de")}
+    catalog = i18n.messages("de")
+    missing = {k for text in _sources() for k in re.findall(r"""["'`]([a-z_]+\.[\w.]+)["'`]""", text)
+               if k.split(".")[0] in sections and k not in catalog}
+    assert sorted(missing) == []
 
 
 def test_api_serves_the_configured_catalog(client):

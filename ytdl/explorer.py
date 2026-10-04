@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .i18n import t
 from .paths import to_windows_path
 
 
@@ -27,7 +28,7 @@ def _windows_path(path: Path) -> str:
 def open_in_file_manager(path: Path) -> str:
     """Öffnet den Ordner; ist `path` eine Datei, wird sie im Explorer markiert. Gibt den geöffneten Pfad zurück."""
     if not path.exists():
-        raise FileNotFoundError(f"Nicht gefunden: {path}")
+        raise FileNotFoundError(t("errors.not_found", path=path))
     explorer = shutil.which("explorer.exe")
     if explorer:
         win = _windows_path(path)
@@ -42,6 +43,6 @@ def open_in_file_manager(path: Path) -> str:
         return str(path)
     folder = path.parent if path.is_file() else path
     if not shutil.which("xdg-open"):
-        raise RuntimeError("Kein Dateimanager gefunden (weder explorer.exe, Finder noch xdg-open)")
+        raise RuntimeError(t("errors.no_file_manager"))
     subprocess.Popen(["xdg-open", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return str(folder)

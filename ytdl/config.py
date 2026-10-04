@@ -9,7 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from .i18n import DEFAULT_LANGUAGE, LANGUAGES
+from .i18n import DEFAULT_LANGUAGE, LANGUAGES, t
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # YTDL_ENV_FILE erlaubt eine andere Datei (z.B. für Tests, damit die echte .env unangetastet bleibt)
@@ -69,8 +69,7 @@ class Config:
         """Zielordner für einen Modus; Fehler mit Hinweis auf die Einstellungen, wenn keiner gesetzt ist."""
         root = self.musik_dir if mode == MUSIK else self.podcast_dir
         if root is None:
-            name = "Musik" if mode == MUSIK else "Podcasts"
-            raise MissingFolder(f"Kein Ordner für {name} eingestellt – bitte unter ⚙ Einstellungen festlegen")
+            raise MissingFolder(t(f"errors.missing_folder_{mode}"))
         return root
 
     def roots(self) -> list[Path]:

@@ -13,6 +13,9 @@ export function setMessages(language, catalog) {
 
 export const language = () => lang;
 
+/** Gibt es einen Text zu `key`? (z.B. für gespeicherte Codes, die früher Klartext waren) */
+export const has = (key) => key in messages;
+
 /** Text zu `key`; Platzhalter {name} aus params, Mehrzahl über params.count. Unbekannt → der Schlüssel selbst. */
 export function t(key, params = {}) {
   let value = messages[key];

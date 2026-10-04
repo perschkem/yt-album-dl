@@ -133,3 +133,7 @@ def test_settings_validate_cookie_file(settings_client, tmp_path):
     assert res.status_code == 200 and res.json()["sleep_seconds"] == 5
     from ytdl import web
     assert web.cfg.cookies_file == good
+
+
+def test_bot_check_hint_in_english(english):
+    assert friendly_error(BOT).startswith("YouTube is asking you to confirm that you are not a bot")

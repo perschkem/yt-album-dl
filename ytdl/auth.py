@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from .config import Config, to_local_path
+from .i18n import t
 
 T = TypeVar("T")
 
@@ -18,9 +19,10 @@ _BOT_CHECK = ("not a bot", "confirm you’re not", "confirm you're not", "confir
 COOKIE_COPY_MAX_AGE = 15 * 60  # Sekunden
 COOKIE_WINDOW = 60 * 60  # nach einer Bot-Prüfung so lange mit Anmeldung laden, danach wieder ohne
 
-BOT_CHECK_HINT = ("YouTube verlangt eine Bestätigung, dass du kein Bot bist (zu viele Anfragen von deiner "
-                  "Internetverbindung). Abhilfe: unter ⚙ Einstellungen → „YouTube-Anmeldung“ Cookies hinterlegen "
-                  "oder es später erneut versuchen – die Sperre hebt sich meist nach einigen Stunden.")
+
+def bot_check_hint() -> str:
+    """Erklärung für die Oberfläche statt der englischen YouTube-Meldung."""
+    return t("errors.bot_check")
 
 
 def is_bot_check(message: str) -> bool:
@@ -30,7 +32,7 @@ def is_bot_check(message: str) -> bool:
 
 
 def friendly_error(message: str) -> str:
-    return BOT_CHECK_HINT if is_bot_check(message) else message
+    return bot_check_hint() if is_bot_check(message) else message
 
 
 def parse_browser_spec(spec: str) -> tuple:
@@ -38,7 +40,7 @@ def parse_browser_spec(spec: str) -> tuple:
     browser, _, profile = spec.strip().partition(":")
     browser = browser.strip().lower()
     if browser not in BROWSERS:
-        raise ValueError(f"Unbekannter Browser: {browser!r} (möglich: {', '.join(BROWSERS)})")
+        raise ValueError(t("errors.unknown_browser", browser=repr(browser), browsers=", ".join(BROWSERS)))
     if profile.strip():
         return (browser, str(to_local_path(profile.strip())), None, None)
     return (browser, None, None, None)

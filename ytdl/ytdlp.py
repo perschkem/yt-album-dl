@@ -10,6 +10,7 @@ from yt_dlp import YoutubeDL
 
 from . import ffmpeg
 from .auth import youtube
+from .i18n import t
 
 ProgressText = Callable[[str, float | None], None]  # (Detailtext, Prozent 0..100 oder None = unbekannt)
 
@@ -24,9 +25,9 @@ def progress_text(d: dict) -> tuple[str, float | None] | None:
         return None
     total = d.get("total_bytes") or d.get("total_bytes_estimate")
     done = d.get("downloaded_bytes", 0)
-    detail = f"{mb(done)} von {mb(total)} MB" if total else f"{mb(done)} MB"
+    detail = t("progress.mb_of", done=mb(done), total=mb(total)) if total else t("progress.mb", mb=mb(done))
     if d.get("speed"):
-        detail += f" · {mb(d['speed'])} MB/s"
+        detail += f" · {t('progress.speed', speed=mb(d['speed']))}"
     return detail, min(100.0, done / total * 100) if total else None
 
 

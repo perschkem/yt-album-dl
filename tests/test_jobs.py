@@ -354,3 +354,32 @@ def test_real_runners_share_one_signature():
 
     for runner in (fetch, convert, cut_track):
         assert list(inspect.signature(runner).parameters)[:4] == ["item", "cfg", "progress", "workdir"], runner
+
+
+def test_permanent_error_does_not_depend_on_the_message_language(tmp_path, english):
+    from ytdl.errors import PermanentError
+
+    calls = []
+
+    def runner(it, cfg, report):
+        calls.append(1)
+        raise PermanentError("The cached audio is missing – please analyze the video again")
+
+    mgr = JobManager(make_cfg(tmp_path), runners=as_download(runner, tmp_path))
+    mgr.submit("x", MUSIK, [item(1, start=0.0, end=1.0)])
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "failed")
+    time.sleep(0.1)
+    assert len(calls) == 1
+
+
+def test_retry_details_in_english(tmp_path, english):
+    def runner(it, cfg, report):
+        raise RuntimeError("HTTP Error 503")
+
+    mgr = JobManager(make_cfg(tmp_path, max_retries=1), runners=as_download(runner, tmp_path))
+    mgr._failed(jobs.Task(item=item(1), stage=FETCH), "HTTP Error 503")
+    task = mgr._pending[-1]
+    assert task.detail == "Attempt 2/2 – last error: HTTP Error 503"
+    mgr.submit("x", MUSIK, [item(2)])
+    assert wait_until(lambda: mgr.snapshot()[0]["tasks"][0]["status"] == "failed")
+    assert mgr.snapshot()[0]["tasks"][0]["error"] == "HTTP Error 503 (after 2 attempts)"

@@ -25,6 +25,7 @@ from .errors import clean_error
 from .explorer import is_allowed, open_in_file_manager
 from .ffmpeg import ffmpeg_available
 from .history import History
+from .i18n import t
 from .jobs import JobManager
 from .library import CONFLICT_CHOICES, SKIP, conflicts
 from .metadata import MUSIK, PODCAST, Item
@@ -81,12 +82,12 @@ def _bad_request(func: Callable, *args):
 
 def _check_mode(mode: str) -> None:
     if mode not in (MUSIK, PODCAST):
-        raise HTTPException(400, f"Unbekannter Modus: {mode}")
+        raise HTTPException(400, t("errors.unknown_mode", mode=mode))
 
 
 def _check_format(fmt: str) -> None:
     if fmt and fmt not in AUDIO_FORMATS:
-        raise HTTPException(400, f"Unbekanntes Format: {fmt}")
+        raise HTTPException(400, t("errors.unknown_format", format=fmt))
 
 
 def _items(req: JobRequest) -> list[Item]:
@@ -96,19 +97,19 @@ def _items(req: JobRequest) -> list[Item]:
 def _apply_decisions(items: list[Item], decisions: dict[str, str]) -> list[Item]:
     """Entscheidungen aus dem Konflikt-Dialog übernehmen (per Titel-ID, wie /conflicts sie geliefert hat)."""
     if bad := sorted(set(decisions.values()) - set(CONFLICT_CHOICES)):
-        raise HTTPException(400, f"Unbekannte Entscheidung: {', '.join(bad)}")
+        raise HTTPException(400, t("errors.unknown_decision", decisions=", ".join(bad)))
     for item in items:
         item.on_conflict = decisions.get(item.id, item.on_conflict)
     return items
 
 
-def _submit(title: str, mode: str, items: list[Item], decisions: dict[str, str], empty_message: str) -> dict:
+def _submit(title: str, mode: str, items: list[Item], decisions: dict[str, str], empty_key: str) -> dict:
     """Job anlegen – ohne die Titel, die wegen einer vorhandenen Datei übersprungen werden sollen."""
     if not ffmpeg_available(cfg):
-        raise HTTPException(400, "ffmpeg fehlt – bitte installieren: sudo apt install ffmpeg")
+        raise HTTPException(400, t("errors.ffmpeg_missing"))
     items = [i for i in _apply_decisions(items, decisions) if i.on_conflict != SKIP]
     if not items:
-        raise HTTPException(400, empty_message)
+        raise HTTPException(400, t(empty_key))
     return manager.submit(title, mode, items).to_dict()
 
 
@@ -120,7 +121,7 @@ def _start(kind: str, func: Callable, *args) -> dict:
 def _activity_or_404(activity_id: str) -> Activity:
     activity = activities.get(activity_id)
     if activity is None:
-        raise HTTPException(404, "Vorgang nicht gefunden")
+        raise HTTPException(404, t("errors.activity_not_found"))
     return activity
 
 
@@ -230,7 +231,7 @@ def post_probe(req: ProbeRequest) -> dict:
 def post_job(req: JobRequest) -> dict:
     _check_mode(req.mode)
     _check_format(req.audio_format)
-    return _submit(req.title, req.mode, _items(req), req.decisions, "Keine Titel ausgewählt")
+    return _submit(req.title, req.mode, _items(req), req.decisions, "errors.no_titles_selected")
 
 
 @app.post("/api/conflicts")
@@ -269,14 +270,14 @@ def retry_job(job_id: str, req: RetryRequest) -> dict:
     try:
         return manager.retry(job_id, req.task_id)
     except KeyError as exc:
-        raise HTTPException(404, "Job nicht gefunden") from exc
+        raise HTTPException(404, t("errors.job_not_found")) from exc
 
 
 @app.post("/api/open")
 def open_path(req: OpenRequest) -> dict:
     path = Path(req.path)
     if not (is_allowed(path, cfg.roots() + manager.known_roots()) or history.knows_path(path)):
-        raise HTTPException(403, "Nur Dateien in den Musik-/Podcast-Ordnern können geöffnet werden")
+        raise HTTPException(403, t("errors.open_forbidden"))
     return {"opened": _bad_request(open_in_file_manager, path)}
 
 
@@ -320,14 +321,14 @@ def album_scan(req: AlbumScanRequest, cache: CachedAlbum) -> dict:
 @app.get("/api/album/{video_id}/audio")
 def album_audio(cache: CachedAlbum) -> FileResponse:
     if not (path := cache.audio):
-        raise HTTPException(404, "Audio nicht im Zwischenspeicher")
+        raise HTTPException(404, t("errors.audio_not_cached"))
     return FileResponse(path)
 
 
 def _album_items(cache: AlbumCache, req: AlbumJobRequest) -> list[Item]:
     _check_format(req.audio_format)
     if not req.tracks:
-        raise HTTPException(400, "Keine Titel")
+        raise HTTPException(400, t("errors.no_titles"))
     return _bad_request(albumvideo.build_items, cfg, cache.video_id, req.album, req.album_artist, req.year,
                         req.genre, req.tracks, req.audio_format, req.cover_url, req.cover_crop, req.boundary_source)
 
@@ -340,7 +341,7 @@ def album_conflicts(req: AlbumJobRequest, cache: CachedAlbum) -> list[dict]:
 @app.post("/api/album/{video_id}/jobs")
 def album_job(req: AlbumJobRequest, cache: CachedAlbum) -> dict:
     return _submit(req.album or cache.video_id, MUSIK, _album_items(cache, req), req.decisions,
-                   "Alle Titel übersprungen")
+                   "errors.all_skipped")
 
 
 # ---------- Historie ----------
@@ -361,7 +362,7 @@ def get_history(q: str = "", mode: str = "", result: str = "", days: int | None 
 def get_history_csv(q: str = "", mode: str = "", result: str = "", days: int | None = None) -> Response:
     csv_text = history.to_csv(**_history_filters(q, mode, result, days))
     return Response("﻿" + csv_text, media_type="text/csv; charset=utf-8",  # BOM, damit Excel Umlaute erkennt
-                    headers={"Content-Disposition": 'attachment; filename="yt-album-dl-historie.csv"'})
+                    headers={"Content-Disposition": f'attachment; filename="{t("csv.filename")}"'})
 
 
 @app.delete("/api/history")
@@ -378,9 +379,9 @@ app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 
 def main() -> None:
-    print(f"yt-album-dl läuft auf http://localhost:{cfg.port}")
-    print(f"  Musik:    {cfg.musik_dir or '– nicht eingestellt (⚙ Einstellungen) –'}")
-    print(f"  Podcasts: {cfg.podcast_dir or '– nicht eingestellt (⚙ Einstellungen) –'}")
+    print(t("server.running", port=cfg.port))
+    print(t("server.music", folder=cfg.musik_dir or t("server.not_set")))
+    print(t("server.podcasts", folder=cfg.podcast_dir or t("server.not_set")))
     if not ffmpeg_available(cfg):
-        print("  WARNUNG: ffmpeg nicht gefunden – bitte installieren: sudo apt install ffmpeg")
+        print(t("server.no_ffmpeg"))
     uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="warning")

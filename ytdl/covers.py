@@ -9,6 +9,8 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
+from .i18n import t
+
 COVER_SIZE = 1000
 MAX_BYTES = 10 * 1024 * 1024
 TIMEOUT = 15
@@ -22,14 +24,14 @@ class CoverError(ValueError):
 def _download(url: str) -> bytes:
     url = url.strip()
     if not url.lower().startswith(("http://", "https://")):
-        raise CoverError("Die Cover-URL muss mit http:// oder https:// beginnen")
+        raise CoverError(t("errors.cover_scheme"))
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=_HEADERS), timeout=TIMEOUT) as res:
             data = res.read(MAX_BYTES + 1)
     except Exception as exc:
-        raise CoverError(f"Cover konnte nicht geladen werden: {exc}") from exc
+        raise CoverError(t("errors.cover_download", error=exc)) from exc
     if len(data) > MAX_BYTES:
-        raise CoverError("Das Cover ist größer als 10 MB")
+        raise CoverError(t("errors.cover_too_large"))
     return data
 
 
@@ -38,7 +40,7 @@ def _open(data: bytes) -> Image.Image:
         img = Image.open(io.BytesIO(data))
         img.load()
     except (UnidentifiedImageError, OSError) as exc:
-        raise CoverError("Unter der URL liegt kein Bild (z.B. eine Webseite statt der Bilddatei)") from exc
+        raise CoverError(t("errors.cover_not_image")) from exc
     return img
 
 

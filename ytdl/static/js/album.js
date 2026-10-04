@@ -38,7 +38,7 @@ function setTracks(result, steps) {
   // Jede neue Erkennung (Analyse, Pausen, Trackliste, Scan) ist der neue Ausgangszustand für „Zurücksetzen“
   album.original.tracks = result.tracks.map(trackCopy);
   album.tracks = result.tracks.map((track) => ({ ...trackCopy(track), orig: trackCopy(track) }));
-  album.source = result.source_label;
+  album.source = result.source; // Code – die Historie zeigt ihn übersetzt an
   $("#album-source").textContent = `Grenzen aus: ${result.source_label} · bitte kontrollieren`;
   if (steps) renderSteps($("#album-log-steps"), steps);
   renderAlbum();
