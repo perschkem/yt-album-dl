@@ -514,21 +514,29 @@ function renderTask(job, t) {
   );
 }
 
-/** Zeile über der Liste: „✓ Alle Downloads fertig“ bzw. „3 von 7 fertig · 4 laufen“ mit Gesamtbalken. */
+const FINISHED_STATES = ["fertig", "fehler", "übersprungen"];
+const countDone = (tasks) => tasks.filter((t) => FINISHED_STATES.includes(t.status)).length;
+
+/** Zeile über der Liste. Gezählt werden nur Downloads, die noch laufen – abgeschlossene zählen nicht mit,
+ *  sonst stünde nach einem fertigen 10er-Album beim nächsten 12er-Album „10 von 22“. */
 function renderSummary(jobs) {
   const box = $("#jobs-summary");
-  const tasks = jobs.flatMap((j) => j.tasks);
-  box.hidden = !tasks.length;
-  if (!tasks.length) return;
-  const done = tasks.filter((t) => ["fertig", "fehler", "übersprungen"].includes(t.status)).length;
+  box.hidden = !jobs.length;
+  if (!jobs.length) return;
+  const active = jobs.filter((j) => countDone(j.tasks) < j.tasks.length);
+  // Läuft nichts mehr: Ergebnis des zuletzt gestarteten Downloads (steht oben in der Liste)
+  const scope = active.length ? active : [jobs[0]];
+  const tasks = scope.flatMap((j) => j.tasks);
+  const done = countDone(tasks);
   const failed = tasks.filter((t) => t.status === "fehler").length;
   const skipped = tasks.filter((t) => t.status === "übersprungen").length;
   const running = tasks.length - done;
   const extras = [failed && `${failed} Fehler`, skipped && `${skipped} übersprungen`].filter(Boolean);
   let icon, text;
-  if (running) {
+  if (active.length) {
     icon = "⏳";
-    text = [`${done} von ${tasks.length} fertig`, `${running} ${running === 1 ? "läuft" : "laufen"}`, ...extras].join(" · ");
+    const prefix = active.length === 1 ? `${active[0].title}: ` : "";
+    text = [`${prefix}${done} von ${tasks.length} fertig`, `${running} ${running === 1 ? "läuft" : "laufen"}`, ...extras].join(" · ");
   } else if (failed) {
     icon = "⚠";
     text = ["Alle Downloads abgeschlossen", ...extras].join(" · ");
@@ -536,11 +544,11 @@ function renderSummary(jobs) {
     icon = "✓";
     text = ["Alle Downloads fertig", ...extras].join(" · ");
   }
-  box.className = `jobs-summary ${running ? "running" : failed ? "failed" : "done"}`;
+  box.className = `jobs-summary ${active.length ? "running" : failed ? "failed" : "done"}`;
   const avg = tasks.reduce((sum, t) => sum + (["fehler", "übersprungen"].includes(t.status) ? 100 : t.progress), 0) / tasks.length;
   // replaceChildren filtert null nicht (würde als Text „null“ erscheinen) – deshalb bedingt anhängen
   box.replaceChildren(el("span", { class: "summary-icon" }, icon), el("span", {}, text));
-  if (running) box.append(progressBar(avg));
+  if (active.length) box.append(progressBar(avg));
 }
 
 // Eingeklappte Downloads merken – die Liste wird bei jedem Live-Update neu gezeichnet, und der Zustand
