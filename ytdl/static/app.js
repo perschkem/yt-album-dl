@@ -1,7 +1,7 @@
-import { api } from "./js/api.js";
-import { $, button, el, emptyState, turtle } from "./js/dom.js";
-import { countDone, cssName, formatSize, formatTime, parseTime, primaryArtist, sameValue as same }
-  from "./js/format.js";
+import { api, subscribe } from "./js/api.js";
+import { $, button, el, emptyState, hideError, showError, turtle } from "./js/dom.js";
+import { avgProgress, countDone, countStatus, cssName, formatSize, formatTime, isChanged, parseTime, primaryArtist,
+  sameValue, snapshot } from "./js/format.js";
 
 const COLUMNS = {
   musik: [
@@ -75,19 +75,16 @@ async function runActivity(path, body, box) {
         }
       } catch (err) { reject(err); }
     };
-    if (!window.EventSource) return poll();
-    const source = new EventSource(`/api/activities/${activity_id}/events`);
-    source.onmessage = (event) => {
-      const r = finish(JSON.parse(event.data));
+    // Bricht der Stream ab (z.B. Server neu gestartet), wird bis zum Ende abgefragt
+    const source = subscribe(`/api/activities/${activity_id}/events`, (data) => {
+      const r = finish(data);
       if (r.done) { source.close(); settle(r); }
-    };
-    source.onerror = () => { source.close(); poll(); };
+    }, () => { source.close(); poll(); });
   });
 }
 
 async function loadConfig() {
   const cfg = await api("/api/config");
-  bitrate = cfg.bitrate;
   folders = { musik: cfg.musik_dir, podcast: cfg.podcast_dir };
   document.querySelector(`input[name=fmt][value=${cfg.audio_format}]`).checked = true;
   const show = (dir) => dir || "nicht eingestellt";
@@ -97,7 +94,6 @@ async function loadConfig() {
   $("#ffmpeg-warning").hidden = cfg.ffmpeg;
 }
 
-let bitrate = 320;
 let folders = { musik: "", podcast: "" };
 
 /** Hinweis + gesperrte Buttons, solange für den gewählten Modus kein Zielordner eingestellt ist. */
@@ -126,11 +122,12 @@ async function openSettings() {
   const form = $("#settings-form");
   $("#set-bitrate").replaceChildren(...s.bitrates.map((b) => el("option", { value: b }, `${b} kbit/s`)));
   $("#browser-list").replaceChildren(...s.browsers.map((b) => el("option", { value: b })));
+  for (const [name, [min, max]] of Object.entries(s.limits)) Object.assign(form.elements[name], { min, max });
   for (const [name, value] of Object.entries(s)) {
     if (form.elements[name]) form.elements[name].value = value;
   }
   form.querySelectorAll(".field-error").forEach((p) => (p.textContent = ""));
-  $("#settings-error").hidden = true;
+  hideError($("#settings-error"));
   settingsDialog.showModal();
 }
 
@@ -142,7 +139,10 @@ $("#settings-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.target;
   const body = Object.fromEntries(new FormData(form));
-  for (const key of ["bitrate", "parallel_downloads", "parallel_cuts", "max_retries", "sleep_seconds"]) body[key] = Number(body[key]);
+  // Zahlenfelder (type=number bzw. data-number) als Zahl senden
+  for (const field of form.elements) {
+    if (field.name && (field.type === "number" || "number" in field.dataset)) body[field.name] = Number(body[field.name]);
+  }
   form.querySelectorAll(".field-error").forEach((p) => (p.textContent = ""));
   $("#settings-save").disabled = true;
   try {
@@ -154,8 +154,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
       const slot = form.querySelector(`.field-error[data-for=${field}]`);
       if (slot) slot.textContent = message;
     }
-    $("#settings-error").textContent = err.message;
-    $("#settings-error").hidden = false;
+    showError($("#settings-error"), err);
   } finally {
     $("#settings-save").disabled = false;
   }
@@ -175,7 +174,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
   const mode = selectedMode();
   btn.disabled = true;
   btn.textContent = "Prüfe …";
-  $("#probe-error").hidden = true;
+  hideError($("#probe-error"));
   $("#preview").hidden = true;
   showBusy($("#probe-busy"), "Lade Infos …");
   try {
@@ -183,7 +182,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
     $("#probe-steps").hidden = true;
     previewCover.clear();
     preview = { title: data.title, mode, url: $("#url").value.trim(),
-      items: data.items.map((i) => ({ ...i, selected: !i.already, orig: tagSnapshot(i) })) };
+      items: data.items.map((i) => ({ ...i, selected: !i.already, orig: snapshot(i, TAG_KEYS) })) };
     $("#album").hidden = true;
     $("#album-hint").hidden = !data.album_video;
     renderPreview(data.is_playlist);
@@ -193,8 +192,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
       : "");
     updateFolderState();
   } catch (err) {
-    $("#probe-error").textContent = err.message;
-    $("#probe-error").hidden = false;
+    showError($("#probe-error"), err);
   } finally {
     showBusy($("#probe-busy"), "");
     btn.disabled = false;
@@ -269,8 +267,49 @@ const albumCover = coverField($("#album-cover"));
 
 // ---------- Tags zurücksetzen ----------
 const TAG_KEYS = ["artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date"];
-const tagSnapshot = (item) => Object.fromEntries(TAG_KEYS.map((k) => [k, item[k] ?? null]));
-const isChanged = (item) => TAG_KEYS.some((k) => !same(item[k], item.orig[k]));
+const tagsChanged = (item) => isChanged(item, item.orig, TAG_KEYS);
+
+/** Eingabezelle für obj[key]: Zelle ist als „geändert“ markiert, solange der Wert von obj.orig[key] abweicht. */
+function editableCell(obj, key, { type = "text", cls = "", onInput } = {}) {
+  const input = el("input", { type, value: obj[key] ?? "", title: obj[key] ?? "" });
+  const td = el("td", { class: cls }, input);
+  const mark = () => td.classList.toggle("changed", !!obj.orig && !sameValue(obj[key], obj.orig[key]));
+  input.addEventListener("input", () => {
+    obj[key] = type === "number" ? (input.value ? Number(input.value) : null) : input.value;
+    input.title = input.value; // voller Text als Tooltip, falls das Feld zu schmal ist
+    mark();
+    onInput?.();
+  });
+  mark();
+  return td;
+}
+
+/** ↺-Button: stellt obj.orig wieder her; refresh() sperrt ihn, solange nichts geändert ist. */
+function resetButton(obj, keys, onReset, cls) {
+  const b = el("button", { type: "button", class: cls,
+    title: obj.orig ? "Erkannte Werte wiederherstellen" : "Von Hand hinzugefügt" }, "↺");
+  b.addEventListener("click", () => { Object.assign(obj, obj.orig); onReset(); });
+  b.refresh = () => (b.disabled = !isChanged(obj, obj.orig, keys));
+  b.refresh();
+  return b;
+}
+
+/** Checkbox „Verschiedene Interpreten“: setzt das Feld auf „Various Artists“ und sperrt es (samt `alsoDisable`);
+ *  beim Abwählen kommt der vorherige Wert zurück. onChange(aktueller Albuminterpret). */
+function vaToggle(checkbox, field, alsoDisable = [], onChange = () => {}) {
+  let before = "";
+  checkbox.addEventListener("change", () => {
+    const on = checkbox.checked;
+    if (on) before = field.value;
+    field.value = on ? VA : before;
+    field.disabled = on;
+    for (const other of alsoDisable) {
+      other.disabled = on;
+      if (on && other.type === "checkbox") other.checked = false;
+    }
+    onChange(field.value);
+  });
+}
 
 /** „Automatisch nummerieren“: ausgewählte Titel in Listenreihenfolge 1…n, abgewählte ohne Nummer. */
 function renumber() {
@@ -300,7 +339,7 @@ function fillBulk() {
 }
 
 $("#preview-reset").addEventListener("click", () => {
-  if (!preview.items.some(isChanged) || !confirm("Alle Tags auf die erkannten Werte zurücksetzen?")) return;
+  if (!preview.items.some(tagsChanged) || !confirm("Alle Tags auf die erkannten Werte zurücksetzen?")) return;
   preview.items.forEach((i) => Object.assign(i, i.orig));
   if (!$("#bulk").hidden) fillBulk();
   previewCover.clear();
@@ -337,22 +376,8 @@ function renderRows() {
       item.selected = box.checked;
       if ($("#bulk-autonum").checked) { renumber(); renderRows(); }
     });
-    const reset = el("button", { type: "button", class: "small-btn", title: "Erkannte Werte wiederherstellen" }, "↺");
-    const refresh = () => (reset.disabled = !isChanged(item));
-    reset.addEventListener("click", () => { Object.assign(item, item.orig); renderRows(); });
-    const cells = cols.map((c) => {
-      const input = el("input", { type: c.type || "text", value: item[c.key] ?? "", title: item[c.key] ?? "" });
-      const td = el("td", { class: c.cls || "" }, input);
-      td.classList.toggle("changed", !same(item[c.key], item.orig[c.key]));
-      input.addEventListener("input", () => {
-        item[c.key] = c.type === "number" ? (input.value ? Number(input.value) : null) : input.value;
-        input.title = input.value; // voller Text als Tooltip, falls das Feld zu schmal ist
-        td.classList.toggle("changed", !same(item[c.key], item.orig[c.key]));
-        refresh();
-      });
-      return td;
-    });
-    refresh();
+    const reset = resetButton(item, TAG_KEYS, renderRows, "small-btn");
+    const cells = cols.map((c) => editableCell(item, c.key, { type: c.type, cls: c.cls, onInput: reset.refresh }));
     const orig = el("td", { class: "orig" }, item.source_title,
       item.already ? el("div", {}, el("span", { class: "badge" }, "bereits geladen")) : null);
     return el("tr", { class: item.already ? "already" : "" }, el("td", {}, box), ...cells, orig,
@@ -362,19 +387,7 @@ function renderRows() {
 
 const VA = "Various Artists";
 
-let bulkArtistBeforeVa = "";
-$("#bulk-va").addEventListener("change", () => {
-  const field = $("#bulk-album-artist");
-  if ($("#bulk-va").checked) {
-    bulkArtistBeforeVa = field.value;
-    field.value = VA;
-    $("#bulk-same-artist").checked = false;
-  } else {
-    field.value = bulkArtistBeforeVa;
-  }
-  field.disabled = $("#bulk-va").checked;
-  $("#bulk-same-artist").disabled = $("#bulk-va").checked;
-});
+vaToggle($("#bulk-va"), $("#bulk-album-artist"), [$("#bulk-same-artist")]);
 
 $("#bulk-apply").addEventListener("click", () => {
   const album = $("#bulk-album").value.trim();
@@ -421,6 +434,17 @@ function resolveConflicts(conflicts) {
   });
 }
 
+/** Fragt vorhandene Dateien ab, zeigt bei Bedarf den Konflikt-Dialog und legt den Job an – mit den
+ *  Entscheidungen je Titel-ID, wie der Server sie geliefert hat. Liefert false bei Abbruch oder wenn alle
+ *  `count` Titel übersprungen würden. */
+async function submitWithConflicts(conflictsUrl, jobsUrl, body, count) {
+  const decisions = await resolveConflicts(await api(conflictsUrl, body));
+  if (decisions === null) return false;
+  if (Object.values(decisions).filter((d) => d === "skip").length >= count) return false;
+  await api(jobsUrl, { ...body, decisions });
+  return true;
+}
+
 $("#download-btn").addEventListener("click", async () => {
   const cover = previewCover.value();
   const items = preview.items.filter((i) => i.selected).map(({ selected, already, orig, ...rest }) => ({ ...rest, ...cover }));
@@ -429,16 +453,11 @@ $("#download-btn").addEventListener("click", async () => {
   btn.disabled = true;
   try {
     const body = { title: preview.title || items[0].title, mode: preview.mode, audio_format: selectedFormat(), items };
-    const decisions = await resolveConflicts(await api("/api/conflicts", body));
-    if (decisions === null) return;
-    items.forEach((i) => { if (decisions[i.id]) i.on_conflict = decisions[i.id]; });
-    if (!items.some((i) => i.on_conflict !== "skip")) return;
-    await api("/api/jobs", body);
+    if (!(await submitWithConflicts("/api/conflicts", "/api/jobs", body, items.length))) return;
     $("#preview").hidden = true;
     $("#url").value = "";
   } catch (err) {
-    $("#probe-error").textContent = err.message;
-    $("#probe-error").hidden = false;
+    showError($("#probe-error"), err);
   } finally {
     btn.disabled = false;
   }
@@ -485,8 +504,8 @@ function renderSummary(jobs) {
   const scope = active.length ? active : [jobs[0]];
   const tasks = scope.flatMap((j) => j.tasks);
   const done = countDone(tasks);
-  const failed = tasks.filter((t) => t.status === "fehler").length;
-  const skipped = tasks.filter((t) => t.status === "übersprungen").length;
+  const failed = countStatus(tasks, "fehler");
+  const skipped = countStatus(tasks, "übersprungen");
   const running = tasks.length - done;
   const extras = [failed && `${failed} Fehler`, skipped && `${skipped} übersprungen`].filter(Boolean);
   let icon, text;
@@ -506,20 +525,18 @@ function renderSummary(jobs) {
     // YouTube-Bot-Prüfung: Hinweis + Möglichkeit, nach dem Hinterlegen von Cookies sofort weiterzumachen
     const minutes = Math.ceil(Math.max(...paused.map((t) => t.retry_in)) / 60);
     box.className = "jobs-summary paused";
-    const resume = el("button", { type: "button", class: "small-btn" }, "Jetzt fortsetzen");
-    resume.addEventListener("click", () => api("/api/jobs/resume", {}));
-    const settings = el("button", { type: "button", class: "small-btn" }, "⚙ YouTube-Anmeldung einrichten");
-    settings.addEventListener("click", openSettings);
+    const resume = button("Jetzt fortsetzen", () => api("/api/jobs/resume", {}), { cls: "small-btn" });
+    const settings = el("button", { type: "button", class: "small-btn", onclick: openSettings },
+      "⚙ YouTube-Anmeldung einrichten");
     box.replaceChildren(el("span", { class: "summary-icon" }, "⏸"),
       el("span", {}, `YouTube verlangt eine Bot-Bestätigung – Downloads pausieren noch ca. ${minutes} min ` +
         `(${done} von ${tasks.length} fertig)`), resume, settings);
     return;
   }
   box.className = `jobs-summary ${active.length ? "running" : failed ? "failed" : "done"}`;
-  const avg = tasks.reduce((sum, t) => sum + (["fehler", "übersprungen"].includes(t.status) ? 100 : t.progress), 0) / tasks.length;
   // replaceChildren filtert null nicht (würde als Text „null“ erscheinen) – deshalb bedingt anhängen
   box.replaceChildren(el("span", { class: "summary-icon" }, icon), el("span", {}, text));
-  if (active.length) box.append(progressBar(avg));
+  if (active.length) box.append(progressBar(avgProgress(tasks)));
 }
 
 // Eingeklappte Downloads merken – die Liste wird bei jedem Live-Update neu gezeichnet, und der Zustand
@@ -575,12 +592,10 @@ function renderJobs(jobs) {
       el("span", { class: "muted" }, counter));
     title.addEventListener("click", () => toggleJob(job.id));
     const running = job.done < job.total;
-    const avg = job.tasks.reduce((sum, t) => sum + (["fehler", "übersprungen"].includes(t.status) ? 100 : t.progress), 0)
-      / Math.max(1, job.tasks.length);
     const card = el("div", { class: `job${collapsed ? " collapsed" : ""}` }, title);
     if (collapsed) {
       // eingeklappt: nur Kopf, bei laufendem Download mit Gesamtbalken
-      if (running) card.append(Object.assign(progressBar(avg), { className: "bar job-bar" }));
+      if (running) card.append(Object.assign(progressBar(avgProgress(job.tasks)), { className: "bar job-bar" }));
       return card;
     }
     if (head.length) card.append(el("div", { class: "task-actions job-actions" }, ...head));
@@ -619,20 +634,10 @@ $("#auth-notice-open").addEventListener("click", openSettings);
 /** Live-Updates der Job-Liste (und des Anmeldestatus) per Server-Sent Events; EventSource verbindet sich
  *  bei Abbruch selbst neu. */
 function connectJobs() {
-  if (!window.EventSource) {
-    const poll = async () => {
-      renderJobs(await api("/api/jobs").catch(() => []));
-      renderAuthNotice(await api("/api/auth").catch(() => null));
-      setTimeout(poll, 1000);
-    };
-    return poll();
-  }
-  const source = new EventSource("/api/jobs/events");
-  source.onmessage = (event) => {
-    const data = JSON.parse(event.data);
+  subscribe("/api/jobs/events", (data) => {
     renderJobs(data.jobs);
     renderAuthNotice(data.auth);
-  };
+  });
 }
 
 $("#clear-jobs").addEventListener("click", async () => {
@@ -648,14 +653,11 @@ const wave = $("#wave");
 function albumBusy(busy, text = "Analysiere …") {
   document.querySelectorAll("#album button").forEach((b) => (b.disabled = busy));
   showBusy($("#album-busy"), busy ? text : "");
-  if (busy) $("#album-error").hidden = true;
+  if (busy) hideError($("#album-error"));
   else $("#album-steps").hidden = true;
 }
 
-function albumError(err) {
-  $("#album-error").textContent = err.message;
-  $("#album-error").hidden = false;
-}
+const albumError = (err) => showError($("#album-error"), err);
 
 function sortTracks() {
   album.tracks.sort((a, b) => a.start - b.start);
@@ -665,7 +667,8 @@ function trackEnd(i) {
   return i + 1 < album.tracks.length ? album.tracks[i + 1].start : album.duration;
 }
 
-const trackCopy = (t) => ({ start: t.start, artist: t.artist, title: t.title });
+const TRACK_KEYS = ["start", "artist", "title"];
+const trackCopy = (t) => snapshot(t, TRACK_KEYS);
 
 function setTracks(result, steps) {
   // Jede neue Erkennung (Analyse, Pausen, Trackliste, Scan) ist der neue Ausgangszustand für „Zurücksetzen“
@@ -725,18 +728,15 @@ function renderHints(hints) {
   box.hidden = !hints.length;
   box.replaceChildren("Weiterer Text im Bild (klicken = als Albuminterpret):",
     ...hints.map((h) => {
-      const chip = el("button", { type: "button", class: "chip" }, h);
-      chip.addEventListener("click", () => {
+      return el("button", { type: "button", class: "chip", onclick: () => {
         if ($("#album-va").checked) return;
         $("#album-artist").value = h;
         setAlbumArtist(h);
-      });
-      return chip;
+      } }, h);
     }));
 }
 
 let showArtistCol = false;
-let albumArtistBeforeVa = "";
 
 /** Neuer Albuminterpret: Titel, die noch den alten Interpreten hatten, ziehen mit; abweichende bleiben. */
 function setAlbumArtist(next) {
@@ -755,18 +755,9 @@ $("#album-apply").addEventListener("click", () => {
   renderAlbum();
 });
 
-$("#album-va").addEventListener("change", () => {
-  const field = $("#album-artist");
-  if ($("#album-va").checked) {
-    albumArtistBeforeVa = field.value;
-    field.value = VA;
-    album.albumArtist = VA; // Interpreten der Titel bleiben einzeln erhalten
-  } else {
-    field.value = albumArtistBeforeVa;
-    album.albumArtist = albumArtistBeforeVa;
-  }
-  field.disabled = $("#album-va").checked;
-  $("#album-apply").disabled = $("#album-va").checked;
+// Interpreten der Titel bleiben bei „Verschiedene Interpreten“ einzeln erhalten
+vaToggle($("#album-va"), $("#album-artist"), [$("#album-apply")], (artist) => {
+  album.albumArtist = artist;
   renderAlbum();
 });
 
@@ -790,43 +781,28 @@ function renderAlbum() {
   updateArtistColumn();
   const playing = currentTrackIndex();
   $("#album-tracks").replaceChildren(...album.tracks.map((t, i) => {
-    const start = el("input", { value: formatTime(t.start, { tenths: true }) });
-    start.addEventListener("change", () => {
+    const start = el("input", { value: formatTime(t.start, { tenths: true }), onchange: () => {
       const v = parseTime(start.value);
       if (v != null && v >= 0 && v < album.duration) t.start = v;
       renderAlbum();
-    });
-    const artist = el("input", { value: t.artist, title: t.artist });
-    const title = el("input", { value: t.title, title: t.title });
-    const trackChanged = () => t.orig && ["start", "artist", "title"].some((k) => !same(t[k], t.orig[k]));
-    const reset = el("button", { type: "button", class: "secondary", title: t.orig ? "Erkannte Werte wiederherstellen" : "Von Hand hinzugefügt" }, "↺");
-    const mark = () => {
-      reset.disabled = !trackChanged();
-      if (t.orig) {
-        artist.parentNode?.classList.toggle("changed", !same(t.artist, t.orig.artist));
-        title.parentNode?.classList.toggle("changed", !same(t.title, t.orig.title));
-        start.parentNode?.classList.toggle("changed", !same(t.start, t.orig.start));
-      }
-    };
-    artist.addEventListener("input", () => { t.artist = artist.value; artist.title = artist.value; mark(); });
-    title.addEventListener("input", () => { t.title = title.value; title.title = title.value; mark(); });
-    reset.addEventListener("click", () => { Object.assign(t, t.orig); renderAlbum(); });
-
-    const play = el("button", { type: "button", class: "secondary", title: "Ab Start abspielen" }, "▶");
-    play.addEventListener("click", () => { audio.currentTime = t.start; audio.play(); });
-    const here = el("button", { type: "button", class: "secondary", title: "Start = aktuelle Abspielposition" }, "⇤ hier");
-    here.addEventListener("click", () => { t.start = audio.currentTime; renderAlbum(); });
-    const del = el("button", { type: "button", class: "secondary", title: "Grenze entfernen (mit vorherigem Titel zusammenfassen)" }, "✕");
-    del.addEventListener("click", () => { album.tracks.splice(i, 1); renderAlbum(); });
-
-    const row = el("tr", { class: i === playing ? "playing" : "" },
+    } });
+    const startCell = el("td", { class: "time" }, start);
+    startCell.classList.toggle("changed", !!t.orig && !sameValue(t.start, t.orig.start));
+    const reset = resetButton(t, TRACK_KEYS, renderAlbum, "secondary");
+    const action = (label, title, onclick) => el("button", { type: "button", class: "secondary", title, onclick }, label);
+    return el("tr", { class: i === playing ? "playing" : "" },
       el("td", { class: "dur" }, String(i + 1)),
-      el("td", { class: "time" }, start),
+      startCell,
       el("td", { class: "dur" }, formatTime(trackEnd(i) - t.start)),
-      el("td", {}, artist), el("td", {}, title),
-      el("td", { class: "actions" }, play, here, reset, del));
-    mark();
-    return row;
+      editableCell(t, "artist", { onInput: reset.refresh }), editableCell(t, "title", { onInput: reset.refresh }),
+      el("td", { class: "actions" },
+        action("▶", "Ab Start abspielen", () => { audio.currentTime = t.start; audio.play(); }),
+        action("⇤ hier", "Start = aktuelle Abspielposition", () => { t.start = audio.currentTime; renderAlbum(); }),
+        reset,
+        action("✕", "Grenze entfernen (mit vorherigem Titel zusammenfassen)", () => {
+          album.tracks.splice(i, 1);
+          renderAlbum();
+        })));
   }));
   drawWave();
 }
@@ -845,10 +821,7 @@ function drawWave() {
   wave.width = w * dpr; wave.height = h * dpr;
   const ctx = wave.getContext("2d");
   ctx.scale(dpr, dpr);
-  const css = getComputedStyle(document.documentElement);
-  const accent = css.getPropertyValue("--frame").trim();
-  const muted = css.getPropertyValue("--muted").trim();
-  const text = css.getPropertyValue("--text").trim();
+  const { accent, muted, text } = waveColors();
 
   ctx.fillStyle = muted;
   const n = album.peaks.length;
@@ -868,6 +841,18 @@ function drawWave() {
   ctx.fillStyle = text;
   ctx.fillRect(px - 0.5, 0, 1, h);
 }
+
+// Farben aus dem Theme – einmal lesen und erst bei einem Wechsel hell/dunkel neu (drawWave läuft bei jedem timeupdate)
+let colors = null;
+function waveColors() {
+  if (!colors) {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name) => css.getPropertyValue(name).trim();
+    colors = { accent: v("--frame"), muted: v("--muted"), text: v("--text") };
+  }
+  return colors;
+}
+window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { colors = null; drawWave(); });
 
 let dragging = null;
 function waveTime(event) {
@@ -942,22 +927,14 @@ $("#album-cut").addEventListener("click", async () => {
   albumBusy(true, "Prüfe, ob schon etwas da ist …");
   try {
     sortTracks();
-    album.tracks.forEach((t) => delete t.on_conflict);
     const body = {
       album: $("#album-name").value, album_artist: $("#album-artist").value,
       year: $("#album-year").value, genre: $("#album-genre").value,
       audio_format: selectedFormat(), ...albumCover.value(), boundary_source: album.source || "",
       tracks: album.tracks.map(({ orig, ...t }) => t),
     };
-    const decisions = await resolveConflicts(await api(`/api/album/${album.id}/conflicts`, body));
-    if (decisions === null) return;
-    // Titel-IDs vergibt der Server in Start-Reihenfolge: <video-id>-01, -02 …
-    album.tracks.forEach((t, i) => {
-      const choice = decisions[`${album.id}-${String(i + 1).padStart(2, "0")}`];
-      if (choice) t.on_conflict = choice;
-    });
-    if (!album.tracks.some((t) => t.on_conflict !== "skip")) return;
-    await api(`/api/album/${album.id}/jobs`, body);
+    const base = `/api/album/${album.id}`;
+    if (!(await submitWithConflicts(`${base}/conflicts`, `${base}/jobs`, body, album.tracks.length))) return;
     audio.pause();
     $("#album").hidden = true;
     $("#url").value = "";

@@ -244,15 +244,15 @@
       <label class="label" for="set-format">Standardformat</label>
       <div><select id="set-format" name="audio_format"><option value="mp3">MP3</option><option value="m4a">M4A (ohne Umkodieren)</option></select></div>
       <label class="label" for="set-bitrate">MP3-Bitrate</label>
-      <div><select id="set-bitrate" name="bitrate"></select><p class="field-error" data-for="bitrate"></p></div>
+      <div><select id="set-bitrate" name="bitrate" data-number></select><p class="field-error" data-for="bitrate"></p></div>
       <label class="label" for="set-downloads">Gleichzeitige Downloads</label>
-      <div><input id="set-downloads" name="parallel_downloads" type="number" min="1" max="16"><p class="field-error" data-for="parallel_downloads"></p></div>
+      <div><input id="set-downloads" name="parallel_downloads" type="number"><p class="field-error" data-for="parallel_downloads"></p></div>
       <label class="label" for="set-cuts">Gleichzeitige Umwandlungen/Schnitte</label>
-      <div><input id="set-cuts" name="parallel_cuts" type="number" min="1" max="32"><p class="field-error" data-for="parallel_cuts"></p></div>
+      <div><input id="set-cuts" name="parallel_cuts" type="number"><p class="field-error" data-for="parallel_cuts"></p></div>
       <label class="label" for="set-retries">Neue Versuche bei Fehlern</label>
-      <div><input id="set-retries" name="max_retries" type="number" min="0" max="10"><p class="field-error" data-for="max_retries"></p></div>
+      <div><input id="set-retries" name="max_retries" type="number"><p class="field-error" data-for="max_retries"></p></div>
       <label class="label" for="set-sleep">Pause vor jedem Download (s)</label>
-      <div><input id="set-sleep" name="sleep_seconds" type="number" min="0" max="120">
+      <div><input id="set-sleep" name="sleep_seconds" type="number">
         <p class="muted small">0 = keine Pause. Hilft gegen die YouTube-Bot-Prüfung (zufällig zwischen n und 2n Sekunden).</p>
         <p class="field-error" data-for="sleep_seconds"></p></div>
     </div>
