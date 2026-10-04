@@ -242,3 +242,32 @@ def test_clear_finished_keeps_running_jobs(tmp_path):
     assert mgr.clear_finished() == 1
     assert [j["title"] for j in mgr.snapshot()] == ["läuft"]
     gate.set()
+
+
+def test_overall_progress_is_one_continuous_bar():
+    from ytdl.jobs import overall_progress
+
+    assert [overall_progress(FETCH, p) for p in (0, 50, 100)] == [0.0, 35.0, 70.0]
+    assert [overall_progress(CONVERT, p) for p in (0, 80, 100)] == [70.0, 94.0, 100.0]
+    assert overall_progress(CUT, 50) == 50.0
+
+
+def test_progress_never_jumps_back_between_stages(tmp_path):
+    seen = []
+
+    def fetch(it, cfg, report):
+        for pct in (0, 50, 100):
+            report("lädt", pct)
+            seen.append(mgr.snapshot()[0]["tasks"][0]["progress"])
+        return tmp_path
+
+    def convert(it, cfg, report, folder):
+        for status, pct in (("konvertiert", 0), ("taggt", 80), ("fertig", 100)):
+            report(status, pct)
+            seen.append(mgr.snapshot()[0]["tasks"][0]["progress"])
+        return tmp_path / "x.mp3"
+
+    mgr = JobManager(make_cfg(tmp_path), runners={FETCH: fetch, CONVERT: convert, CUT: convert})
+    mgr.submit("x", MUSIK, [item(1)])
+    assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
+    assert seen == sorted(seen) and seen[-1] == 100.0

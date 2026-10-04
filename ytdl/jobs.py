@@ -32,6 +32,14 @@ NET = "net"
 CPU = "cpu"
 POOL = {FETCH: NET, CONVERT: CPU, CUT: CPU}
 FINISHED = ("fertig", "fehler", "übersprungen")
+# Anteil jeder Stufe am Gesamtbalken eines Titels: Laden 0–70 %, Umwandeln + Taggen 70–100 %
+STAGE_RANGE = {FETCH: (0.0, 70.0), CONVERT: (70.0, 100.0), CUT: (0.0, 100.0)}
+
+
+def overall_progress(stage: str, pct: float) -> float:
+    """Fortschritt innerhalb einer Stufe (0–100) → Fortschritt des ganzen Titels (ein durchgehender Balken)."""
+    start, end = STAGE_RANGE[stage]
+    return start + (end - start) * max(0.0, min(100.0, pct)) / 100
 
 # Fehler, bei denen ein neuer Versuch nichts bringt
 _PERMANENT = (
@@ -168,10 +176,11 @@ class JobManager:
                 raise KeyError(job_id)
             for task in job.tasks:
                 if task.status == "fehler" and (task_id is None or task.item.id == task_id):
-                    task.status, task.progress, task.error, task.detail = "wartet", 0.0, "", ""
+                    task.status, task.error, task.detail = "wartet", "", ""
                     task.attempt, task.next_try = 1, 0.0
                     if task.stage == CONVERT and not Path(task.workdir or "/nonexistent").exists():
                         task.stage = FETCH  # Download ist weg → von vorn
+                    task.progress = STAGE_RANGE[task.stage][0]
                     self._pending.append(task)
             self._cond.notify_all()
             return job.to_dict()
@@ -211,7 +220,7 @@ class JobManager:
             pool = task.pool
 
             def report(status: str, pct: float, detail: str = "", task: Task = task) -> None:
-                task.status, task.progress, task.detail = status, pct, detail
+                task.status, task.progress, task.detail = status, overall_progress(task.stage, pct), detail
 
             try:
                 self._run(task, report)
@@ -231,7 +240,7 @@ class JobManager:
             # Download fertig → in den CPU-Pool weiterreichen; der Netzwerk-Worker nimmt sofort den nächsten Titel
             with self._cond:
                 task.stage, task.attempt, task.next_try = CONVERT, 1, 0.0
-                task.status, task.progress, task.detail = "wartet auf Konvertierung", 0.0, ""
+                task.status, task.progress, task.detail = "wartet auf Konvertierung", STAGE_RANGE[CONVERT][0], ""
                 self._pending.append(task)
                 self._cond.notify_all()
             return
@@ -255,7 +264,7 @@ class JobManager:
             delay = backoff_delay(task.attempt)
             task.attempt += 1
             task.next_try = time.time() + delay
-            task.status, task.progress = "neuer Versuch", 0.0
+            task.status, task.progress = "neuer Versuch", STAGE_RANGE[task.stage][0]
             task.detail = f"Versuch {task.attempt}/{self.max_attempts} – letzter Fehler: {message[:160]}"
             self._pending.append(task)
             self._cond.notify_all()

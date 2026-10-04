@@ -56,17 +56,6 @@ Was wann wohin geladen wurde, ist nicht nachvollziehbar, und die Job-Liste geht 
 - Die Historie ergänzt das Archiv, ersetzt es aber nicht. Das Archiv bleibt die schnelle Prüfung auf
   „schon geladen“.
 
-## Ein Fortschrittsbalken pro Titel
-
-**Ist-Zustand:** Laden, Konvertieren und Taggen haben jeweils einen eigenen Fortschritt von 0–100 %.
-Der Balken läuft also bis zum Ende, springt auf 0 zurück und beginnt von vorn.
-
-**Idee:** Ein durchgehender Balken pro Titel. Die Stufen bekommen feste Anteile, z.B. Laden 0–70 %,
-Umwandeln und Taggen 70–100 %. Album-Schnitte laufen einmal von 0 bis 100 %. Bei „wartet auf Konvertierung“
-bleibt der Balken bei 70 % stehen. Bei einem neuen Versuch geht er nur auf den Anfang der aktuellen Stufe zurück.
-
-*Vorarbeit liegt lokal im Git-Stash „Vorarbeit: ein Fortschrittsbalken …“ (inkl. Tests).*
-
 ## Zusammenfassung über der Download-Liste
 
 Über der Liste eine Zeile mit dem Gesamtstand, z.B.:
