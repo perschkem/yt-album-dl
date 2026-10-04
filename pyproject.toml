@@ -1,5 +1,5 @@
 [project]
-name = "youtube-album-dl"
+name = "yt-album-dl"
 version = "0.1.0"
 description = "YouTube → MP3 mit sauberer Sortierung, vollständigen Tags und automatischem Aufteilen von Album-Videos (Weboberfläche)"
 readme = "README.md"

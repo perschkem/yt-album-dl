@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.webp" alt="youtube-album-dl Logo" width="320">
+  <img src="docs/logo.webp" alt="yt-album-dl Logo" width="320">
 </p>
 
-<h1 align="center">youtube-album-dl</h1>
+<h1 align="center">yt-album-dl</h1>
 
 <p align="center">
   <strong>YouTube → MP3 mit sauberer Sortierung, vollständigen Tags und automatischem Aufteilen von Album-Videos.</strong>
@@ -49,8 +49,8 @@ Voraussetzungen: Linux oder WSL, Python ≥ 3.12, ffmpeg, Node.js (empfohlen –
 JavaScript-Umgebung für YouTube).
 
 ```bash
-git clone git@github.com:maxperschke/youtube-album-dl.git
-cd youtube-album-dl
+git clone git@github.com:maxperschke/yt-album-dl.git
+cd yt-album-dl
 sudo apt install ffmpeg
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Paketverwaltung, falls noch nicht vorhanden
 uv sync
