@@ -18,16 +18,16 @@ def make_cfg(tmp_path, **kw):
 
 
 def as_download(fn, tmp_path):
-    """Läuft `fn` in der Download-Stufe; Konvertieren ist ein schneller Platzhalter."""
-    def fetch(it, cfg, report):
+    """Läuft `fn` in der Download-Stufe (bzw. beim Schneiden); Konvertieren ist ein schneller Platzhalter."""
+    def fetch(it, cfg, report, workdir):
         fn(it, cfg, report)
         return tmp_path
 
-    def convert(it, cfg, report, folder):
+    def convert(it, cfg, report, workdir):
         report("fertig", 100.0)
         return tmp_path / f"{it.id}.mp3"
 
-    return {FETCH: fetch, CONVERT: convert, CUT: fn}
+    return {FETCH: fetch, CONVERT: convert, CUT: lambda it, cfg, report, workdir: fn(it, cfg, report)}
 
 
 def item(n, **kw):
@@ -191,7 +191,7 @@ def test_pipeline_downloads_continue_while_converting(tmp_path):
     """Netzwerk-Worker warten nicht auf ffmpeg: während langsam konvertiert wird, laufen alle Downloads durch."""
     fetched, converting, peak_cpu, lock = [], 0, 0, threading.Lock()
 
-    def fetch(it, cfg, report):
+    def fetch(it, cfg, report, workdir):
         fetched.append(it.id)
         return tmp_path
 
@@ -255,7 +255,7 @@ def test_overall_progress_is_one_continuous_bar():
 def test_progress_never_jumps_back_between_stages(tmp_path):
     seen = []
 
-    def fetch(it, cfg, report):
+    def fetch(it, cfg, report, workdir):
         for pct in (0, 50, 100):
             report("lädt", pct)
             seen.append(mgr.snapshot()[0]["tasks"][0]["progress"])
@@ -287,3 +287,71 @@ def test_history_errors_are_logged_not_raised(tmp_path, caplog):
         assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
         assert wait_until(lambda: "Historie" in caplog.text)
     assert mgr.snapshot()[0]["tasks"][0]["status"] == "fertig"  # Download bleibt erfolgreich
+
+
+# ---------- Task: Zustandsübergänge ----------
+
+def test_task_report_maps_stage_progress():
+    task = jobs.Task(item=item(1), stage=CONVERT)
+    task.report("taggt", 50.0, "Cover")
+    assert (task.status, task.progress, task.detail) == ("taggt", 85.0, "Cover")
+
+
+def test_task_advance_and_restart_stage(tmp_path):
+    task = jobs.Task(item=item(1), stage=FETCH, attempt=3)
+    task.advance(str(tmp_path))
+    assert (task.stage, task.attempt, task.status, task.progress) == (CONVERT, 1, "wartet auf Konvertierung", 70.0)
+    task.restart_stage()
+    assert task.stage == CONVERT  # Download noch da → nur neu konvertieren
+    task.workdir = str(tmp_path / "weg")
+    task.restart_stage()
+    assert task.stage == FETCH  # Download weg → von vorn
+
+
+def test_task_reset_for_retry(tmp_path):
+    task = jobs.Task(item=item(1), stage=CONVERT, workdir=str(tmp_path / "weg"), attempt=4, next_try=99.0)
+    task.fail("kaputt")
+    assert (task.status, task.error) == ("fehler", "kaputt")
+    task.reset_for_retry()
+    assert (task.status, task.error, task.attempt, task.next_try, task.stage, task.progress) == (
+        "wartet", "", 1, 0.0, FETCH, 0.0)
+
+
+def test_task_skip_and_finish():
+    task = jobs.Task(item=item(1), stage=CUT, detail="schneidet")
+    task.finish("/m/x.mp3")
+    assert (task.path, task.detail) == ("/m/x.mp3", "")
+    task.skip("übersprungen – existiert bereits")
+    assert (task.status, task.progress) == ("übersprungen", 100.0)
+
+
+def test_failed_convert_retries_without_new_download(tmp_path):
+    """Scheitert nur das Konvertieren, wird nicht erneut geladen (Arbeitsverzeichnis bleibt)."""
+    calls = []
+
+    def fetch(it, cfg, report, workdir):
+        calls.append("fetch")
+        return tmp_path
+
+    def convert(it, cfg, report, workdir):
+        calls.append("convert")
+        assert workdir == tmp_path
+        if calls.count("convert") == 1:
+            raise RuntimeError("ffmpeg: kurz kaputt")
+        report("fertig", 100.0)
+        return tmp_path / "x.mp3"
+
+    mgr = JobManager(make_cfg(tmp_path), runners={FETCH: fetch, CONVERT: convert, CUT: convert})
+    mgr.submit("x", MUSIK, [item(1)])
+    assert wait_until(lambda: mgr.snapshot()[0]["done"] == 1)
+    assert calls == ["fetch", "convert", "convert"]
+
+
+def test_real_runners_share_one_signature():
+    import inspect
+
+    from ytdl.albumvideo import cut_track
+    from ytdl.downloader import convert, fetch
+
+    for runner in (fetch, convert, cut_track):
+        assert list(inspect.signature(runner).parameters)[:4] == ["item", "cfg", "progress", "workdir"], runner

@@ -28,8 +28,9 @@ def client(tmp_path, monkeypatch):
         return target
 
     monkeypatch.setattr(web, "cfg", cfg)
-    runners = {FETCH: lambda it, cfg, report: tmp_path, CONVERT: lambda it, cfg, report, folder: fake(it, cfg, report),
-               CUT: fake}
+    runners = {FETCH: lambda it, cfg, report, workdir: tmp_path,
+               CONVERT: lambda it, cfg, report, workdir: fake(it, cfg, report),
+               CUT: lambda it, cfg, report, workdir: fake(it, cfg, report)}
     monkeypatch.setattr(web, "manager", JobManager(cfg, runners=runners))
     monkeypatch.setattr(web, "ffmpeg_available", lambda cfg: True)
     monkeypatch.setattr("ytdl.jobs.BACKOFF_BASE", 0.01)

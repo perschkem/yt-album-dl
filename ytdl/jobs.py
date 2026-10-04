@@ -40,6 +40,7 @@ CUT = "cut"
 NET = "net"
 CPU = "cpu"
 POOL = {FETCH: NET, CONVERT: CPU, CUT: CPU}
+NEXT_STAGE = {FETCH: CONVERT}  # nach dem Download wird konvertiert; Konvertieren und Schneiden sind die letzte Stufe
 # Anteil jeder Stufe am Gesamtbalken eines Titels: Laden 0–70 %, Umwandeln + Taggen 70–100 %
 STAGE_RANGE = {FETCH: (0.0, 70.0), CONVERT: (70.0, 100.0), CUT: (0.0, 100.0)}
 
@@ -93,6 +94,42 @@ class Task:
     @property
     def pool(self) -> str:
         return POOL[self.stage]
+
+    # ---------- Zustandsübergänge ----------
+
+    def report(self, status: str, pct: float, detail: str = "") -> None:
+        """Fortschritt aus dem Runner (pct bezieht sich auf die aktuelle Stufe)."""
+        self.status, self.progress, self.detail = status, overall_progress(self.stage, pct), detail
+
+    def requeue(self, status: str, next_try: float = 0.0, detail: str = "") -> None:
+        """Wartet wieder auf einen Worker – der Balken steht am Anfang der aktuellen Stufe."""
+        self.status, self.detail, self.next_try = status, detail, next_try
+        self.progress = STAGE_RANGE[self.stage][0]
+
+    def restart_stage(self) -> None:
+        """Konvertieren braucht den Download; ist das Arbeitsverzeichnis weg, beginnt der Titel von vorn."""
+        if self.stage == CONVERT and not (self.workdir and Path(self.workdir).exists()):
+            self.stage = FETCH
+
+    def advance(self, workdir: str) -> None:
+        """Stufe geschafft → nächste Stufe mit frischem Versuchszähler."""
+        self.workdir, self.stage, self.attempt = workdir, NEXT_STAGE[self.stage], 1
+        self.requeue(Status.WAITING_FOR_CONVERT)
+
+    def finish(self, path: str) -> None:
+        self.path, self.detail = path, ""
+
+    def fail(self, message: str) -> None:
+        self.status, self.error, self.detail = Status.FAILED, message, ""
+
+    def skip(self, reason: str) -> None:
+        self.status, self.detail, self.progress = Status.SKIPPED, reason, 100.0
+
+    def reset_for_retry(self) -> None:
+        """Manuell „Erneut versuchen“: Fehler vergessen, Versuche von vorn zählen."""
+        self.error, self.attempt = "", 1
+        self.restart_stage()
+        self.requeue(Status.WAITING)
 
     def to_dict(self, max_attempts: int) -> dict:
         wait = max(0.0, self.next_try - time.time()) if self.status in (Status.RETRYING, Status.PAUSED) else 0.0
@@ -205,26 +242,19 @@ class JobManager:
                 raise KeyError(job_id)
             for task in job.tasks:
                 if task.status == Status.FAILED and (task_id is None or task.item.id == task_id):
-                    task.status, task.error, task.detail = Status.WAITING, "", ""
-                    task.attempt, task.next_try = 1, 0.0
-                    if task.stage == CONVERT and not Path(task.workdir or "/nonexistent").exists():
-                        task.stage = FETCH  # Download ist weg → von vorn
-                    task.progress = STAGE_RANGE[task.stage][0]
-                    self._pending.append(task)
-            self._cond.notify_all()
+                    task.reset_for_retry()
+                    self._enqueue(task)
             return job.to_dict()
 
     def resume(self) -> int:
         """Pause wegen Bot-Prüfung aufheben (z.B. nachdem Cookies hinterlegt wurden) – pausierte Titel sofort neu starten."""
         with self._cond:
             self.paused_until = 0.0
-            count = 0
-            for task in self._pending:
-                if task.status == Status.PAUSED:
-                    task.next_try, task.status, task.detail = 0.0, Status.WAITING, ""
-                    count += 1
+            paused = [t for t in self._pending if t.status == Status.PAUSED]
+            for task in paused:
+                task.requeue(Status.WAITING)
             self._cond.notify_all()
-            return count
+            return len(paused)
 
     def clear_finished(self) -> int:
         """Entfernt abgeschlossene Jobs aus der Liste (nur Anzeige – Dateien bleiben)."""
@@ -236,6 +266,11 @@ class JobManager:
     def snapshot(self) -> list[dict]:
         with self._cond:
             return [job.to_dict() for job in self.jobs]
+
+    def _enqueue(self, task: Task) -> None:
+        """Aufgabe (wieder) einreihen – nur mit gehaltenem self._cond aufrufen."""
+        self._pending.append(task)
+        self._cond.notify_all()
 
     def _limit(self, pool: str, now: float) -> int:
         if pool == CPU:
@@ -263,16 +298,12 @@ class JobManager:
         while True:
             task = self._take()
             pool = task.pool
-
-            def report(status: str, pct: float, detail: str = "", task: Task = task) -> None:
-                task.status, task.progress, task.detail = status, overall_progress(task.stage, pct), detail
-
             try:
-                self._run(task, report)
+                self._run(task)
                 if task.status == Status.DONE:
                     self._record(task, Status.OVERWRITTEN if task.item.overwritten else Status.DONE)
             except Skipped as exc:
-                task.status, task.detail, task.progress = Status.SKIPPED, str(exc), 100.0
+                task.skip(str(exc))
                 self._record(task, Status.SKIPPED)
             except Exception as exc:  # ein Fehler soll die Warteschlange nie stoppen
                 self._failed(task, clean_error(exc))
@@ -283,22 +314,18 @@ class JobManager:
                     self._active[pool] -= 1
                     self._cond.notify_all()
 
-    def _run(self, task: Task, report) -> None:
-        runner = self._runners[task.stage]
-        if task.stage == FETCH:
-            task.workdir = str(runner(task.item, self.cfg, report))
+    def _run(self, task: Task) -> None:
+        """Alle Runner haben dieselbe Signatur (item, cfg, report, workdir) und liefern einen Pfad: das
+        Arbeitsverzeichnis für die nächste Stufe bzw. die fertige Datei."""
+        workdir = Path(task.workdir) if task.workdir else None
+        result = str(self._runners[task.stage](task.item, self.cfg, task.report, workdir))
+        if task.stage in NEXT_STAGE:
             # Download fertig → in den CPU-Pool weiterreichen; der Netzwerk-Worker nimmt sofort den nächsten Titel
             with self._cond:
-                task.stage, task.attempt, task.next_try = CONVERT, 1, 0.0
-                task.status, task.progress, task.detail = Status.WAITING_FOR_CONVERT, STAGE_RANGE[CONVERT][0], ""
-                self._pending.append(task)
-                self._cond.notify_all()
-            return
-        if task.stage == CONVERT:
-            task.path = str(runner(task.item, self.cfg, report, Path(task.workdir)))
+                task.advance(result)
+                self._enqueue(task)
         else:
-            task.path = str(runner(task.item, self.cfg, report))
-        task.detail = ""
+            task.finish(result)
 
     def _record(self, task: Task, result: str) -> None:
         """Abgeschlossenen Titel in die Historie schreiben – Fehler dabei dürfen den Download nicht stören."""
@@ -318,31 +345,24 @@ class JobManager:
                 youtube.note_bot_check()
                 task.bot_pauses += 1
                 if task.bot_pauses >= MAX_BOT_PAUSES:
-                    task.status, task.error, task.detail = Status.FAILED, BOT_CHECK_HINT, ""
+                    task.fail(BOT_CHECK_HINT)
                     return
                 # Alle Downloads anhalten statt sofort weiter anzufragen – das würde die Sperre nur verlängern.
                 # Kein Versuch wird verbraucht; „Jetzt fortsetzen“ hebt die Pause auf.
                 self.paused_until = max(self.paused_until, time.time() + BOT_PAUSE_SECONDS)
-                task.next_try = self.paused_until
-                task.status, task.progress = Status.PAUSED, STAGE_RANGE[task.stage][0]
                 until = time.strftime("%H:%M", time.localtime(self.paused_until))
-                task.detail = f"YouTube-Bot-Prüfung – Downloads pausieren bis {until}"
-                self._pending.append(task)
-                self._cond.notify_all()
+                task.requeue(Status.PAUSED, self.paused_until, f"YouTube-Bot-Prüfung – Downloads pausieren bis {until}")
+                self._enqueue(task)
                 return
             if task.pool == NET and is_throttled(message):
                 self._throttle_until = time.time() + THROTTLE_SECONDS
-            if is_permanent(message) or task.attempt >= self.max_attempts:
-                task.status, task.error, task.detail = Status.FAILED, message, ""
-                if task.attempt > 1 and not is_permanent(message):
-                    task.error = f"{message} (nach {task.attempt} Versuchen)"
+            permanent = is_permanent(message)
+            if permanent or task.attempt >= self.max_attempts:
+                task.fail(message if permanent or task.attempt == 1 else f"{message} (nach {task.attempt} Versuchen)")
                 return
-            if task.stage == CONVERT and not Path(task.workdir or "/nonexistent").exists():
-                task.stage = FETCH
+            task.restart_stage()
             delay = backoff_delay(task.attempt)
             task.attempt += 1
-            task.next_try = time.time() + delay
-            task.status, task.progress = Status.RETRYING, STAGE_RANGE[task.stage][0]
-            task.detail = f"Versuch {task.attempt}/{self.max_attempts} – letzter Fehler: {message[:160]}"
-            self._pending.append(task)
-            self._cond.notify_all()
+            task.requeue(Status.RETRYING, time.time() + delay,
+                         f"Versuch {task.attempt}/{self.max_attempts} – letzter Fehler: {message[:160]}")
+            self._enqueue(task)
