@@ -1,7 +1,7 @@
 [project]
-name = "ytdl"
+name = "youtube-album-dl"
 version = "0.1.0"
-description = "YouTube → MP3 mit sauberer Sortierung und Tags, bedienbar über den Browser"
+description = "YouTube → MP3 mit sauberer Sortierung, vollständigen Tags und automatischem Aufteilen von Album-Videos (Weboberfläche)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

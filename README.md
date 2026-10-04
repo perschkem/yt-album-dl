@@ -1,70 +1,90 @@
-# ytdl – YouTube → MP3
+# youtube-album-dl
 
-Lädt Musik und normale Videos (Podcasts, Vorträge …) von YouTube, konvertiert sie zu MP3 (320 kbit/s)
-und legt sie sortiert und vollständig getaggt ab. Bedienung über den Browser.
+**YouTube → MP3 mit sauberer Sortierung, vollständigen Tags und automatischem Aufteilen von Album-Videos.**
+
+Ein lokales Tool mit Weboberfläche: URL einfügen, erkannte Metadaten kontrollieren, herunterladen.
+Musik landet getaggt und nach Interpret/Album sortiert in der Musiksammlung, Podcasts und andere Videos
+nach Kanal sortiert in einem eigenen Ordner. Lange Videos, die ein ganzes Album enthalten, werden
+in einzelne Titel geschnitten – die Trackgrenzen findet das Programm selbst, notfalls per OCR im Videobild.
+
+## Funktionen
+
+- 🎵 **Musik** – MP3 320 kbit/s, ID3-Tags (Titel, Interpret, Album, Tracknummer, Jahr, Genre, Cover),
+  Dateiname immer `Interpret - Titel`
+- 🎙️ **Podcasts / Audio** – normale Videos als MP3, sortiert nach Kanal und Datum
+- 📀 **Playlists & Alben** – YouTube-Music-Alben werden automatisch als Album mit Tracknummern erkannt
+- ✂️ **Album in einem Video aufteilen** – Trackgrenzen aus Kapiteln, Beschreibung, **Bild-OCR**,
+  Kommentaren oder Pausenerkennung, mit Editor zur Kontrolle (Wellenform, Player, verschiebbare Grenzen)
+- ✏️ **Vorschau vor dem Download** – erkannte Interpreten/Titel/Alben direkt in der Tabelle korrigieren
+- 🧹 **Saubere Erkennung** – entfernt „(Official Video)“, „[HD]“, „(Lyrics)“ usw., vereinheitlicht „feat.“
+- 🔁 **Keine Duplikate** – bereits geladene Titel werden erkannt, vorhandene Dateien nie überschrieben
+- 🪟 **WSL-freundlich** – Windows-Pfade wie `D:\Musik` funktionieren direkt
 
 ## Ablage
 
 ```
-D:\Musik\
-  <Albuminterpret>\<Album> (<Jahr>)\01 - <Interpret> - <Titel>.mp3   ← Album/Playlist
-  <Interpret>\Singles\<Interpret> - <Titel>.mp3                      ← Einzeltitel
-D:\Podcasts\
-  <Kanal>\<YYYY-MM-DD> - <Titel>.mp3
+Musik/
+  <Albuminterpret>/<Album> (<Jahr>)/01 - <Interpret> - <Titel>.mp3   ← Album / Playlist / aufgeteiltes Video
+  <Interpret>/Singles/<Interpret> - <Titel>.mp3                      ← Einzeltitel
+Podcasts/
+  <Kanal>/<YYYY-MM-DD> - <Titel>.mp3
 ```
 
 **Musik-Tags:** Titel, Interpret, Albuminterpret, Album, Tracknummer, Jahr, Genre, Cover, YouTube-URL
 **Podcast-Tags:** Titel, Interpret/Album = Kanal, Datum, Genre „Podcast“, Cover, Beschreibung
 
-## Installation (WSL / Linux)
+## Installation
+
+Voraussetzungen: Linux oder WSL, Python ≥ 3.12, ffmpeg, Node.js (empfohlen – yt-dlp braucht eine
+JavaScript-Umgebung für YouTube).
 
 ```bash
+git clone git@github.com:maxperschke/youtube-album-dl.git
+cd youtube-album-dl
 sudo apt install ffmpeg
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Paketverwaltung, falls noch nicht vorhanden
 uv sync
-cp .env.example .env   # Zielordner anpassen
+cp .env.example .env                               # Zielordner anpassen
 ```
 
-## Starten
+## Benutzung
 
 ```bash
 uv run ytdl-web
 ```
 
-Dann im (Windows-)Browser **http://localhost:8000** öffnen.
+Dann im Browser **http://localhost:8000** öffnen (unter WSL auch im Windows-Browser).
 
 1. URL einfügen (Einzelvideo oder Playlist), Modus **Musik** oder **Podcast / Audio** wählen, **Prüfen**
-2. Erkannte Interpreten/Titel/Alben kontrollieren und bei Bedarf direkt in der Tabelle korrigieren.
-   Bei Playlists lässt sich Album/Albuminterpret/Jahr für alle Titel auf einmal setzen
-   (leeres Album → Ablage als Singles).
-3. **Herunterladen** – der Fortschritt wird unten angezeigt.
+2. Erkannte Metadaten kontrollieren und bei Bedarf in der Tabelle korrigieren. Bei Playlists lassen sich
+   Album, Albuminterpret und Jahr für alle Titel auf einmal setzen (leeres Album → Ablage als Singles).
+3. **Herunterladen** – der Fortschritt wird pro Titel angezeigt.
 
-Bereits heruntergeladene Titel werden erkannt (Archiv in `data/`) und sind standardmäßig abgewählt.
-Vorhandene Dateien werden nie überschrieben.
+Bei einer Video-URL mit `&list=…` (z.B. aus einem Mix) wird nur das Video geladen. Für eine ganze Playlist
+die Playlist-URL (`…/playlist?list=…`) verwenden.
 
-Hinweis: Bei einer Video-URL mit `&list=…` (z.B. aus einem Mix) wird nur das Video geladen. Für eine ganze
-Playlist bitte die Playlist-URL (`…/playlist?list=…`) verwenden. YouTube-Music-Alben (`OLAK5uy_…`) werden
-automatisch als Album mit Tracknummern erkannt.
+### Album in einem Video
 
-## Album in einem Video
-
-Ist ein Musikvideo sehr lang (ab 20 Min.) oder hat es Kapitel, bietet die Vorschau **„Als Album aufteilen“** an.
-Das Programm lädt die Audiospur (Zwischenspeicher in `data/cache/`, wird nach 7 Tagen gelöscht) und sucht die
-Trackgrenzen in dieser Reihenfolge:
+Ist ein Musikvideo sehr lang (ab 20 Min.) oder hat es Kapitel, erscheint **„Als Album aufteilen“**.
+Die Audiospur wird geladen (Zwischenspeicher in `data/cache/`, nach 7 Tagen gelöscht) und die Trackgrenzen
+werden in dieser Reihenfolge gesucht:
 
 1. YouTube-Kapitel
 2. Zeitstempel in der Videobeschreibung
-3. **Trackliste im Videobild** – einige Standbilder werden per OCR (RapidOCR) gelesen
+3. **Trackliste im Videobild** – einige Standbilder werden per OCR ([RapidOCR](https://github.com/RapidAI/RapidOCR)) gelesen
 4. Zeitstempel in den Top-Kommentaren
 5. Pausenerkennung im Audio
 
-Zeitstempel (2–4) werden automatisch auf die leiseste Stelle in ±3 s gerückt, damit die Schnitte in der Pause liegen.
+Zeitstempel werden auf die leiseste Stelle in ±3 s gerückt, damit die Schnitte sauber in der Pause liegen.
 
-Im Editor kontrollierst du das Ergebnis: Wellenform mit verschiebbaren Markierungen, Player, ▶ pro Titel,
-„⇤ hier“ setzt den Start auf die aktuelle Abspielposition. Unter **„Grenzen neu suchen“** kannst du
-die Pausenerkennung mit fester Titelanzahl wiederholen (hilft bei Überblendungen), eine Trackliste einfügen
-(mit Zeitstempeln oder nur Titel) oder wechselnde **Titeleinblendungen** im Video scannen lassen (langsamer).
-**„Schneiden & speichern“** legt die Titel als Album ab: `Musik/<Interpret>/<Album>/01 - <Interpret> - <Titel>.mp3`.
+Im Editor kontrollierst du das Ergebnis:
+
+- Wellenform mit nummerierten Markierungen – Klick springt dorthin, Markierungen lassen sich verschieben
+- pro Titel **▶** (ab Start abspielen), **⇤ hier** (Start = aktuelle Position), **✕** (Grenze entfernen)
+- **Grenzen neu suchen:** Pausenerkennung mit fester Titelanzahl (hilft bei Überblendungen),
+  Trackliste einfügen (mit Zeitstempeln oder nur Titel), Titeleinblendungen im Video scannen (langsamer)
+
+**„Schneiden & speichern“** legt die Titel als Album mit Tracknummern und Cover ab.
 
 ## Konfiguration (`.env`)
 
@@ -75,7 +95,24 @@ die Pausenerkennung mit fester Titelanzahl wiederholen (hilft bei Überblendunge
 | `BITRATE`         | `320`                       | MP3-Bitrate in kbit/s                      |
 | `HOST` / `PORT`   | `127.0.0.1` / `8000`        | Webserver                                  |
 | `FFMPEG_LOCATION` | –                           | Ordner mit ffmpeg, falls nicht im PATH     |
-| `DATA_DIR`        | `./data`                    | Download-Archiv                            |
+| `DATA_DIR`        | `./data`                    | Download-Archiv und Zwischenspeicher       |
+
+## Projektstruktur
+
+```
+ytdl/
+  web.py          FastAPI-Server und API
+  downloader.py   yt-dlp: Metadaten abfragen, herunterladen, MP3 konvertieren
+  metadata.py     Erkennung von Interpret/Titel/Album, Bereinigung
+  paths.py        Windows-sichere Dateinamen, Zielpfade
+  tagger.py       ID3-Tags und Cover (mutagen, Pillow)
+  jobs.py         Download-Warteschlange im Hintergrund
+  albumvideo.py   Album in einem Video: Analyse, Zwischenspeicher, Schnitt
+  split.py        Tracklisten-Parser, Pausenerkennung, Schnitt per ffmpeg
+  ocr.py          Text im Videobild lesen (RapidOCR)
+  static/         Weboberfläche (HTML/CSS/JS, ohne Build-Schritt)
+tests/            pytest
+```
 
 ## Entwicklung
 
@@ -87,4 +124,9 @@ uv run python -m ytdl.downloader <url> --mode musik --probe   # Erkennung ohne D
 YouTube ändert regelmäßig etwas – wenn Downloads fehlschlagen, hilft meist
 `uv lock --upgrade-package yt-dlp && uv sync`.
 
-Nur für Inhalte nutzen, die du herunterladen darfst.
+Geplante Verbesserungen stehen in [IMPROVEMENTS.md](IMPROVEMENTS.md).
+
+## Hinweis
+
+Nur für Inhalte nutzen, die du herunterladen darfst – z.B. eigene, freie oder für den privaten Gebrauch
+erlaubte Inhalte. Beachte die Nutzungsbedingungen von YouTube und das Urheberrecht.
