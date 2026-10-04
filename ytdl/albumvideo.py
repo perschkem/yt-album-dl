@@ -145,10 +145,6 @@ class AlbumCache:
         return json.loads(path.read_text(encoding="utf-8"))
 
 
-def audio_path(cfg: Config, video_id: str) -> Path | None:
-    return AlbumCache(cfg, video_id).audio
-
-
 # ---------- Hilfen ----------
 
 def _guess_album(title: str) -> str:

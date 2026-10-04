@@ -367,6 +367,8 @@ Im Editor kontrollierst du das Ergebnis:
 ```
 ytdl/
   web.py          FastAPI-Server und API
+  schemas.py      Anfragen an die API (pydantic)
+  settings.py     Einstellungsdialog: Prüfung je Feld, Werte für .env und Config
   config.py       Einstellungen aus .env, Modi und Audio-Formate
   ffmpeg.py       Welches ffmpeg (FFMPEG_LOCATION oder PATH)
   downloader.py   Titel laden (Stufe 1) und umwandeln (Stufe 2), URL prüfen

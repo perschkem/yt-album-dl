@@ -166,3 +166,49 @@ def test_event_stream_stops_on_disconnect():
 def test_job_events_route_exists(client):
     routes = {r.path for r in web.app.routes}
     assert {"/api/jobs/events", "/api/activities/{activity_id}/events"} <= routes
+
+
+def test_settings_include_input_limits(client):
+    data = client.get("/api/settings").json()
+    assert data["limits"]["parallel_downloads"] == [1, 16] and 320 in data["bitrates"] and "firefox" in data["browsers"]
+
+
+def test_cover_errors_become_400(client, monkeypatch):
+    from ytdl.covers import CoverError
+
+    def broken(url, size=300):
+        raise CoverError("Unter der URL liegt kein Bild")
+
+    monkeypatch.setattr(web, "thumbnail_preview", broken)
+    monkeypatch.setattr(web, "check_cover", broken)
+    for res in (client.get("/api/cover/thumbnail", params={"src": "https://x"}),
+                client.post("/api/cover/check", json={"url": "https://x"})):
+        assert res.status_code == 400 and res.json()["detail"] == "Unter der URL liegt kein Bild"
+
+
+def test_unknown_activity_events(client):
+    assert client.get("/api/activities/gibtsnicht/events").status_code == 404
+
+
+def test_album_audio(client):
+    assert client.get("/api/album/vid123/audio").status_code == 404
+    folder = client.cfg.data_dir / "cache" / "vid123"
+    folder.mkdir(parents=True)
+    (folder / "audio.m4a").write_bytes(b"audio")
+    (folder / "audio.jpg").write_bytes(b"bild")
+    res = client.get("/api/album/vid123/audio")
+    assert res.status_code == 200 and res.content == b"audio"
+
+
+def test_album_endpoints_validate_id_and_start_activities(client, monkeypatch):
+    started = []
+    monkeypatch.setattr(web.activities, "start", lambda kind, func: started.append(kind) or type("A", (), {"id": "a1"}))
+    for route, body in (("detect", {}), ("text", {"text": "x"}), ("scan", {})):
+        assert client.post(f"/api/album/bad!id/{route}", json=body).status_code == 400
+        assert client.post(f"/api/album/vid/{route}", json=body).json() == {"activity_id": "a1"}
+    assert started == ["album-pausen", "album-trackliste", "album-scan"]
+
+
+def test_album_job_without_analysis(client):
+    res = client.post("/api/album/neu/jobs", json={"album": "A", "album_artist": "B", "tracks": [{"start": 0, "title": "x"}]})
+    assert res.status_code == 400 and "nicht analysiert" in res.json()["detail"]
