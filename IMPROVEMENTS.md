@@ -62,3 +62,32 @@ steht er in der Oberfläche auf „fehler“ und bleibt dort. Man muss die URL e
 - Unter reinem Linux als Fallback `xdg-open <ordner>`.
 - **Sicherheit:** Nur Pfade innerhalb von `MUSIK_DIR`/`PODCAST_DIR` zulassen. Der Server läuft nur auf `127.0.0.1`.
 - Zusätzlich praktisch: Windows-Pfad statt WSL-Pfad in der Oberfläche anzeigen und zum Kopieren anbieten.
+
+## Ladeanzeigen: immer zeigen, was gerade passiert
+
+**Ist-Zustand:** Bei der Album-Analyse steht ca. eine Minute lang nur ein Spinner mit einem pauschalen Text
+(„Lade Audio und suche Trackgrenzen …“). Man sieht nicht, ob gerade geladen, OCR gemacht oder ein Kommentar
+gesucht wird, und auch nicht, was bei den einzelnen Schritten herauskam. Ähnlich bei „Prüfen“ (Playlists mit
+vielen Titeln) und beim Scan der Titeleinblendungen.
+
+**Idee:**
+- **Schrittweise Statusmeldungen mit Ergebnis**, z.B. bei der Album-Analyse:
+  ```
+  ✓ Video-Infos geladen
+  ✓ Audio geladen (112 MB)
+  ✓ Lautstärkeverlauf berechnet
+  ✗ Keine Kapitel
+  ✗ Keine Zeitstempel in der Beschreibung
+  ✓ OCR: Trackliste im Bild gefunden (20 Titel, Bild 1 von 6)   ← fertig, Rest übersprungen
+  ```
+  oder im anderen Fall: „OCR: kein Text mit Zeitstempeln in 6 Bildern“ → „Suche in 60 Kommentaren …“ →
+  „Kein Kommentar mit Trackliste“ → „Pausenerkennung: 14 Pausen gefunden“.
+- **Fortschritt, wo messbar:** Download in % mit MB/Geschwindigkeit, OCR „Bild 3/6“, Einblendungs-Scan
+  „Bild 120/680“, Prüfen einer Playlist „Titel 12/40“.
+- **Umsetzung:** Analyse/Prüfen als Hintergrund-Job (siehe parallele Downloads), der eine Liste von Schritten
+  mit Status (läuft/fertig/übersprungen/fehlgeschlagen), Detailtext und Fortschritt führt. Die Oberfläche fragt
+  den Status regelmäßig ab (wie bei `/api/jobs`) oder bekommt ihn per Server-Sent Events.
+- Das Schrittprotokoll nach der Analyse eingeklappt im Editor behalten („Wie wurden die Grenzen gefunden?“),
+  damit man nachvollziehen kann, warum z.B. die Pausenerkennung statt OCR verwendet wurde.
+- Bei Fehlern sagen, in welchem Schritt es passiert ist (z.B. „Fehler beim Lesen des Audios“ statt nur
+  „ffmpeg konnte das Audio nicht lesen“).
