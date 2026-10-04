@@ -70,7 +70,10 @@
 
     <div class="row spread">
       <span class="muted small">Bereits geladene Titel sind abgewählt – Haken setzen, um sie erneut zu laden.</span>
-      <button type="button" id="download-btn" class="primary">Herunterladen</button>
+      <div class="row">
+        <button type="button" id="preview-reset" class="ghost" title="Alle Tags auf die erkannten Werte zurücksetzen">↺ Alle zurücksetzen</button>
+        <button type="button" id="download-btn" class="primary">Herunterladen</button>
+      </div>
     </div>
   </section>
 
@@ -133,7 +136,10 @@
 
       <div class="row spread">
         <span class="muted small">Bitte Grenzen kurz anhören – ▶ spielt ab dem Start des Titels.</span>
-        <button type="button" id="album-cut" class="primary">Schneiden &amp; speichern</button>
+        <div class="row">
+          <button type="button" id="album-reset" class="ghost" title="Album-Felder, Titel und Grenzen auf das Ergebnis der Erkennung zurücksetzen">↺ Alle zurücksetzen</button>
+          <button type="button" id="album-cut" class="primary">Schneiden &amp; speichern</button>
+        </div>
       </div>
     </div>
   </section>

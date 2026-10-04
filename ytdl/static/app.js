@@ -137,7 +137,7 @@ $("#probe-form").addEventListener("submit", async (event) => {
     const data = await runActivity("/api/probe", { url: $("#url").value, mode }, $("#probe-steps"));
     $("#probe-steps").hidden = true;
     preview = { title: data.title, mode, url: $("#url").value.trim(),
-      items: data.items.map((i) => ({ ...i, selected: !i.already })) };
+      items: data.items.map((i) => ({ ...i, selected: !i.already, orig: tagSnapshot(i) })) };
     $("#album").hidden = true;
     $("#album-hint").hidden = !data.album_video;
     renderPreview(data.is_playlist);
@@ -151,6 +151,28 @@ $("#probe-form").addEventListener("submit", async (event) => {
   }
 });
 
+// ---------- Tags zurücksetzen ----------
+const TAG_KEYS = ["artist", "title", "album", "album_artist", "track_no", "track_total", "year", "date"];
+const tagSnapshot = (item) => Object.fromEntries(TAG_KEYS.map((k) => [k, item[k] ?? null]));
+const same = (a, b) => String(a ?? "") === String(b ?? "");
+const isChanged = (item) => TAG_KEYS.some((k) => !same(item[k], item.orig[k]));
+
+function fillBulk() {
+  const first = preview.items[0];
+  $("#bulk-album").value = first.album || "";
+  $("#bulk-album-artist").value = first.album ? first.album_artist : "";
+  $("#bulk-year").value = first.album ? first.year : "";
+  $("#bulk-va").checked = $("#bulk-same-artist").checked = false;
+  $("#bulk-album-artist").disabled = $("#bulk-same-artist").disabled = false;
+}
+
+$("#preview-reset").addEventListener("click", () => {
+  if (!preview.items.some(isChanged) || !confirm("Alle Tags auf die erkannten Werte zurücksetzen?")) return;
+  preview.items.forEach((i) => Object.assign(i, i.orig));
+  if (!$("#bulk").hidden) fillBulk();
+  renderRows();
+});
+
 function renderPreview(isPlaylist) {
   const cols = COLUMNS[preview.mode];
   $("#preview").hidden = false;
@@ -159,12 +181,7 @@ function renderPreview(isPlaylist) {
 
   const bulk = preview.mode === "musik" && preview.items.length > 1;
   $("#bulk").hidden = !bulk;
-  if (bulk) {
-    const first = preview.items[0];
-    $("#bulk-album").value = first.album || "";
-    $("#bulk-album-artist").value = first.album ? first.album_artist : "";
-    $("#bulk-year").value = first.album ? first.year : "";
-  }
+  if (bulk) fillBulk();
 
   const allBox = el("input", { type: "checkbox", title: "Alle auswählen",
     checked: preview.items.every((i) => i.selected) });
@@ -173,7 +190,7 @@ function renderPreview(isPlaylist) {
     renderRows();
   });
   $("#preview-head").replaceChildren(
-    el("th", {}, allBox), ...cols.map((c) => el("th", {}, c.label)), el("th", {}, "Original"));
+    el("th", {}, allBox), ...cols.map((c) => el("th", {}, c.label)), el("th", {}, "Original"), el("th", {}));
   renderRows();
 }
 
@@ -182,17 +199,26 @@ function renderRows() {
   $("#preview-body").replaceChildren(...preview.items.map((item) => {
     const box = el("input", { type: "checkbox", checked: item.selected });
     box.addEventListener("change", () => (item.selected = box.checked));
+    const reset = el("button", { type: "button", class: "small-btn", title: "Erkannte Werte wiederherstellen" }, "↺");
+    const refresh = () => (reset.disabled = !isChanged(item));
+    reset.addEventListener("click", () => { Object.assign(item, item.orig); renderRows(); });
     const cells = cols.map((c) => {
       const input = el("input", { type: c.type || "text", value: item[c.key] ?? "", title: item[c.key] ?? "" });
+      const td = el("td", { class: c.cls || "" }, input);
+      td.classList.toggle("changed", !same(item[c.key], item.orig[c.key]));
       input.addEventListener("input", () => {
         item[c.key] = c.type === "number" ? (input.value ? Number(input.value) : null) : input.value;
         input.title = input.value; // voller Text als Tooltip, falls das Feld zu schmal ist
+        td.classList.toggle("changed", !same(item[c.key], item.orig[c.key]));
+        refresh();
       });
-      return el("td", { class: c.cls || "" }, input);
+      return td;
     });
+    refresh();
     const orig = el("td", { class: "orig" }, item.source_title,
       item.already ? el("div", {}, el("span", { class: "badge" }, "bereits geladen")) : null);
-    return el("tr", { class: item.already ? "already" : "" }, el("td", {}, box), ...cells, orig);
+    return el("tr", { class: item.already ? "already" : "" }, el("td", {}, box), ...cells, orig,
+      el("td", { class: "actions" }, reset));
   }));
 }
 
@@ -262,7 +288,7 @@ function resolveConflicts(conflicts) {
 }
 
 $("#download-btn").addEventListener("click", async () => {
-  const items = preview.items.filter((i) => i.selected).map(({ selected, already, ...rest }) => rest);
+  const items = preview.items.filter((i) => i.selected).map(({ selected, already, orig, ...rest }) => rest);
   if (!items.length) return;
   const btn = $("#download-btn");
   btn.disabled = true;
@@ -431,8 +457,12 @@ function trackEnd(i) {
   return i + 1 < album.tracks.length ? album.tracks[i + 1].start : album.duration;
 }
 
+const trackCopy = (t) => ({ start: t.start, artist: t.artist, title: t.title });
+
 function setTracks(result, steps) {
-  album.tracks = result.tracks.map((t) => ({ start: t.start, artist: t.artist, title: t.title }));
+  // Jede neue Erkennung (Analyse, Pausen, Trackliste, Scan) ist der neue Ausgangszustand für „Zurücksetzen“
+  album.original.tracks = result.tracks.map(trackCopy);
+  album.tracks = result.tracks.map((t) => ({ ...trackCopy(t), orig: trackCopy(t) }));
   $("#album-source").textContent = `Grenzen aus: ${result.source_label} · bitte kontrollieren`;
   if (steps) renderSteps($("#album-log-steps"), steps);
   renderAlbum();
@@ -446,14 +476,9 @@ $("#album-open").addEventListener("click", async () => {
   albumBusy(true);
   try {
     const data = await runActivity("/api/album/analyze", { url: preview.url }, $("#album-steps"));
-    album = { id: data.id, duration: data.duration, peaks: data.peaks, tracks: [], albumArtist: data.artist };
-    showArtistCol = false;
-    $("#album-va").checked = false;
-    $("#album-artist").disabled = false;
-    $("#album-name").value = data.album;
-    $("#album-artist").value = data.artist;
-    $("#album-year").value = data.year || "";
-    $("#album-genre").value = "";
+    album = { id: data.id, duration: data.duration, peaks: data.peaks, tracks: [], albumArtist: data.artist,
+      original: { album: data.album, artist: data.artist, year: data.year || "", tracks: [] } };
+    resetAlbumFields();
     renderHints(data.hints || []);
     audio.src = data.audio_url;
     $("#album-body").hidden = false;
@@ -463,6 +488,25 @@ $("#album-open").addEventListener("click", async () => {
   } finally {
     albumBusy(false);
   }
+});
+
+function resetAlbumFields() {
+  const o = album.original;
+  showArtistCol = false;
+  $("#album-va").checked = false;
+  $("#album-artist").disabled = $("#album-apply").disabled = false;
+  $("#album-name").value = o.album;
+  $("#album-artist").value = o.artist;
+  $("#album-year").value = o.year;
+  $("#album-genre").value = "";
+  album.albumArtist = o.artist;
+}
+
+$("#album-reset").addEventListener("click", () => {
+  if (!confirm("Album-Felder, Titel und Grenzen auf das Ergebnis der Erkennung zurücksetzen?")) return;
+  resetAlbumFields();
+  album.tracks = album.original.tracks.map((t) => ({ ...trackCopy(t), orig: trackCopy(t) }));
+  renderAlbum();
 });
 
 function renderHints(hints) {
@@ -542,9 +586,20 @@ function renderAlbum() {
       renderAlbum();
     });
     const artist = el("input", { value: t.artist, title: t.artist });
-    artist.addEventListener("input", () => { t.artist = artist.value; artist.title = artist.value; });
     const title = el("input", { value: t.title, title: t.title });
-    title.addEventListener("input", () => { t.title = title.value; title.title = title.value; });
+    const trackChanged = () => t.orig && ["start", "artist", "title"].some((k) => !same(t[k], t.orig[k]));
+    const reset = el("button", { type: "button", class: "secondary", title: t.orig ? "Erkannte Werte wiederherstellen" : "Von Hand hinzugefügt" }, "↺");
+    const mark = () => {
+      reset.disabled = !trackChanged();
+      if (t.orig) {
+        artist.parentNode?.classList.toggle("changed", !same(t.artist, t.orig.artist));
+        title.parentNode?.classList.toggle("changed", !same(t.title, t.orig.title));
+        start.parentNode?.classList.toggle("changed", !same(t.start, t.orig.start));
+      }
+    };
+    artist.addEventListener("input", () => { t.artist = artist.value; artist.title = artist.value; mark(); });
+    title.addEventListener("input", () => { t.title = title.value; title.title = title.value; mark(); });
+    reset.addEventListener("click", () => { Object.assign(t, t.orig); renderAlbum(); });
 
     const play = el("button", { type: "button", class: "secondary", title: "Ab Start abspielen" }, "▶");
     play.addEventListener("click", () => { audio.currentTime = t.start; audio.play(); });
@@ -553,12 +608,14 @@ function renderAlbum() {
     const del = el("button", { type: "button", class: "secondary", title: "Grenze entfernen (mit vorherigem Titel zusammenfassen)" }, "✕");
     del.addEventListener("click", () => { album.tracks.splice(i, 1); renderAlbum(); });
 
-    return el("tr", { class: i === playing ? "playing" : "" },
+    const row = el("tr", { class: i === playing ? "playing" : "" },
       el("td", { class: "dur" }, String(i + 1)),
       el("td", { class: "time" }, start),
       el("td", { class: "dur" }, fmt(trackEnd(i) - t.start).replace(/\.\d$/, "")),
       el("td", {}, artist), el("td", {}, title),
-      el("td", { class: "actions" }, play, here, del));
+      el("td", { class: "actions" }, play, here, reset, del));
+    mark();
+    return row;
   }));
   drawWave();
 }
@@ -678,7 +735,7 @@ $("#album-cut").addEventListener("click", async () => {
     const body = {
       album: $("#album-name").value, album_artist: $("#album-artist").value,
       year: $("#album-year").value, genre: $("#album-genre").value,
-      audio_format: selectedFormat(), tracks: album.tracks,
+      audio_format: selectedFormat(), tracks: album.tracks.map(({ orig, ...t }) => t),
     };
     const decisions = await resolveConflicts(await api(`/api/album/${album.id}/conflicts`, body));
     if (decisions === null) return;

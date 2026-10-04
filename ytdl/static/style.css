@@ -168,6 +168,8 @@ td.num input { width: 72px; min-width: 0; }
 td.date input { width: 120px; min-width: 0; }
 td.orig { font-size: .8rem; color: var(--muted); max-width: 260px; }
 tr.already td { opacity: .6; }
+/* von Hand geänderte Werte dezent markieren */
+td.changed input { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--warn); }
 .badge { display: inline-block; font-size: .72rem; padding: 1px 6px; background: var(--shell); color: #fff3df; margin-top: 3px; }
 
 /* Schildkröten */

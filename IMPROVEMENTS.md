@@ -68,13 +68,3 @@ Was wann wohin geladen wurde, ist nicht nachvollziehbar, und die Job-Liste geht 
 - Vorschau des Covers direkt neben dem Feld. Lässt sich das Bild nicht laden, kommt eine verständliche
   Fehlermeldung und das Vorschaubild bleibt.
 - Optional: Bild per Drag & Drop oder Datei-Upload statt URL.
-
-## „Zurücksetzen“-Knopf für Tags
-
-Wenn man sich bei den Tags komplett vertan hat:
-- Pro Titel ein Knopf „↺ Zurücksetzen“, der Interpret, Titel, Album, Tracknummer, Jahr usw. auf die
-  ursprünglich erkannten Werte zurücksetzt
-- Dazu ein „Alle zurücksetzen“ für die ganze Vorschau bzw. den ganzen Album-Editor (inkl. Album-Feldern,
-  Sampler-Haken und Grenzen aus der Analyse), mit Rückfrage
-- Umsetzung: Beim Prüfen bzw. bei der Analyse eine unveränderte Kopie der erkannten Werte merken.
-  Geänderte Felder dezent markieren, damit man sieht, was von Hand angepasst wurde.
