@@ -85,6 +85,7 @@ class Job:
     title: str
     mode: str
     tasks: list[Task]
+    max_attempts: int = 1
     created: float = field(default_factory=time.time)
 
     def folder(self) -> str:
@@ -94,7 +95,7 @@ class Job:
             return ""
         return os.path.commonpath([str(Path(p).parent) for p in paths])
 
-    def to_dict(self, max_attempts: int) -> dict:
+    def to_dict(self) -> dict:
         folder = self.folder()
         return {
             "id": self.id,
@@ -106,7 +107,7 @@ class Job:
             "total": len(self.tasks),
             "folder": folder,
             "win_folder": to_windows_path(Path(folder)) if folder else "",
-            "tasks": [t.to_dict(max_attempts) for t in self.tasks],
+            "tasks": [t.to_dict(self.max_attempts) for t in self.tasks],
         }
 
 
@@ -128,7 +129,7 @@ class JobManager:
 
     def submit(self, title: str, mode: str, items: list[Item]) -> Job:
         tasks = [Task(item=i, kind=CUT if i.start is not None else DOWNLOAD) for i in items]
-        job = Job(id=uuid.uuid4().hex[:8], title=title, mode=mode, tasks=tasks)
+        job = Job(id=uuid.uuid4().hex[:8], title=title, mode=mode, tasks=tasks, max_attempts=self.max_attempts)
         with self._cond:
             self.jobs.insert(0, job)
             del self.jobs[MAX_JOBS_KEPT:]
@@ -148,11 +149,11 @@ class JobManager:
                     task.attempt, task.next_try = 1, 0.0
                     self._pending.append(task)
             self._cond.notify_all()
-            return job.to_dict(self.max_attempts)
+            return job.to_dict()
 
     def snapshot(self) -> list[dict]:
         with self._cond:
-            return [job.to_dict(self.max_attempts) for job in self.jobs]
+            return [job.to_dict() for job in self.jobs]
 
     def _limit(self, kind: str, now: float) -> int:
         if kind == CUT:
