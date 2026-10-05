@@ -84,6 +84,10 @@ h1, h2, h3, button:not(.small-btn):not(.link):not(.chip):not(.ghost), .segmented
 h1 { margin: 0; font-size: 2.1rem; line-height: 1.1; color: var(--frame); }
 h2 { margin: 0; font-size: 1.3rem; }
 section > .row > h2, .downloads h2 { margin: 30px 0 12px; }
+/* Überschrift mit Schildkröte daneben: Abstand sitzt am Container, nicht an der h2 */
+.section-head { margin: 18px 0 8px; }
+.section-head > h2, .downloads .section-head h2 { margin: 0; }
+.section-turtle .turtle { width: 96px; height: 96px; }
 code { background: var(--panel-2); padding: 1px 5px; }
 .muted { color: var(--muted); margin: 0; }
 .small { font-size: .85rem; }
@@ -339,6 +343,7 @@ dialog::backdrop { background: rgba(5, 8, 15, .7); }
 @media (max-width: 560px) {
   h1 { font-size: 1.6rem; }
   .masthead .logo { width: 96px; height: 96px; }
+  .section-turtle .turtle { width: 64px; height: 64px; }
   .step { grid-template-columns: 22px 1fr; }
   .step-detail { grid-column: 2; }
   .conflict { grid-template-columns: 1fr; }

@@ -38,6 +38,7 @@ export function hideError(box) {
 // Fertige Bilder je Situation (DESIGN.md). Fehlende kommen nach und nach – bis dahin der Pixel-Platzhalter.
 export const TURTLES = {
   pruefen: { src: "img/turtles/pruefen.webp", round: true },
+  downloads: { src: "img/turtles/downloads.webp", round: true },
 };
 export const TURTLE_PLACEHOLDER = "img/turtles/platzhalter.svg";
 

@@ -6,6 +6,7 @@ Maskottchen, das in jeder Situation zeigt, was gerade passiert.
 <p align="center">
   <img src="docs/logo.webp" alt="Logo" width="200">
   <img src="docs/turtles/pruefen.webp" alt="Schildkröte prüft" width="200">
+  <img src="docs/turtles/downloads.webp" alt="Schildkröte trägt Platten" width="200">
 </p>
 
 ## Stand
@@ -16,7 +17,7 @@ Schrittprotokoll. Für fehlende Situationsbilder springt `ytdl/static/img/turtle
 
 **Neues Bild einbauen:** Datei nach `ytdl/static/img/turtles/<situation>.png` legen und in `TURTLES` in
 `ytdl/static/js/dom.js` eintragen (z.B. `leer: { src: "img/turtles/leer.png" }`), dann hier abhaken.
-Im Code bereits verwendet: `pruefen` (Prüfen, Analyse, Konflikt-Dialog) und `leer` (leere Download-Liste).
+Im Code bereits verwendet: `pruefen` (Prüfen, Analyse, Konflikt-Dialog), `downloads` (Überschrift „Downloads“) und `leer` (leere Download-Liste).
 
 ## Farben aus dem Logo
 
@@ -50,7 +51,7 @@ Die Bilder kommen wegen des Rate-Limits des Bild-Tools nach und nach. ✅ = vorh
 | Status | Bereich | Schildkröte | Wo sie erscheint | Datei |
 |---|---|---|---|---|
 | ✅ | **Prüfen** | prüft mit Lupe | Ladeanzeige beim Prüfen/Analysieren, Konflikt-Dialog | `pruefen.webp` |
-| ⏳ | **Downloads** | z.B. trägt einen Stapel Platten auf dem Panzer | neben der Überschrift „Downloads“ | `downloads.webp` |
+| ✅ | **Downloads** | trägt einen Stapel Platten auf dem Panzer | neben der Überschrift „Downloads“ | `downloads.webp` |
 | ⏳ | **Historie** | z.B. blättert in einem dicken Plattenarchiv / Logbuch | im Kopf der Seite „Historie“ | `historie.webp` |
 | ⏳ | **Einstellungen** | z.B. dreht mit einem Schraubenschlüssel an einem Plattenspieler | im Kopf des Einstellungsdialogs | `einstellungen.webp` |
 
