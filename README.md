@@ -88,7 +88,7 @@ Schritt-für-Schritt-Anleitungen: [Windows (mit WSL)](#windows-mit-wsl) · [macO
 **Kurzfassung für Erfahrene:**
 
 ```bash
-git clone https://github.com/maxperschke/yt-album-dl.git
+git clone https://github.com/perschkem/yt-album-dl.git
 cd yt-album-dl
 uv sync
 uv run ytdl-web          # → http://localhost:8000, Zielordner unter ⚙ Einstellungen festlegen
@@ -145,7 +145,7 @@ Fragt Deno „Edit shell configs to add deno to the PATH?“, antworte mit `y` u
 **3. yt-album-dl herunterladen und einrichten**
 
 ```bash
-git clone https://github.com/maxperschke/yt-album-dl.git
+git clone https://github.com/perschkem/yt-album-dl.git
 cd yt-album-dl
 uv sync
 ```
@@ -188,7 +188,7 @@ brew install ffmpeg git uv deno
 **4. yt-album-dl herunterladen, einrichten und starten:**
 
 ```bash
-git clone https://github.com/maxperschke/yt-album-dl.git
+git clone https://github.com/perschkem/yt-album-dl.git
 cd yt-album-dl
 uv sync
 uv run ytdl-web
@@ -229,7 +229,7 @@ curl -fsSL https://deno.land/install.sh | sh
 **3. yt-album-dl herunterladen, einrichten und starten:**
 
 ```bash
-git clone https://github.com/maxperschke/yt-album-dl.git
+git clone https://github.com/perschkem/yt-album-dl.git
 cd yt-album-dl
 uv sync
 uv run ytdl-web

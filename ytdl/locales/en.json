@@ -366,7 +366,7 @@
   "settings.sleep": "Pause before each download (s)",
   "settings.sleep_note": "0 = no pause. Helps against the YouTube bot check (randomly between n and 2n seconds).",
   "settings.auth_heading": "YouTube sign-in (against “Sign in to confirm you’re not a bot”)",
-  "settings.auth_intro": "Optional. <strong>Only used when YouTube asks for a bot check</strong> – yt-album-dl then repeats the request with these cookies and downloads with sign-in for one hour, then without it again. Recommendation: use a secondary account – otherwise YouTube can link the downloads to your own account. <a href=\"https://github.com/maxperschke/yt-album-dl/blob/main/docs/COOKIES.md\" target=\"_blank\" rel=\"noopener\">Guide: exporting cookies (German)</a>",
+  "settings.auth_intro": "Optional. <strong>Only used when YouTube asks for a bot check</strong> – yt-album-dl then repeats the request with these cookies and downloads with sign-in for one hour, then without it again. Recommendation: use a secondary account – otherwise YouTube can link the downloads to your own account. <a href=\"https://github.com/perschkem/yt-album-dl/blob/main/docs/COOKIES.md\" target=\"_blank\" rel=\"noopener\">Guide: exporting cookies (German)</a>",
   "settings.cookie_file_placeholder": "e.g. D:\\Downloads\\youtube-cookies.txt",
   "settings.cookie_file_note": "Export it on youtube.com with a browser extension such as “Get cookies.txt LOCALLY”. The most reliable way under WSL.",
   "settings.cookie_browser": "… or from a browser",
